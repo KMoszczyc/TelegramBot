@@ -15,8 +15,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def ozjasz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    random_phrase = random.choice(ozjasz_phrases)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=random_phrase)
+    filter_phrase = ' '.join(context.args).lower()
+    filtered_prases = [phrase for phrase in ozjasz_phrases if filter_phrase in phrase.lower()]
+    if filtered_prases:
+        response = random.choice(filtered_prases)
+    else:
+        response = 'Nie ma takiego nagłówka :('
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 async def tvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filter_phrase = ' '.join(context.args).lower()
