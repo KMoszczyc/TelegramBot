@@ -1,8 +1,8 @@
 import os.path
-
+import random
 from telegram import Update
 from telegram.ext import ContextTypes
-import random
+
 import src.utils as utils
 from definitions import ROOT_DIR
 
@@ -24,6 +24,7 @@ async def ozjasz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
+
 async def tvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filter_phrase = ' '.join(context.args).lower()
     filtered_headlines = [headline for headline in tvp_headlines if filter_phrase in headline.lower()]
@@ -33,6 +34,7 @@ async def tvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = 'Nie ma takiego nagłówka :('
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
 
 async def tusk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tusk_headlines = [headline for headline in tvp_headlines if 'tusk' in headline.lower()]

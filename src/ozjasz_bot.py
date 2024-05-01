@@ -20,7 +20,6 @@ class OzjaszBot:
         self.add_commands()
         self.application.run_polling()
 
-
     def add_commands(self):
         command_handlers = [CommandHandler('start', commands.start),
                             CommandHandler('ozjasz', commands.ozjasz),
@@ -28,4 +27,3 @@ class OzjaszBot:
                             CommandHandler('tusk', commands.tusk)
                             ]
         self.application.add_handlers(command_handlers)
-
