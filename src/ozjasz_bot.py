@@ -24,6 +24,8 @@ class OzjaszBot:
         command_handlers = [CommandHandler('start', commands.start),
                             CommandHandler('ozjasz', commands.ozjasz),
                             CommandHandler('tvp', commands.tvp),
-                            CommandHandler('tusk', commands.tusk)
+                            CommandHandler('tvp_latest', commands.tvp_latest),
+                            CommandHandler('tusk', commands.tusk),
+                            CommandHandler('help', commands.help)
                             ]
         self.application.add_handlers(command_handlers)
