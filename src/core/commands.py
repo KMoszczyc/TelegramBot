@@ -3,17 +3,16 @@ import random
 from telegram import Update
 from telegram.ext import ContextTypes
 
-import src.utils as utils
-from definitions import ROOT_DIR
+import src.core.utils as utils
+from definitions import TVP_HEADLINES_PATH, TVP_LATEST_HEADLINES_PATH, OZJASZ_PHRASES_PATH
 
-tvp_headlines = utils.read_str_file(os.path.join(ROOT_DIR, 'data/paski-tvp.txt'))
-tvp_latest_headlines = utils.read_str_file(os.path.join(ROOT_DIR, 'data/tvp_latest_headlines.txt'))
+tvp_headlines = utils.read_str_file(TVP_HEADLINES_PATH)
+tvp_latest_headlines = utils.read_str_file(TVP_LATEST_HEADLINES_PATH)
+ozjasz_phrases = utils.read_str_file(OZJASZ_PHRASES_PATH)
 
-ozjasz_phrases = utils.read_str_file(os.path.join(ROOT_DIR, 'data/ozjasz-wypowiedzi.txt'))
 
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
+# async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
 
 
 async def ozjasz(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -51,14 +50,15 @@ async def tvp_latest(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tusk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print('chat_id:',update.effective_chat.id)
     tusk_headlines = [headline for headline in tvp_headlines if 'tusk' in headline.lower()]
     random_headline = random.choice(tusk_headlines)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=random_headline)
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    commands = ['ozjasz', 'tvp', 'tvp_latest', 'tusk', 'help']
-    response = "Istniejące komendy to: " + ', '.join(commands)
+    commands = ['ozjasz [phrase]', 'tvp [phrase]', 'tvp_latest [phrase]', 'tusk', 'chatstats [today,yesterday,week,month,year,total]', 'help']
+    response = "Istniejące komendy to:\n- /" + '\n- /'.join(commands)
     # response =  ', '.join(commands)
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
