@@ -33,6 +33,7 @@ class OzjaszBot:
                             CommandHandler('tvp_latest', commands.tvp_latest),
                             CommandHandler('tusk', commands.tusk),
                             CommandHandler('help', commands.help),
-                            CommandHandler('chatstats', self.chat_commands.summary)
+                            CommandHandler('chatstats', self.chat_commands.summary),
+                            CommandHandler('topmessages', self.chat_commands.top_messages_by_reactions),
                             ]
         self.application.add_handlers(command_handlers)

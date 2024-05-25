@@ -41,13 +41,15 @@ class ChatStats:
     def download_chat_history(self):
         print(self.metadata)
         latest_messages = self.client_api_handler.get_chat_history(self.metadata['last_message_utc_timestamp'])
-        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'reaction_emojis', 'reaction_user_ids']
+        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids']
         data = []
 
+        malformed_count = 0
         for message in latest_messages:
-            reaction_emojis, reaction_user_ids = [], []
+            all_emojis, reaction_emojis, reaction_user_ids = [], [], []
             if message is None or message.sender is None:
                 continue
+            success = True
 
             if message.reactions is not None and message.reactions.recent_reactions is not None:
                 for reaction in message.reactions.recent_reactions:
@@ -55,24 +57,35 @@ class ChatStats:
                         reaction_emojis.append(reaction.reaction.emoticon)
                         reaction_user_ids.append(reaction.peer_id.user_id)
                     except AttributeError:
-                        log.error(f'Issue with reading message reaction emojis/user_id: {message}', traceback.format_exc())
+                        success = False
+                        malformed_count += 1
+                        log.error(f'Issue with reading message reaction emojis/user_id: {message}.')
+                for reaction_count in message.reactions.results:
+                    count = reaction_count.count
+                    emoji = reaction_count.reaction.emoticon
+                    all_emojis.extend([emoji] * count)
+
+            if not success:
+                continue
 
             single_message_data = [message.id, message.date, message.sender_id, message.sender.first_name, message.sender.last_name, message.sender.username,
                                    message.text,
-                                   reaction_emojis, reaction_user_ids]
+                                   all_emojis,
+                                   reaction_emojis,
+                                   reaction_user_ids]
             data.append(single_message_data)
 
         old_chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
 
-        print(f'New {len(latest_chat_df)} messages since {self.metadata['last_message_dt']}')
+        print(f'New {len(latest_chat_df)} messages since {self.metadata['last_message_dt']} with {malformed_count} malformed records.')
         print(latest_chat_df.head(5))
         print('merging?', old_chat_df is not None and not latest_chat_df.empty)
         if old_chat_df is not None and not latest_chat_df.empty:
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df]).drop_duplicates(subset='message_id').reset_index(drop=True)
         elif old_chat_df is not None:
             merged_chat_df = old_chat_df
-        elif latest_chat_df.empty:
+        elif not latest_chat_df.empty:
             merged_chat_df = latest_chat_df
         else:
             return
@@ -94,7 +107,7 @@ class ChatStats:
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
         cleaned_df = cleaned_df.merge(users_df, on='user_id')
-        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'reaction_emojis', 'reaction_user_ids']]
+        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids']]
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert('Europe/Warsaw')
 
         # print(users_df)

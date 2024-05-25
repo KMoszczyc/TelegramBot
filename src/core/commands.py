@@ -57,7 +57,7 @@ async def tusk(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    commands = ['ozjasz [phrase]', 'tvp [phrase]', 'tvp_latest [phrase]', 'tusk', 'chatstats [today,yesterday,week,month,year,total]', 'help']
+    commands = ['ozjasz [phrase]', 'tvp [phrase]', 'tvp_latest [phrase]', 'tusk', 'chatstats [today,yesterday,week,month,year,total]', 'topmessages [today,yesterday,week,month,year,total]', 'help']
     response = "Istniejące komendy to:\n- /" + '\n- /'.join(commands)
     # response =  ', '.join(commands)
 

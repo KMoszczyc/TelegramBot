@@ -13,16 +13,7 @@ def load_metadata():
     """Load metadata pickle file as a dict. If it doesn't exist, check if the chat data exists, to extract some metadata out."""
     if not os.path.exists(METADATA_PATH):
         chat_df = read_df(CHAT_HISTORY_PATH)
-        chat_df = chat_df.sort_values(by='message_id').reset_index(drop=True)
-        if chat_df is not None:
-            return {
-                'last_message_id': chat_df['message_id'].iloc[-1],
-                'last_message_utc_timestamp': int(chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp()),
-                'last_message_dt': chat_df['timestamp'].iloc[-1],
-                'last_update': None,
-                'message_count': len(chat_df)
-            }
-        else:
+        if chat_df is None:
             return {
                 'last_message_id': None,
                 'last_message_utc_timestamp': None,
@@ -31,6 +22,14 @@ def load_metadata():
                 'message_count': None
             }
 
+        chat_df = chat_df.sort_values(by='message_id').reset_index(drop=True)
+        return {
+            'last_message_id': chat_df['message_id'].iloc[-1],
+            'last_message_utc_timestamp': int(chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp()),
+            'last_message_dt': chat_df['timestamp'].iloc[-1],
+            'last_update': None,
+            'message_count': len(chat_df)
+        }
     with open(METADATA_PATH, 'rb') as f:
         return pickle.load(f)
 
@@ -59,5 +58,3 @@ def read_df(path):
 
 def read_users():
     return pd.read_parquet(USERS_PATH)
-
-

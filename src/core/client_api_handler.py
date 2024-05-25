@@ -1,3 +1,5 @@
+import datetime
+
 import pandas as pd
 from telethon import TelegramClient, events, sync
 import os
@@ -19,9 +21,10 @@ class ClientAPIHandler:
         chat_history = []
         count = 0
         print('last_timestamp:', last_timestamp)
+        date = datetime.date(2024, 4, 1)
         with self.client:
-            # 10 is the limit on how many messages to fetch. Remove or change for more.
             for msg in self.client.iter_messages(CHAT_ID, offset_date=last_timestamp, reverse=True):
+            # for msg in self.client.iter_messages(CHAT_ID, offset_date=date, reverse=True):
                 if msg is None:
                     break
 
@@ -30,6 +33,8 @@ class ClientAPIHandler:
                         print(msg.date, msg.id,  ':', msg.sender.first_name, msg.sender.last_name, msg.sender.username, msg.sender_id, ':', msg.text)
                     else:
                         print(msg.id, msg.text)
+
+                # print(msg.date, msg.id,  ':', msg.sender.first_name, msg.sender.last_name, msg.sender.username, msg.sender_id, ':', msg.text, msg.reactions)
 
                 chat_history.append(msg)
                 count += 1
