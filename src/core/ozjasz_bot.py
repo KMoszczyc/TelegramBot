@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler
 
 import src.core.commands as commands
 from src.core.client_api_handler import ClientAPIHandler
-from src.stats.chat_stats import ChatStats
+from src.stats.chat_etl import ChatETL
 from src.stats.chat_commands import ChatCommands
 import src.stats.utils as chat_utils
 
@@ -15,13 +15,7 @@ TOKEN = os.getenv('TOKEN')
 
 class OzjaszBot:
     def __init__(self):
-        self.api_handler = ClientAPIHandler()
-
-        self.chat_stats = ChatStats(self.api_handler)
-        self.chat_stats.update()
         self.chat_commands = ChatCommands()
-        # chat_stats.generate_word_stats()
-        # self.chat_stats.generate_reactions_df()
 
         self.application = ApplicationBuilder().token(TOKEN).build()
         self.add_commands()

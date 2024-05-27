@@ -1,0 +1,12 @@
+FROM python:3.12.2-slim
+
+RUN apt-get update && apt-get install -y cron
+WORKDIR /app
+COPY .. .
+
+COPY ./cron /etc/cron.d/cron
+RUN chmod 0644 /etc/cron.d/cron
+RUN crontab /etc/cron.d/cron
+
+RUN pip install -r requirements.txt
+CMD ["cron", "-f"]

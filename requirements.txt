@@ -1,2 +1,5 @@
 python-telegram-bot
 python-dotenv
+telethon
+pandas
+pyarrow

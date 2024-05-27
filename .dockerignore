@@ -3,6 +3,6 @@
 **/env
 **/.git
 **/.gitignore
-Dockerfile
+docker/Dockerfile_bot
 README.md
 docker-compose.yml

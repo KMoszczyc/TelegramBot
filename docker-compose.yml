@@ -1,9 +1,21 @@
 version: '3'
 
 services:
-  app:
+  bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile_bot
     env_file:
       - .env
-    image: ozjaszgoldberg/telegram-bot
+    image: telegram-bot
+    volumes:
+      - .:/TelegramBot
+  etl:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile_bot_etl
+    env_file:
+      - .env
+    image: telegram-bot-etl
     volumes:
       - .:/TelegramBot
