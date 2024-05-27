@@ -2,6 +2,8 @@ FROM python:3.12.2-slim
 
 RUN apt-get update && apt-get install -y cron dos2unix
 WORKDIR /app
+ENV TZ="Europe/Warsaw"
+
 COPY .. .
 
 COPY ./cron_etl /etc/cron.d/cron_etl
