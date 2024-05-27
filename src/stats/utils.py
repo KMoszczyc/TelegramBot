@@ -36,6 +36,8 @@ def load_metadata():
 
 def save_metadata(metadata):
     """Dump self.metadata dict to pickle file."""
+    dir_path = os.path.split(METADATA_PATH)[0]
+    create_dir(dir_path)
     with open(METADATA_PATH, 'wb') as f:
         pickle.dump(metadata, f, protocol=pickle.HIGHEST_PROTOCOL)
 

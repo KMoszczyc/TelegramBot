@@ -30,6 +30,7 @@ class ChatETL:
         log.info(f"Running chat update for the past: {days} days")
 
         self.download_chat_history(days)
+        self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
 
