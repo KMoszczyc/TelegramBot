@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone, timedelta
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 import os
 from dotenv import load_dotenv
 
@@ -11,12 +12,17 @@ API_ID = int(os.getenv('API_ID'))
 API_HASH = os.getenv('API_HASH')
 CHAT_ID = int(os.getenv('CHAT_ID'))
 TEST_CHAT_ID = int(os.getenv('TEST_CHAT_ID'))
+SESSION = os.getenv('SESSION')
 
 
 class ClientAPIHandler:
     def __init__(self):
         log.info("Initialize telethon client API")
-        self.client = TelegramClient('ozjasz_sessionv2', api_id=API_ID, api_hash=API_HASH)
+        # self.client = TelegramClient('ozjasz_sessionv2', api_id=API_ID, api_hash=API_HASH)
+        self.client = TelegramClient(StringSession(SESSION), api_id=API_ID, api_hash=API_HASH)
+
+        # session_str = StringSession.save(self.client.session)
+        # print(session_str)
 
     def get_chat_history(self, days: int = 1) -> object:
         """

@@ -1,12 +1,16 @@
 FROM python:3.12.2-slim
 
-RUN apt-get update && apt-get install -y cron
+RUN apt-get update && apt-get install -y cron dos2unix
 WORKDIR /app
 COPY .. .
 
-COPY ./cron /etc/cron.d/cron
-RUN chmod 0644 /etc/cron.d/cron
-RUN crontab /etc/cron.d/cron
+COPY ./cron_etl /etc/cron.d/cron_etl
+RUN chmod 0644 /etc/cron.d/cron_etl
+RUN dos2unix /etc/cron.d/cron_etl
+RUN crontab /etc/cron.d/cron_etl
+
+RUN touch /var/log/chat_etl.log
+RUN touch /var/log/cron.log
 
 RUN pip install -r requirements.txt
-CMD ["cron", "-f"]
+CMD cron && tail -f /var/log/chat_etl.log /var/log/cron.log

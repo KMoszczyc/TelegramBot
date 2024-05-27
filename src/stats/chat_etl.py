@@ -75,7 +75,7 @@ class ChatETL:
         old_chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
 
-        print(f'New {len(latest_chat_df)} messages since {self.metadata['last_message_dt']} with {malformed_count} malformed records.')
+        log.info(f'New {len(latest_chat_df)} messages since {datetime.now(tz=timezone.utc) - timedelta(days=days)} with {malformed_count} malformed records.')
         # print(latest_chat_df.head(5))
         if old_chat_df is not None and not latest_chat_df.empty:
             # merged_chat_df = pd.concat([old_chat_df, latest_chat_df]).drop_duplicates(subset='message_id').reset_index(drop=True)
@@ -89,7 +89,7 @@ class ChatETL:
 
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
 
-        print('merged_chat_df', merged_chat_df.head(5))
+        print('merged_chat_df', merged_chat_df.tail(5))
         self.metadata['last_message_id'] = merged_chat_df['message_id'].iloc[-1]
         self.metadata['last_message_utc_timestamp'] = int(merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp())
         self.metadata['1_day_offset_utc_timestamp'] = int((merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None) - timedelta(days=1)).timestamp())

@@ -1,2 +1,0 @@
-*/2 * * * *  python3 main_etl.py --days 7 2>&1 >>/var/log/chat_stats.log
-0 0 * * *  python3 main_etl.py --days 7 2>&1 >>/var/log/chat_stats.log
