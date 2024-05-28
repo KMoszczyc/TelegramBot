@@ -23,6 +23,7 @@ class OzjaszBot:
 
     def add_commands(self):
         command_handlers = [CommandHandler('ozjasz', commands.ozjasz),
+                            CommandHandler('bartosiak', commands.bartosiak),
                             CommandHandler('tvp', commands.tvp),
                             CommandHandler('tvp_latest', commands.tvp_latest),
                             CommandHandler('tusk', commands.tusk),

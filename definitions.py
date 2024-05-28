@@ -17,6 +17,7 @@ TVP_HEADLINES_PATH = os.path.join(ROOT_DIR, 'data/misc/paski-tvp.txt')
 TVP_LATEST_HEADLINES_PATH = os.path.join(ROOT_DIR, 'data/misc/tvp_latest_headlines.txt')
 OZJASZ_PHRASES_PATH = os.path.join(ROOT_DIR, 'data/misc/ozjasz-wypowiedzi.txt')
 POLISH_STOPWORDS_PATH = os.path.join(ROOT_DIR, 'data/misc/polish.stopwords.txt')
+BARTOSIAK_PATH = os.path.join(ROOT_DIR, 'data/misc/bartosiak.txt')
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
