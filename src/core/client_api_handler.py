@@ -46,14 +46,12 @@ class ClientAPIHandler:
 
                     if count % 10000 == 0:
                         if hasattr(msg.sender, 'first_name') and hasattr(msg.sender, 'last_name') and hasattr(msg.sender, 'username'):
-                            print(msg.date, msg.id, ':', msg.sender.first_name, msg.sender.last_name, msg.sender.username, msg.sender_id, ':', msg.text)
+                            log.info(msg.date, msg.id, ':', msg.sender.first_name, msg.sender.last_name, msg.sender.username, msg.sender_id, ':', msg.text)
                         else:
-                            print(msg.id, msg.text)
+                            log.info(msg.id, msg.text)
 
                     if msg.photo:
                         img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(msg.id)}.jpg')
-                        # print(msg)
-                        # print(msg.photo)
                         if not os.path.exists(img_path):
                             await msg.download_media(file=img_path)
 
