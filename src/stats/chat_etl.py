@@ -39,7 +39,7 @@ class ChatETL:
         # latest_messages = self.client_api_handler.get_chat_history(self.metadata['last_message_utc_timestamp'])
         latest_messages = self.client_api_handler.get_chat_history(days)
 
-        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids']
+        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids', 'photo']
         data = []
 
         malformed_count = 0
@@ -65,12 +65,13 @@ class ChatETL:
 
             if not success:
                 continue
-
+            is_photo = True if message.photo else False
             single_message_data = [message.id, message.date, message.sender_id, message.sender.first_name, message.sender.last_name, message.sender.username,
                                    message.text,
                                    all_emojis,
                                    reaction_emojis,
-                                   reaction_user_ids]
+                                   reaction_user_ids,
+                                   is_photo]
             data.append(single_message_data)
 
         old_chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
@@ -108,7 +109,7 @@ class ChatETL:
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
         cleaned_df = cleaned_df.merge(users_df, on='user_id')
-        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids']]
+        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids', 'photo']]
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert('Europe/Warsaw')
 
         # print(users_df)

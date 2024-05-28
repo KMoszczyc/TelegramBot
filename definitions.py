@@ -7,6 +7,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Chat data
 METADATA_PATH = os.path.join(ROOT_DIR, 'data/chat/metadata.pickle')
 CHAT_HISTORY_PATH = os.path.join(ROOT_DIR, 'data/chat/chat_history.parquet')
+CHAT_IMAGES_DIR_PATH = os.path.join(ROOT_DIR, 'data/chat/images')
+
 # CHAT_HISTORY_PATH = os.path.join(ROOT_DIR, 'data/chat/test_chat_history.parquet')
 CLEANED_CHAT_HISTORY_PATH = os.path.join(ROOT_DIR, 'data/chat/cleaned_chat_history.parquet')
 REACTIONS_PATH = os.path.join(ROOT_DIR, 'data/chat/reactions.parquet')

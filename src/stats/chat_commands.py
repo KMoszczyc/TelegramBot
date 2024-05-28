@@ -1,10 +1,12 @@
+import os.path
+
 from telegram import Update
 from telegram.ext import ContextTypes
 import logging
 import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH
 import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
@@ -40,7 +42,6 @@ class ChatCommands:
 
     async def top_messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Top 5 messages from selected time period by number of reactions"""
-        print('args:', context.args)
         chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
         if error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
@@ -60,6 +61,30 @@ class ChatCommands:
             text += f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['all_emojis'])}]"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+
+    async def top_memes_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Top 5 memes (images) from selected time period by number of reactions"""
+        chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
+        if user is not None:
+            chat_df = chat_df[chat_df['final_username'] == user]
+            text = f"Top Cinco memes by {user} ({mode.value}):"
+        else:
+            text = f"Top Cinco memes ({mode.value}):"
+
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+
+        chat_df = chat_df[chat_df['photo']==True]
+        chat_df['reactions_num'] = chat_df['all_emojis'].apply(lambda x: len(x))
+        chat_df = chat_df.sort_values('reactions_num', ascending=False)
+
+        for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
+            img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(row['message_id'])}.jpg')
+            caption = f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['all_emojis'])}]"
+            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img_path, caption=caption)
 
     def parse_args(self, args: list[str]) -> (PeriodFilterMode, str, str):
         error = ''

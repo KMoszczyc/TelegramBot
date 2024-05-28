@@ -10,7 +10,6 @@ def read_str_file(path):
 
 def create_dir(path):
     if os.path.isdir(path):
-        log.info(f'Directory in path: {path} already exists!')
         return
 
     os.makedirs(path)
