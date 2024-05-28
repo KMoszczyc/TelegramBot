@@ -12,11 +12,8 @@ log = logging.getLogger(__name__)
 
 class ChatCommands:
     def __init__(self):
-        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
         self.users_df = stats_utils.read_df(USERS_PATH)
 
-        # print(self.chat_df.tail(5))
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
@@ -106,13 +103,15 @@ class ChatCommands:
 
     def preprocess_input(self, args):
         mode, user, error = self.parse_args(args)
-        chat_df = self.filter_df(self.chat_df, mode)
-        reactions_df = self.filter_df(self.reactions_df, mode)
-        return chat_df, reactions_df, mode, user, error
+        chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        reactions_df = stats_utils.read_df(REACTIONS_PATH)
+        filtered_chat_df = self.filter_df(chat_df, mode)
+        filtered_reactions_df = self.filter_df(reactions_df, mode)
+        return filtered_chat_df, filtered_reactions_df, mode, user, error
 
     def parse_int(self, num_str):
         try:
             return int(num_str)
         except ValueError:
-            log.error(f"{num_str} is not a number. {e}")
+            log.error(f"{num_str} is not a number.")
             return None
