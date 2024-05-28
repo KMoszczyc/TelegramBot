@@ -46,9 +46,9 @@ class ClientAPIHandler:
 
                     if count % 10000 == 0:
                         if hasattr(msg.sender, 'first_name') and hasattr(msg.sender, 'last_name') and hasattr(msg.sender, 'username'):
-                            log.info(msg.date, msg.id, ':', msg.sender.first_name, msg.sender.last_name, msg.sender.username, msg.sender_id, ':', msg.text)
+                            log.info(f"{msg.date}, {msg.id}, ':', {msg.sender.first_name}, {msg.sender.last_name}, {msg.sender.username}, {msg.sender_id}, ':', {msg.text}")
                         else:
-                            log.info(msg.id, msg.text)
+                            log.info(f"{msg.id}, {msg.text}")
 
                     if msg.photo:
                         img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(msg.id)}.jpg')

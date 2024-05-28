@@ -14,6 +14,7 @@ import src.core.utils as core_utils
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', 1000)
+pd.options.mode.chained_assignment = None
 
 log = logging.getLogger(__name__)
 excluded_user_ids = [6455867316, 6455867316, 1660481027, 1626698260, 1653222205, 1626673718, 2103796402]
@@ -91,7 +92,7 @@ class ChatETL:
 
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
 
-        print('merged_chat_df', merged_chat_df.tail(5))
+        print(merged_chat_df.tail(1))
         self.metadata['last_message_id'] = merged_chat_df['message_id'].iloc[-1]
         self.metadata['last_message_utc_timestamp'] = int(merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp())
         self.metadata['1_day_offset_utc_timestamp'] = int((merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None) - timedelta(days=1)).timestamp())
