@@ -4,7 +4,7 @@ import logging
 import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH
 import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
@@ -13,7 +13,20 @@ log = logging.getLogger(__name__)
 class ChatCommands:
     def __init__(self):
         self.users_df = stats_utils.read_df(USERS_PATH)
+        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
 
+    def update(self):
+        """If chat data was updated recentely, reload it."""
+        metadata = stats_utils.load_metadata()
+        if not metadata['new_latest_data']:
+            return
+
+        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
+        metadata['new_latest_data'] = False
+        stats_utils.save_metadata(metadata)
+        log.info('Reloading chat data due to the recent update.')
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
@@ -102,11 +115,11 @@ class ChatCommands:
                 return df.copy(deep=True)
 
     def preprocess_input(self, args):
+        self.update()
+
         mode, user, error = self.parse_args(args)
-        chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        reactions_df = stats_utils.read_df(REACTIONS_PATH)
-        filtered_chat_df = self.filter_df(chat_df, mode)
-        filtered_reactions_df = self.filter_df(reactions_df, mode)
+        filtered_chat_df = self.filter_df(self.chat_df, mode)
+        filtered_reactions_df = self.filter_df(self.reactions_df, mode)
         return filtered_chat_df, filtered_reactions_df, mode, user, error
 
     def parse_int(self, num_str):

@@ -97,6 +97,8 @@ class ChatETL:
         self.metadata['last_message_dt'] = merged_chat_df['timestamp'].iloc[-1]
         self.metadata['last_update'] = datetime.now(tz=timezone.utc)
         self.metadata['message_count'] = len(merged_chat_df)
+        self.metadata['new_latest_data'] = True
+
         stats_utils.save_metadata(self.metadata)
 
         stats_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)

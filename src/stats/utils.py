@@ -19,7 +19,8 @@ def load_metadata():
                 'last_message_utc_timestamp': None,
                 'last_message_dt': None,
                 'last_update': None,
-                'message_count': None
+                'message_count': None,
+                'new_latest_data': False
             }
 
         chat_df = chat_df.sort_values(by='message_id').reset_index(drop=True)
@@ -28,7 +29,8 @@ def load_metadata():
             'last_message_utc_timestamp': int(chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp()),
             'last_message_dt': chat_df['timestamp'].iloc[-1],
             'last_update': None,
-            'message_count': len(chat_df)
+            'message_count': len(chat_df),
+            'new_latest_data': False
         }
     with open(METADATA_PATH, 'rb') as f:
         return pickle.load(f)
