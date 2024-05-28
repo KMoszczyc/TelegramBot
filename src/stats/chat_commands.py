@@ -19,6 +19,7 @@ class ChatCommands:
     def update(self):
         """If chat data was updated recentely, reload it."""
         metadata = stats_utils.load_metadata()
+        log.info(metadata)
         if not metadata['new_latest_data']:
             return
 

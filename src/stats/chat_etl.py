@@ -35,7 +35,7 @@ class ChatETL:
         self.generate_reactions_df()
 
     def download_chat_history(self, days):
-        print(self.metadata)
+        self.metadata = stats_utils.load_metadata()
         # latest_messages = self.client_api_handler.get_chat_history(self.metadata['last_message_utc_timestamp'])
         latest_messages = self.client_api_handler.get_chat_history(days)
 
@@ -100,7 +100,6 @@ class ChatETL:
         self.metadata['new_latest_data'] = True
 
         stats_utils.save_metadata(self.metadata)
-
         stats_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
 
     def clean_chat_history(self):
