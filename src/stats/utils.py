@@ -7,7 +7,6 @@ import logging
 import traceback
 import pickle
 from datetime import datetime, timezone
-import time
 
 
 def load_metadata():
@@ -33,28 +32,16 @@ def load_metadata():
             'message_count': len(chat_df),
             'new_latest_data': False
         }
-    os.system('sync')
-    time.sleep(2)
-
-    fd = os.open(METADATA_PATH, os.O_RDONLY)
-    os.fsync(fd)
-    with open(fd, 'rb') as file:
-        metadata = pickle.load(file)
-    os.close(fd)
-    return metadata
-
-    # with open('metadata.pickle', 'rb') as f: metadata = pickle.load(f)
+    with open(METADATA_PATH, 'rb', buffering=0) as f:
+        return pickle.load(f)
 
 
 def save_metadata(metadata):
     """Dump self.metadata dict to pickle file."""
     dir_path = os.path.split(METADATA_PATH)[0]
     create_dir(dir_path)
-    with open(METADATA_PATH, 'wb') as f:
+    with open(METADATA_PATH, 'wb', buffering=0) as f:
         pickle.dump(metadata, f, protocol=pickle.HIGHEST_PROTOCOL)
-        f.flush()
-        os.fsync(f.fileno())
-    os.system('sync')
 
 
 def save_df(df, path):
