@@ -32,7 +32,8 @@ def load_metadata():
             'message_count': len(chat_df),
             'new_latest_data': False
         }
-    with open(METADATA_PATH, 'rb', buffering=0) as f:
+    os.system('sync')
+    with open(METADATA_PATH, 'rb') as f:
         return pickle.load(f)
 
 
@@ -40,9 +41,11 @@ def save_metadata(metadata):
     """Dump self.metadata dict to pickle file."""
     dir_path = os.path.split(METADATA_PATH)[0]
     create_dir(dir_path)
-    with open(METADATA_PATH, 'wb', buffering=0) as f:
+    with open(METADATA_PATH, 'wb') as f:
         pickle.dump(metadata, f, protocol=pickle.HIGHEST_PROTOCOL)
-
+        f.flush()
+        os.fsync(f.fileno())
+    os.system('sync')
 
 def save_df(df, path):
     dir_path = os.path.split(path)[0]
