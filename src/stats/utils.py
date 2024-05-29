@@ -7,6 +7,7 @@ import logging
 import traceback
 import pickle
 from datetime import datetime, timezone
+import time
 
 
 def load_metadata():
@@ -33,8 +34,16 @@ def load_metadata():
             'new_latest_data': False
         }
     os.system('sync')
-    with open(METADATA_PATH, 'rb') as f:
-        return pickle.load(f)
+    time.sleep(2)
+
+    fd = os.open('/path/to/metadata.pickle', os.O_RDONLY)
+    os.fsync(fd)
+    with open(fd, 'rb') as file:
+        metadata = pickle.load(file)
+    os.close(fd)
+    return metadata
+
+    # with open('metadata.pickle', 'rb') as f: metadata = pickle.load(f)
 
 
 def save_metadata(metadata):
@@ -46,6 +55,7 @@ def save_metadata(metadata):
         f.flush()
         os.fsync(f.fileno())
     os.system('sync')
+
 
 def save_df(df, path):
     dir_path = os.path.split(path)[0]
