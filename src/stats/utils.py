@@ -36,7 +36,7 @@ def load_metadata():
     os.system('sync')
     time.sleep(2)
 
-    fd = os.open('/path/to/metadata.pickle', os.O_RDONLY)
+    fd = os.open(METADATA_PATH, os.O_RDONLY)
     os.fsync(fd)
     with open(fd, 'rb') as file:
         metadata = pickle.load(file)
