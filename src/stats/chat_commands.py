@@ -1,4 +1,5 @@
 import os.path
+import time
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -21,7 +22,9 @@ class ChatCommands:
     def update(self):
         """If chat data was updated recentely, reload it."""
         metadata = stats_utils.load_metadata()
-        log.info(metadata)
+        modification_time = os.path.getmtime(METADATA_PATH)
+        print(f"Last modification time: {time.ctime(modification_time)}")
+        log.info(f"{time.ctime(modification_time)}: {metadata}")
         if not metadata['new_latest_data']:
             return
 
