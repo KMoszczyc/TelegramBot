@@ -15,4 +15,4 @@ RUN touch /var/log/chat_etl.log
 RUN touch /var/log/cron.log
 
 RUN pip install -r requirements.txt
-CMD cron && tail -f /var/log/chat_etl.log /var/log/cron.log
+CMD printenv > /etc/environment && cron && tail -f /var/log/chat_etl.log /var/log/cron.log

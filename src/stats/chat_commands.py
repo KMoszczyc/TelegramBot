@@ -7,7 +7,7 @@ import logging
 import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH
 import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
@@ -21,17 +21,23 @@ class ChatCommands:
 
     def update(self):
         """If chat data was updated recentely, reload it."""
-        metadata = stats_utils.load_metadata()
-        modification_time = os.path.getmtime(METADATA_PATH)
-        print(f"Last modification time: {time.ctime(modification_time)}")
-        log.info(f"{time.ctime(modification_time)}: {metadata}")
-        if not metadata['new_latest_data']:
+        # metadata = stats_utils.load_metadata()
+        # modification_time = os.path.getmtime(METADATA_PATH)
+        # print(f"Last modification time: {time.ctime(modification_time)}")
+        # log.info(f"{time.ctime(modification_time)}: {metadata}")
+        # if not metadata['new_latest_data']:
+        #     return
+        if not os.path.isfile(UPDATE_REQUIRED_PATH):
+            log.info(f"Update not required, {UPDATE_REQUIRED_PATH} doesn't exist.")
             return
 
         self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
-        metadata['new_latest_data'] = False
-        stats_utils.save_metadata(metadata)
+
+        # metadata['new_latest_data'] = False
+        # stats_utils.save_metadata(metadata)
+        stats_utils.remove_file(UPDATE_REQUIRED_PATH)
+
         log.info('Reloading chat data due to the recent update.')
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

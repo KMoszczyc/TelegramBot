@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 import numpy as np
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, POLISH_STOPWORDS_PATH, REACTIONS_PATH
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, POLISH_STOPWORDS_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 
@@ -101,6 +101,7 @@ class ChatETL:
         self.metadata['message_count'] = len(merged_chat_df)
         self.metadata['new_latest_data'] = True
 
+        stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
         stats_utils.save_metadata(self.metadata)
         stats_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
 

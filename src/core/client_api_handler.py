@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 from definitions import CHAT_IMAGES_DIR_PATH
 import src.core.utils as core_utils
 
-load_dotenv()
+# load_dotenv()
 log = logging.getLogger(__name__)
+log.info(os.environ)
 
 API_ID = int(os.getenv('API_ID'))
 API_HASH = os.getenv('API_HASH')

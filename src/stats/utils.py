@@ -8,6 +8,7 @@ import traceback
 import pickle
 from datetime import datetime, timezone
 
+log = logging.getLogger(__name__)
 
 def load_metadata():
     """Load metadata pickle file as a dict. If it doesn't exist, check if the chat data exists, to extract some metadata out."""
@@ -62,3 +63,14 @@ def read_df(path):
 
 def read_users():
     return pd.read_parquet(USERS_PATH)
+
+def create_empty_file(path):
+    log.info(f"File {path} created.")
+    open(path, 'a').close()
+
+def remove_file(path):
+    try:
+        os.remove(path)
+        log.info(f"{path} file removed.")
+    except OSError:
+        log.info(f"Can't remove {path}, fie doesn't exists.")

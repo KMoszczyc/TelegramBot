@@ -9,7 +9,7 @@ services:
       - .env
     image: telegram-bot
     volumes:
-      - .:/TelegramBot
+      - ./data:/data
   etl:
     build:
       context: .
@@ -18,4 +18,4 @@ services:
       - .env
     image: telegram-bot-etl
     volumes:
-      - .:/TelegramBot
+      - ./data:/data
