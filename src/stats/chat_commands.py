@@ -7,10 +7,13 @@ import logging
 import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH, \
+    EmojiType
 import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
+
+negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣']
 
 
 class ChatCommands:
@@ -49,48 +52,54 @@ class ChatCommands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-    async def top_messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Top 5 messages from selected time period by number of reactions"""
-        chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
+    async def messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
+        """Top or worst 5 messages from selected time period by number of reactions"""
+        chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args, emoji_type)
         if error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
             return
 
         chat_df = chat_df[chat_df['text'] != '']
+        label = self.emoji_sentiment_to_label(emoji_type)
         if user is not None:
             chat_df = chat_df[chat_df['final_username'] == user]
-            text = f"Top Cinco messages by {user} ({mode.value}):"
+            text = f"{label} Cinco messages by {user} ({mode.value}):"
         else:
-            text = f"Top Cinco messages ({mode.value}):"
+            text = f"{label} Cinco messages ({mode.value}):"
 
         chat_df['reactions_num'] = chat_df['all_emojis'].apply(lambda x: len(x))
         chat_df = chat_df.sort_values('reactions_num', ascending=False)
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
+            if row['reactions_num'] == 0:
+                break
             text += f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['all_emojis'])}]"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-    async def top_memes_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Top 5 memes (images) from selected time period by number of reactions"""
-        chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
+    async def memes_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
+        """Top or sad 5 memes (images) from selected time period by number of reactions"""
+        chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args, emoji_type)
         if error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
             return
 
+        label = self.emoji_sentiment_to_label(emoji_type)
         if user is not None:
             chat_df = chat_df[chat_df['final_username'] == user]
-            text = f"Top Cinco memes by {user} ({mode.value}):"
+            text = f"{label} Cinco memes by {user} ({mode.value}):"
         else:
-            text = f"Top Cinco memes ({mode.value}):"
+            text = f"{label} Cinco memes ({mode.value}):"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-        chat_df = chat_df[chat_df['photo']==True]
+        chat_df = chat_df[chat_df['photo'] == True]
         chat_df['reactions_num'] = chat_df['all_emojis'].apply(lambda x: len(x))
         chat_df = chat_df.sort_values('reactions_num', ascending=False)
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
+            if row['reactions_num'] == 0:
+                break
             img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(row['message_id'])}.jpg')
             caption = f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['all_emojis'])}]"
             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img_path, caption=caption)
@@ -132,9 +141,9 @@ class ChatCommands:
     def get_today_midnight_dt(self):
         return datetime.datetime.now().replace(tzinfo=ZoneInfo('Europe/Warsaw')).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    def filter_df(self, df, mode):
+    def filter_by_time_df(self, df, mode):
         today_dt = self.get_today_midnight_dt()
-        print('mode', mode, today_dt)
+        log.info(f"Filter by mode: {mode}, midnight today: {today_dt}")
         match mode:
             case PeriodFilterMode.TODAY:
                 return df[df['timestamp'] >= today_dt]
@@ -149,12 +158,17 @@ class ChatCommands:
             case PeriodFilterMode.TOTAL:
                 return df.copy(deep=True)
 
-    def preprocess_input(self, args):
+    def preprocess_input(self, args, emoji_type: EmojiType = EmojiType.ALL):
         self.update()
 
         mode, user, error = self.parse_args(args)
-        filtered_chat_df = self.filter_df(self.chat_df, mode)
-        filtered_reactions_df = self.filter_df(self.reactions_df, mode)
+        filtered_chat_df = self.filter_by_time_df(self.chat_df, mode)
+        filtered_reactions_df = self.filter_by_time_df(self.reactions_df, mode)
+
+        log.info(f'Emoji filter type: {emoji_type.value}')
+        if emoji_type == EmojiType.NEGATIVE:
+            filtered_chat_df['all_emojis'] = filtered_chat_df['all_emojis'].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
+
         return filtered_chat_df, filtered_reactions_df, mode, user, error
 
     def parse_int(self, num_str):
@@ -163,3 +177,11 @@ class ChatCommands:
         except ValueError:
             log.error(f"{num_str} is not a number.")
             return None
+
+    def emoji_sentiment_to_label(self, emoji_type: EmojiType):
+        """Convert emoji_type to a message label."""
+        match emoji_type:
+            case EmojiType.ALL:
+                return 'Top'
+            case EmojiType.NEGATIVE:
+                return 'Top Sad'

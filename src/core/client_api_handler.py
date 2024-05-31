@@ -1,13 +1,15 @@
+import os
 import logging
 from datetime import datetime, timezone, timedelta
+
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-import os
 from dotenv import load_dotenv
+
 from definitions import CHAT_IMAGES_DIR_PATH
 import src.core.utils as core_utils
 
-# load_dotenv()
+load_dotenv()
 log = logging.getLogger(__name__)
 log.info(os.environ)
 

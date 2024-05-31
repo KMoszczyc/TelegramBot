@@ -4,11 +4,8 @@ import logging
 from telegram.ext import ApplicationBuilder, CommandHandler
 
 import src.core.commands as commands
-from src.core.client_api_handler import ClientAPIHandler
-from src.stats.chat_etl import ChatETL
 from src.stats.chat_commands import ChatCommands
-import src.stats.utils as chat_utils
-
+from definitions import EmojiType
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 
@@ -29,7 +26,12 @@ class OzjaszBot:
                             CommandHandler('tusk', commands.tusk),
                             CommandHandler('help', commands.help),
                             CommandHandler('chatstats', self.chat_commands.summary),
-                            CommandHandler('topmessages', self.chat_commands.top_messages_by_reactions),
-                            CommandHandler('topmemes', self.chat_commands.top_memes_by_reactions),
+                            # CommandHandler('topmessages', self.chat_commands.top_messages_by_reactions),
+                            # CommandHandler('topmemes', self.chat_commands.top_memes_by_reactions),
+                            CommandHandler('topmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.ALL)),
+                            CommandHandler('sadmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.NEGATIVE)),
+                            CommandHandler('topmemes', lambda update, context: self.chat_commands.memes_by_reactions(update, context, EmojiType.ALL)),
+                            CommandHandler('sadmemes', lambda update, context: self.chat_commands.memes_by_reactions(update, context, EmojiType.NEGATIVE))
                             ]
+
         self.application.add_handlers(command_handlers)

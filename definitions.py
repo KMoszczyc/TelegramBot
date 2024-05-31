@@ -4,6 +4,7 @@ from enum import Enum
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "/data"  # location of a docker mounted volume, shared between etc and bot containers. Specified in docker-compose.yml
+# DATA_DIR = os.path.join(ROOT_DIR, 'data')
 
 # Chat data
 METADATA_PATH = os.path.join(DATA_DIR, 'chat/metadata.pickle')
@@ -43,3 +44,9 @@ class PeriodFilterMode(Enum):
     MONTH = 'month'
     YEAR = 'year'
     TOTAL = 'total'
+
+class EmojiType(Enum):
+    """Enum for different reaction emoji types"""
+    ALL = 'all'
+    POSITIVE = 'positive'
+    NEGATIVE = 'negative'
