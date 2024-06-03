@@ -1,11 +1,12 @@
 import os.path
 import time
-
+import sys
 from telegram import Update
 from telegram.ext import ContextTypes
 import logging
 import datetime
 from zoneinfo import ZoneInfo
+import numpy as np
 
 from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH, \
     EmojiType
@@ -112,12 +113,12 @@ class ChatCommands:
     def parse_args(self, args: list[str]) -> (PeriodFilterMode, str, str):
         period_mode = PeriodFilterMode.TOTAL
         mode_time = -1
-        mode_error = ''
+        parse_error, mode_error = '', ''
 
         try:
             mode_str = args[0]
             if 'h' in args[0] and self.has_numbers(args[0]):
-                mode_time = self.parse_int(args[0].replace('h', ''))
+                mode_time, parse_error = self.parse_int(args[0].replace('h', ''))
                 mode_str = 'hour'
 
             period_mode = PeriodFilterMode(mode_str) if args else PeriodFilterMode.TOTAL
@@ -125,7 +126,8 @@ class ChatCommands:
             mode_error = f"There is no such time period as {args[0]}."
             log.error(mode_error)
         user, user_error = self.parse_user(args)
-        error = mode_error + user_error
+        log.info(f"{mode_error} | {user_error} | {parse_error}")
+        error = mode_error + user_error + parse_error
 
         return period_mode, mode_time, user, error
 
@@ -179,6 +181,9 @@ class ChatCommands:
         self.update()
 
         mode, mode_time, user, error = self.parse_args(args)
+        if error != '':
+            return self.chat_df, self.reactions_df, mode, mode_time, user, error
+
         filtered_chat_df = self.filter_by_time_df(self.chat_df, mode, mode_time)
         filtered_reactions_df = self.filter_by_time_df(self.reactions_df, mode, mode_time)
 
@@ -188,7 +193,6 @@ class ChatCommands:
         log.info(f'Emoji filter type: {emoji_type.value}')
         if emoji_type == EmojiType.NEGATIVE:
             filtered_chat_df['all_emojis'] = filtered_chat_df['all_emojis'].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
-
         return filtered_chat_df, filtered_reactions_df, mode, mode_time, user, error
 
     def extract_int(self, num_str):
@@ -198,11 +202,18 @@ class ChatCommands:
         return any(char.isdigit() for char in num_str)
 
     def parse_int(self, num_str):
+        error = ''
+        num = None
         try:
-            return int(num_str)
+            num = int(num_str)
+            print(num, 24*365*20)
+            if num > 24*365*20:
+                error = f"Kuba's dick is too big ({self.x_to_light_years(num)} light years), make it smaller!"
+                log.error(error)
         except ValueError:
-            log.error(f"{num_str} is not a number.")
-            return None
+            error = f"{num_str} is not a number."
+            log.error(error)
+        return num, error
 
     def emoji_sentiment_to_label(self, emoji_type: EmojiType):
         """Convert emoji_type to a message label."""
@@ -214,3 +225,8 @@ class ChatCommands:
 
     def dt_to_str(self, dt):
         return dt.strftime('%y-%m-%d %H:%M')
+
+    def x_to_light_years(self, x):
+        ly = x / 9460730472580.8
+        ly = round(ly, 6) if ly < 1 else round(ly, 2)
+        return ly
