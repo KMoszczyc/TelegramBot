@@ -33,12 +33,14 @@ logging.basicConfig(
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:
       - today (since midnight)
+      - hour (1h, 3h, 6h...)
       - week - past 7 days
       - month - past 30 days
       - year
       - total
     """
     TODAY = 'today'
+    HOUR = 'hour'
     YESTERDAY = 'yesterday'
     WEEK = 'week'
     MONTH = 'month'
