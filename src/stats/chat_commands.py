@@ -62,7 +62,7 @@ class ChatCommands:
         chat_df = chat_df[chat_df['text'] != '']
         label = self.emoji_sentiment_to_label(emoji_type)
 
-        text = f"{label} Cinco memes"
+        text = f"{label} Cinco messages"
         text += f" by {user}" if user is not None else " "
         text += f"({period_mode.value}):" if mode_time == -1 else f" (past {mode_time}h):"
 
@@ -181,6 +181,9 @@ class ChatCommands:
         mode, mode_time, user, error = self.parse_args(args)
         filtered_chat_df = self.filter_by_time_df(self.chat_df, mode, mode_time)
         filtered_reactions_df = self.filter_by_time_df(self.reactions_df, mode, mode_time)
+
+        log.info('Last message:')
+        print(filtered_chat_df.tail(1))
 
         log.info(f'Emoji filter type: {emoji_type.value}')
         if emoji_type == EmojiType.NEGATIVE:
