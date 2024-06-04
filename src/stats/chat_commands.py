@@ -15,6 +15,7 @@ import src.stats.utils as stats_utils
 log = logging.getLogger(__name__)
 
 negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣']
+MAX_INT = 24 * 365 * 20
 
 
 class ChatCommands:
@@ -45,7 +46,7 @@ class ChatCommands:
         log.info('Reloading chat data due to the recent update.')
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat_df, reactions_df, mode, user, error = self.preprocess_input(context.args)
+        chat_df, reactions_df, mode, mode_time, user, error = self.preprocess_input(context.args)
 
         text = f"""Chat summary ({mode.value}):
         - {len(chat_df)} messages, {len(reactions_df)} reactions in total
@@ -66,10 +67,6 @@ class ChatCommands:
         text = f"{label} Cinco messages"
         text += f" by {user}" if user is not None else " "
         text += f"({period_mode.value}):" if mode_time == -1 else f" (past {mode_time}h):"
-
-        chat_df['reactions_num'] = chat_df['all_emojis'].apply(lambda x: len(x))
-        chat_df = chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
-        chat_df['timestamp'] = chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             if row['reactions_num'] == 0:
@@ -95,9 +92,6 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
         chat_df = chat_df[chat_df['photo'] == True]
-        chat_df['reactions_num'] = chat_df['all_emojis'].apply(lambda x: len(x))
-        chat_df = chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
-        chat_df['timestamp'] = chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             if row['reactions_num'] == 0:
@@ -126,7 +120,6 @@ class ChatCommands:
             mode_error = f"There is no such time period as {args[0]}."
             log.error(mode_error)
         user, user_error = self.parse_user(args)
-        log.info(f"{mode_error} | {user_error} | {parse_error}")
         error = mode_error + user_error + parse_error
 
         return period_mode, mode_time, user, error
@@ -187,12 +180,19 @@ class ChatCommands:
         filtered_chat_df = self.filter_by_time_df(self.chat_df, mode, mode_time)
         filtered_reactions_df = self.filter_by_time_df(self.reactions_df, mode, mode_time)
 
+        if emoji_type == EmojiType.NEGATIVE:
+            filtered_chat_df['all_emojis'] = filtered_chat_df['all_emojis'].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
+
+        filtered_chat_df['reactions_num'] = filtered_chat_df['all_emojis'].apply(lambda x: len(x))
+        filtered_chat_df = filtered_chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
+        filtered_chat_df['timestamp'] = filtered_chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
+
+        if user is not None:
+            filtered_chat_df = filtered_chat_df[filtered_chat_df['final_username'] == user]
+
         log.info('Last message:')
         print(filtered_chat_df.tail(1))
 
-        log.info(f'Emoji filter type: {emoji_type.value}')
-        if emoji_type == EmojiType.NEGATIVE:
-            filtered_chat_df['all_emojis'] = filtered_chat_df['all_emojis'].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
         return filtered_chat_df, filtered_reactions_df, mode, mode_time, user, error
 
     def extract_int(self, num_str):
@@ -206,8 +206,8 @@ class ChatCommands:
         num = None
         try:
             num = int(num_str)
-            print(num, 24*365*20)
-            if num > 24*365*20:
+            print(num, MAX_INT)
+            if num > MAX_INT:
                 error = f"Kuba's dick is too big ({self.x_to_light_years(num)} light years), make it smaller!"
                 log.error(error)
         except ValueError:
