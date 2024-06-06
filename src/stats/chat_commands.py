@@ -110,15 +110,16 @@ class ChatCommands:
         parse_error, mode_error = '', ''
 
         try:
-            mode_str = args[0]
-            if 'h' in args[0] and self.has_numbers(args[0]):
+            period_mode_str = args[0] if args else 'total'
+            if args and 'h' in args[0] and self.has_numbers(args[0]):
                 mode_time, parse_error = self.parse_int(args[0].replace('h', ''))
-                mode_str = 'hour'
+                period_mode_str = 'hour'
 
-            period_mode = PeriodFilterMode(mode_str) if args else PeriodFilterMode.TOTAL
+            period_mode = PeriodFilterMode(period_mode_str)
         except ValueError:
             mode_error = f"There is no such time period as {args[0]}."
             log.error(mode_error)
+
         user, user_error = self.parse_user(args)
         error = mode_error + user_error + parse_error
 
