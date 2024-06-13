@@ -1,17 +1,17 @@
 import os.path
-import time
-import sys
-from telegram import Update
-from telegram.ext import ContextTypes
 import logging
 import datetime
-from zoneinfo import ZoneInfo
-import numpy as np
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, METADATA_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH, \
-    EmojiType
+from telegram import Update
+from telegram.ext import ContextTypes
+import telegram
+from zoneinfo import ZoneInfo
+import pandas as pd
+
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, PeriodFilterMode, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH, EmojiType
 import src.stats.utils as stats_utils
 
+pd.options.mode.chained_assignment = None
 log = logging.getLogger(__name__)
 
 negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
@@ -36,16 +36,22 @@ class ChatCommands:
         stats_utils.remove_file(UPDATE_REQUIRED_PATH)
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat_df, reactions_df, mode, mode_time, user, error = self.preprocess_input(context.args)
+        chat_df, reactions_df, period_mode, mode_time, user, error = self.preprocess_input(context.args)
 
         images_num = len(chat_df[chat_df['photo']])
+        reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
+        reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
+        message_counts = chat_df.groupby('final_username').size().reset_index(name='count').sort_values('count', ascending=False)
 
+        text = "*Chat summary*"
+        text += f"({period_mode.value}):" if mode_time == -1 else f" (past {mode_time}h):"
+        text += f"\n- *Total*: *{len(chat_df)}* messages, *{len(reactions_df)}* reactions and *{images_num}* images"
+        text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['count']}*" for _, row in message_counts.head(3).iterrows()])
+        text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
+        text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
 
-        text = f"Chat summary ({mode.value}):\n"
-        text += f"- Total: {len(chat_df)} messages, {len(reactions_df)} reactions and {images_num} images"
-
-
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
@@ -66,7 +72,7 @@ class ChatCommands:
                 break
             text += f"\n{i + 1}. {row['final_username']}" if user is None else f"\n{i + 1}."
             text += f" [{self.dt_to_str(row['timestamp'])}]:"
-            text += f" {row['text']} [{''.join(row['all_emojis'])}]"
+            text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
@@ -92,9 +98,9 @@ class ChatCommands:
             img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(row['message_id'])}.jpg')
             text = f"\n{i + 1}. {row['final_username']}" if user is None else f"\n{i + 1}."
             text += f" [{self.dt_to_str(row['timestamp'])}]:"
-            text += f" {row['text']} [{''.join(row['all_emojis'])}]"
+            text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
-            # text = f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['all_emojis'])}]"
+            # text = f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['reaction_emojis'])}]"
             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img_path, caption=text)
 
     def parse_args(self, args: list[str]) -> (PeriodFilterMode, str, str):
@@ -175,9 +181,10 @@ class ChatCommands:
         filtered_reactions_df = self.filter_by_time_df(self.reactions_df, mode, mode_time)
 
         if emoji_type == EmojiType.NEGATIVE:
-            filtered_chat_df['all_emojis'] = filtered_chat_df['all_emojis'].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
+            filtered_chat_df['reaction_emojis'] = filtered_chat_df['reaction_emojis'].apply(
+                lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
 
-        filtered_chat_df['reactions_num'] = filtered_chat_df['all_emojis'].apply(lambda x: len(x))
+        filtered_chat_df['reactions_num'] = filtered_chat_df['reaction_emojis'].apply(lambda x: len(x))
         filtered_chat_df = filtered_chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
         filtered_chat_df['timestamp'] = filtered_chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
 

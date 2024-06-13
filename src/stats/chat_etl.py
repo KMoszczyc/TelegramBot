@@ -1,15 +1,11 @@
 import logging
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
-# import matplotlib.pyplot as plt
-# import matplotlib.ticker as mtick
-# from sklearn.feature_extraction.text import CountVectorizer
-import numpy as np
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, POLISH_STOPWORDS_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH
 import src.stats.utils as stats_utils
-import src.core.utils as core_utils
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -45,8 +41,9 @@ class ChatETL:
         data = []
 
         malformed_count = 0
-        message_ids_for_reaction_api_update = [message.id for message in latest_messages if self.count_reactions(message)>3]
-        message_reactions = self.client_api_handler.get_reactions(message_ids_for_reaction_api_update)
+        message_ids_for_reaction_api_update = [message.id for message in latest_messages if self.count_reactions(message) > 3]
+        message_reactions = self.client_api_handler.get_reactions(message_ids_for_reaction_api_update) if message_ids_for_reaction_api_update else []
+        log.info(f'Additional {len(message_ids_for_reaction_api_update)} messages pulled with more detailed reactions.')
 
         for message in latest_messages:
             reaction_emojis, reaction_user_ids = [], []
@@ -55,11 +52,13 @@ class ChatETL:
             success = True
 
             if message.reactions is not None and message.reactions.recent_reactions is not None:
-                reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message.reactions.recent_reactions, malformed_count, success)
+                reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message.reactions.recent_reactions,
+                                                                                                    malformed_count, success)
                 reactions_count = self.count_reactions(message)
-                if reactions_count > 3:
-                    reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message_reactions[message.id].reactions, malformed_count, success)
-                    print(message.date, reaction_emojis, reaction_user_ids)
+                if reactions_count > 3 and message_reactions:
+                    reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message_reactions[message.id].reactions,
+                                                                                                        malformed_count, success)
+                    # print(message.date, reaction_emojis, reaction_user_ids)
 
             if not success:
                 continue
@@ -74,11 +73,13 @@ class ChatETL:
         old_chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
 
-        log.info(f'New {len(latest_chat_df)} messages since {datetime.now(tz=timezone.utc) - timedelta(days=days)} with {malformed_count} malformed records.')
+        log.info(
+            f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo('Europe/Warsaw')) - timedelta(days=days)} with {malformed_count} malformed records.')
         # print(latest_chat_df.head(5))
         if old_chat_df is not None and not latest_chat_df.empty:
             # merged_chat_df = pd.concat([old_chat_df, latest_chat_df]).drop_duplicates(subset='message_id').reset_index(drop=True)
-            merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
+            merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(
+                drop=True)
         elif old_chat_df is not None:
             merged_chat_df = old_chat_df
         elif not latest_chat_df.empty:
@@ -86,12 +87,15 @@ class ChatETL:
         else:
             return
 
+        new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df else len(merged_chat_df)
+        log.info(f'New {new_msg_count} messages since {self.metadata['last_message_dt'].tz_convert('Europe/Warsaw')} with {malformed_count} malformed records.')
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
 
         print(merged_chat_df.tail(1))
         self.metadata['last_message_id'] = merged_chat_df['message_id'].iloc[-1]
         self.metadata['last_message_utc_timestamp'] = int(merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp())
-        self.metadata['1_day_offset_utc_timestamp'] = int((merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None) - timedelta(days=1)).timestamp())
+        self.metadata['1_day_offset_utc_timestamp'] = int(
+            (merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None) - timedelta(days=1)).timestamp())
         self.metadata['last_message_dt'] = merged_chat_df['timestamp'].iloc[-1]
         self.metadata['last_update'] = datetime.now(tz=timezone.utc)
         self.metadata['message_count'] = len(merged_chat_df)
@@ -113,7 +117,7 @@ class ChatETL:
                 success = False
                 malformed_count += 1
                 log.error(f'Issue with reading message reaction emojis/user_id: {msg}.')
-        
+
         # for reaction_count in message.reactions.results:
         #     count = reaction_count.count
         #     emoji = reaction_count.reaction.emoticon
@@ -155,33 +159,12 @@ class ChatETL:
             final_username = f"{row['first_name']} {row['last_name']}" if row['last_name'] is not None else row['first_name']
         return final_username
 
-    def generate_detailed_reactions_df(self):
-        """Include only given reaction user_ids (max 3 reactions per message)"""
-        chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        users_df = stats_utils.read_df(USERS_PATH)
-
-        chat_df['len_reactions'] = chat_df['reaction_emojis'].apply(lambda x: len(x))
-        chat_df['len_reaction_users'] = chat_df['reaction_user_ids'].apply(lambda x: len(x))
-
-        malformed_df = chat_df[chat_df['len_reactions'] != chat_df['len_reaction_users']]
-        clean_df = chat_df[(chat_df['len_reactions'] == chat_df['len_reaction_users']) & (chat_df['len_reactions'] > 0)]
-
-        reactions_df = clean_df.explode(['reaction_emojis', 'reaction_user_ids'])
-        reactions_df = reactions_df.merge(users_df, left_on='reaction_user_ids', right_on='user_id')
-        reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
-        reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'reaction_emoji']
-        stats_utils.save_df(reactions_df, REACTIONS_PATH)
-
     def generate_reactions_df(self):
         """Include all reactions and fill the missing user_ids with None"""
         chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         users_df = stats_utils.read_df(USERS_PATH)
 
         chat_df['len_reactions'] = chat_df['reaction_emojis'].apply(lambda x: len(x))
-
-        # chat_df['reaction_user_ids'] = chat_df.apply(lambda row: row['reaction_user_ids'] + [-1]*(row['len_reactions']-len(row['reaction_user_ids'])), axis=1)
-        # chat_df['reaction_user_ids'] = chat_df.apply(lambda row: self.update_reaction_user_ids(row), axis=1)
-
         chat_df['len_reaction_users'] = chat_df['reaction_user_ids'].apply(lambda x: len(x))
         clean_df = chat_df[chat_df['len_reactions'] > 0]
         reactions_df = clean_df.explode(['reaction_emojis', 'reaction_user_ids'])
@@ -190,20 +173,4 @@ class ChatETL:
         reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
 
-        print(reactions_df.tail(5))
-
-        # stats_utils.save_df(reactions_df, REACTIONS_PATH)
-
-    def update_reaction_user_ids(self, row):
-        # Ensure 'len_reactions' is an integer
-        if not isinstance(row['len_reactions'], int):
-            row['len_reactions'] = 0
-        # Merge the lists
-        diff = row['len_reactions'] - len(row['reaction_user_ids'])
-
-        result = ([-1] * diff) + row['reaction_user_ids'].tolist()[::-1] if diff > 0 else row['reaction_user_ids']
-        return result
-
-def contains_stopwords(s, stopwords):
-    return any(word in stopwords for word in s.split())
-
+        stats_utils.save_df(reactions_df, REACTIONS_PATH)

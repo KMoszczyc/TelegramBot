@@ -25,7 +25,7 @@ class OzjaszBot:
                             CommandHandler('tvp_latest', commands.tvp_latest),
                             CommandHandler('tusk', commands.tusk),
                             CommandHandler('help', commands.help),
-                            CommandHandler('chatstats', self.chat_commands.summary),
+                            CommandHandler('summary', self.chat_commands.summary),
                             # CommandHandler('topmessages', self.chat_commands.top_messages_by_reactions),
                             # CommandHandler('topmemes', self.chat_commands.top_memes_by_reactions),
                             CommandHandler('topmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.ALL)),

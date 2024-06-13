@@ -1,14 +1,16 @@
-import pandas as pd
-from src.core.client_api_handler import ClientAPIHandler
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH
-from src.core.utils import create_dir
+import re
 import os
 import logging
-import traceback
 import pickle
-from datetime import datetime, timezone
+from datetime import timezone
+
+import pandas as pd
+
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH
+from src.core.utils import create_dir
 
 log = logging.getLogger(__name__)
+
 
 def load_metadata():
     """Load metadata pickle file as a dict. If it doesn't exist, check if the chat data exists, to extract some metadata out."""
@@ -64,9 +66,11 @@ def read_df(path):
 def read_users():
     return pd.read_parquet(USERS_PATH)
 
+
 def create_empty_file(path):
     log.info(f"File {path} created.")
     open(path, 'a').close()
+
 
 def remove_file(path):
     try:
@@ -74,3 +78,12 @@ def remove_file(path):
         log.info(f"{path} file removed.")
     except OSError:
         log.info(f"Can't remove {path}, fie doesn't exists.")
+
+
+def escape_special_characters(text):
+    special_characters = r'\-()[{}_]:'
+    return re.sub(f'([{re.escape(special_characters)}])', r'\\\1', text)
+
+
+def contains_stopwords(s, stopwords):
+    return any(word in stopwords for word in s.split())
