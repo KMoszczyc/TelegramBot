@@ -14,7 +14,7 @@ import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
 
-negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣']
+negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
 MAX_INT = 24 * 365 * 20
 
 
@@ -26,31 +26,24 @@ class ChatCommands:
 
     def update(self):
         """If chat data was updated recentely, reload it."""
-        # metadata = stats_utils.load_metadata()
-        # modification_time = os.path.getmtime(METADATA_PATH)
-        # print(f"Last modification time: {time.ctime(modification_time)}")
-        # log.info(f"{time.ctime(modification_time)}: {metadata}")
-        # if not metadata['new_latest_data']:
-        #     return
         if not os.path.isfile(UPDATE_REQUIRED_PATH):
             log.info(f"Update not required, {UPDATE_REQUIRED_PATH} doesn't exist.")
             return
 
+        log.info('Reloading chat data due to the recent update.')
         self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
-
-        # metadata['new_latest_data'] = False
-        # stats_utils.save_metadata(metadata)
         stats_utils.remove_file(UPDATE_REQUIRED_PATH)
-
-        log.info('Reloading chat data due to the recent update.')
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_df, reactions_df, mode, mode_time, user, error = self.preprocess_input(context.args)
 
-        text = f"""Chat summary ({mode.value}):
-        - {len(chat_df)} messages, {len(reactions_df)} reactions in total
-                """
+        images_num = len(chat_df[chat_df['photo']])
+
+
+        text = f"Chat summary ({mode.value}):\n"
+        text += f"- Total: {len(chat_df)} messages, {len(reactions_df)} reactions and {images_num} images"
+
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
@@ -225,7 +218,7 @@ class ChatCommands:
                 return 'Top Sad'
 
     def dt_to_str(self, dt):
-        return dt.strftime('%y-%m-%d %H:%M')
+        return dt.strftime('%d-%m-%Y %H:%M')
 
     def x_to_light_years(self, x):
         ly = x / 9460730472580.8

@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime, timezone, timedelta
 
-from telethon import TelegramClient
+from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
 
@@ -46,7 +46,7 @@ class ClientAPIHandler:
                     # for msg in self.client.iter_messages(CHAT_ID, offset_date=date, reverse=True):
                     if msg is None:
                         break
-
+                    # print(msg)
                     if count % 10000 == 0:
                         if hasattr(msg.sender, 'first_name') and hasattr(msg.sender, 'last_name') and hasattr(msg.sender, 'username'):
                             log.info(f"{msg.date}, {msg.id}, ':', {msg.sender.first_name}, {msg.sender.last_name}, {msg.sender.username}, {msg.sender_id}, ':', {msg.text}")
@@ -65,6 +65,25 @@ class ClientAPIHandler:
         with self.client:
             chat_history = self.client.loop.run_until_complete(helper())
             return chat_history
+
+    def get_reactions(self, message_ids: list) -> dict:
+        """Get all reactions from given message_ids. Used when a message has over 3 reactions, as recent reactions in the chat_history have only 3 last reactions.
+        :param message_ids: a list of message ids
+        :return:
+        """
+        # async def helper():
+        #     result = await self.client(functions.messages.GetMessageReactionsListRequest(peer=CHAT_ID, id=message_id, limit=100))
+        #     return result
+
+        async def helper():
+            async with self.client:
+                message_reactions = {}
+                for message_id in message_ids:
+                    message_reactions[message_id] = await self.client(functions.messages.GetMessageReactionsListRequest(peer=CHAT_ID, id=message_id, limit=100))
+                return message_reactions
+
+        with self.client:
+            return self.client.loop.run_until_complete(helper())
 
     def get_chat_users(self):
         with self.client:

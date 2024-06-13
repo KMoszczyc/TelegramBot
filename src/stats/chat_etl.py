@@ -39,37 +39,33 @@ class ChatETL:
         self.metadata = stats_utils.load_metadata()
         # latest_messages = self.client_api_handler.get_chat_history(self.metadata['last_message_utc_timestamp'])
         latest_messages = self.client_api_handler.get_chat_history(days)
+        # self.client_api_handler.get_reactions(270441)
 
-        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids', 'photo']
+        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'reaction_emojis', 'reaction_user_ids', 'photo']
         data = []
 
         malformed_count = 0
+        message_ids_for_reaction_api_update = [message.id for message in latest_messages if self.count_reactions(message)>3]
+        message_reactions = self.client_api_handler.get_reactions(message_ids_for_reaction_api_update)
+
         for message in latest_messages:
-            all_emojis, reaction_emojis, reaction_user_ids = [], [], []
+            reaction_emojis, reaction_user_ids = [], []
             if message is None or message.sender is None:
                 continue
             success = True
 
             if message.reactions is not None and message.reactions.recent_reactions is not None:
-                for reaction in message.reactions.recent_reactions:
-                    try:
-                        reaction_emojis.append(reaction.reaction.emoticon)
-                        reaction_user_ids.append(reaction.peer_id.user_id)
-                    except AttributeError:
-                        success = False
-                        malformed_count += 1
-                        log.error(f'Issue with reading message reaction emojis/user_id: {message}.')
-                for reaction_count in message.reactions.results:
-                    count = reaction_count.count
-                    emoji = reaction_count.reaction.emoticon
-                    all_emojis.extend([emoji] * count)
+                reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message.reactions.recent_reactions, malformed_count, success)
+                reactions_count = self.count_reactions(message)
+                if reactions_count > 3:
+                    reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message_reactions[message.id].reactions, malformed_count, success)
+                    print(message.date, reaction_emojis, reaction_user_ids)
 
             if not success:
                 continue
-            is_photo = True if message.photo else False
+            is_photo = bool(message.photo)
             single_message_data = [message.id, message.date, message.sender_id, message.sender.first_name, message.sender.last_name, message.sender.username,
                                    message.text,
-                                   all_emojis,
                                    reaction_emojis,
                                    reaction_user_ids,
                                    is_photo]
@@ -105,14 +101,38 @@ class ChatETL:
         stats_utils.save_metadata(self.metadata)
         stats_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
 
+    def parse_reactions(self, msg, message_reactions, malformed_count, success):
+        reaction_emojis, reaction_user_ids = [], []
+
+        # print(message_reactions)
+        for reaction in message_reactions:
+            try:
+                reaction_emojis.append(reaction.reaction.emoticon)
+                reaction_user_ids.append(reaction.peer_id.user_id)
+            except AttributeError:
+                success = False
+                malformed_count += 1
+                log.error(f'Issue with reading message reaction emojis/user_id: {msg}.')
+        
+        # for reaction_count in message.reactions.results:
+        #     count = reaction_count.count
+        #     emoji = reaction_count.reaction.emoticon
+        #     all_emojis.extend([emoji] * count)
+
+        return reaction_emojis, reaction_user_ids, malformed_count, success
+
+    def count_reactions(self, message):
+        return sum(reaction_count.count for reaction_count in message.reactions.results) if message.reactions is not None else 0
+
     def clean_chat_history(self):
         chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         users_df = stats_utils.read_users()
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
         cleaned_df = cleaned_df.merge(users_df, on='user_id')
-        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'all_emojis', 'reaction_emojis', 'reaction_user_ids', 'photo']]
+        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'reaction_emojis', 'reaction_user_ids', 'photo']]
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert('Europe/Warsaw')
+        cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
 
         # print(users_df)
         # print(cleaned_df.head(5))
@@ -135,7 +155,8 @@ class ChatETL:
             final_username = f"{row['first_name']} {row['last_name']}" if row['last_name'] is not None else row['first_name']
         return final_username
 
-    def generate_reactions_df(self):
+    def generate_detailed_reactions_df(self):
+        """Include only given reaction user_ids (max 3 reactions per message)"""
         chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         users_df = stats_utils.read_df(USERS_PATH)
 
@@ -151,165 +172,37 @@ class ChatETL:
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'reaction_emoji']
         stats_utils.save_df(reactions_df, REACTIONS_PATH)
 
-        # print(reactions_df.groupby('reacting_username')['reaction_emoji'].value_counts())
-        # reactions_by_username_count_df = reactions_df.groupby('reacting_username')['reaction_emoji'].value_counts().unstack('reaction_emoji', fill_value=0).T.sort_values('Kamil', ascending=False)
-        # print(tabulate(reactions_by_username_count_df, headers='keys', tablefmt='psql'))
+    def generate_reactions_df(self):
+        """Include all reactions and fill the missing user_ids with None"""
+        chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        users_df = stats_utils.read_df(USERS_PATH)
 
-        # grouped = reactions_df.groupby(['reacting_username', 'reaction_emoji'], sort=True).agg(count=('reaction_emoji', 'count'))
-        # given_reactions_by_username_count_df = grouped.sort_values(['reacting_username', 'count'], ascending=False).groupby('reacting_username').head(5)
-        # print(tabulate(given_reactions_by_username_count_df.reset_index(), headers='keys', tablefmt='psql', showindex=False))
-        #
-        # grouped = reactions_df.groupby(['reacted_to_username', 'reaction_emoji'], sort=True).agg(count=('reaction_emoji', 'count'))
-        # received_reactions_by_username_count_df = grouped.sort_values(['reacted_to_username', 'count'], ascending=False).groupby('reacted_to_username').head(5)
-        # print(tabulate(received_reactions_by_username_count_df.reset_index(), headers='keys', tablefmt='psql', showindex=False))
+        chat_df['len_reactions'] = chat_df['reaction_emojis'].apply(lambda x: len(x))
 
-        # print('html:', given_reactions_by_username_count_df.to_html())
-        # self.given_reactions_by_username_count_html = given_reactions_by_username_count_df.to_html()
-        # self.received_reactions_by_username_count_html = received_reactions_by_username_count_df.to_html()
+        # chat_df['reaction_user_ids'] = chat_df.apply(lambda row: row['reaction_user_ids'] + [-1]*(row['len_reactions']-len(row['reaction_user_ids'])), axis=1)
+        # chat_df['reaction_user_ids'] = chat_df.apply(lambda row: self.update_reaction_user_ids(row), axis=1)
 
-    # def generate_chat_plots(self):
-    #     chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-    #     chat_df['timestamp'] = chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
-    #     chat_df['date'] = chat_df['timestamp'].dt.date
-    #     chat_df['year'] = chat_df['timestamp'].dt.year
-    #     chat_df['month'] = chat_df['timestamp'].dt.month_name()
-    #     chat_df['day_name'] = chat_df['timestamp'].dt.day_name()
-    #     chat_df['day'] = chat_df['timestamp'].dt.day
-    #     chat_df['hour'] = chat_df['timestamp'].dt.hour
-    #     chat_df['minute'] = (chat_df['timestamp'].dt.floor('15Min', ambiguous=True)).dt.minute
-    #
-    #     months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    #     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    #     # messages_by_month = chat_df.groupby('month').size().reindex(months, axis=0)
-    #     # messages_by_day = chat_df.groupby('day_name').size().reindex(days, axis=0)
-    #     # messages_by_hour = chat_df.groupby('hour').size()
-    #
-    #     messages_by_month = chat_df.groupby(['year', 'month']).size().groupby('month').mean().reindex(months, axis=0)
-    #     messages_by_day = chat_df.groupby(['date', 'day_name']).size().groupby('day_name').mean().reindex(days, axis=0)
-    #     messages_by_hour = chat_df.groupby(['date', 'hour']).size().groupby('hour').mean()
-    #
-    #     self.generate_chat_plots_per_person(chat_df)
-    #     # ax = messages_by_month.plot(x='month', y='messages')
-    #     # ax.tick_params(axis='x', labelrotation=45)
-    #     # plt.xticks([0,1,2,3,4,5,6,7,8,9,10,11], months)
-    #     # plt.tight_layout()
-    #     # plt.xlabel("month")
-    #     # plt.ylabel("messages")
-    #     # plt.show()
-    #     #
-    #     # messages_by_day.plot(x='day', y='messages')
-    #     # plt.xlabel("day")
-    #     # plt.ylabel("messages")
-    #     # plt.show()
-    #     #
-    #     # messages_by_hour.plot(x='hour', y='messages')
-    #     # plt.xticks(list(range(0, 24)))
-    #     # plt.xlabel("hour")
-    #     # plt.ylabel("messages")
-    #     # plt.show()
-    #
-    # def generate_chat_plots_per_person(self, chat_df):
-    #
-    #     usernames = chat_df['final_username'].unique().tolist()
-    #     months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    #     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    #     name = "tab20"
-    #     cmap = plt.colormaps[name]  # type: matplotlib.colors.ListedColormap
-    #     colors = cmap.colors  # type: list
-    #
-    #     fig, ax = plt.subplots()
-    #     ax.set_prop_cycle(color=colors)
-    #
-    #     for username in usernames:
-    #         chat_user_df = chat_df[chat_df['final_username'] == username]
-    #         messages_by_month = chat_user_df.groupby(['month']).size().reindex(months, axis=0)
-    #         month_sum = messages_by_month.sum()
-    #         messages_by_month_relative = messages_by_month / month_sum * 100
-    #         messages_by_month_relative.plot(x='month', y='messages', label=username)
-    #
-    #     ax.tick_params(axis='x', labelrotation=45)
-    #     plt.xticks([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], months)
-    #     plt.locator_params(axis='y', nbins=18)
-    #     ax.yaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
-    #
-    #     plt.tight_layout()
-    #     plt.xlabel("month")
-    #     plt.ylabel("messages")
-    #     plt.legend()
-    #     plt.show()
-    #
-    #     fig, ax = plt.subplots()
-    #     ax.set_prop_cycle(color=colors)
-    #
-    #     for username in usernames:
-    #         chat_user_df = chat_df[chat_df['final_username'] == username]
-    #         messages_by_day = chat_user_df.groupby(['day_name']).size().reindex(days, axis=0)
-    #         day_sum = messages_by_day.sum()
-    #         messages_by_day_relative = messages_by_day / day_sum * 100
-    #         messages_by_day_relative.plot(x='month', y='messages', label=username)
-    #     plt.xlabel("day")
-    #     plt.ylabel("messages")
-    #     plt.locator_params(axis='y', nbins=18)
-    #     ax.yaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
-    #
-    #     plt.legend()
-    #     plt.show()
-    #
-    #     fig, ax = plt.subplots()
-    #     ax.set_prop_cycle(color=colors)
-    #
-    #     for username in usernames:
-    #         chat_user_df = chat_df[chat_df['final_username'] == username]
-    #         messages_by_hour = chat_user_df.groupby(['hour']).size()
-    #         hour_sum = messages_by_hour.sum()
-    #         messages_by_hour_relative = messages_by_hour / hour_sum * 100
-    #
-    #         messages_by_hour_relative.plot(x='month', y='messages', label=username)
-    #     plt.xticks(list(range(0, 24)))
-    #     ax.yaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
-    #     plt.xlabel("hour")
-    #     plt.ylabel("messages")
-    #     plt.locator_params(axis='y', nbins=20)
-    #
-    #     plt.legend()
-    #     plt.show()
+        chat_df['len_reaction_users'] = chat_df['reaction_user_ids'].apply(lambda x: len(x))
+        clean_df = chat_df[chat_df['len_reactions'] > 0]
+        reactions_df = clean_df.explode(['reaction_emojis', 'reaction_user_ids'])
 
-    # def generate_word_stats(self):
-    #     chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-    #     polish_stopwords = core_utils.read_str_file(POLISH_STOPWORDS_PATH)
-    #     filtered_chat_df = chat_df[chat_df['text'] != ''].dropna()
-    #     filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"https:\/\/.*", "", regex=True)
-    #     filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"\(.*\)", "", regex=True)  # remove text inside braces/brackets
-    #     filtered_chat_df['text'] = filtered_chat_df['text'].str.replace('[^\w\s]', '')  # remove special characters
-    #
-    #     print(len(chat_df), len(filtered_chat_df))
-    #     print(filtered_chat_df.head(10))
-    #     print(filtered_chat_df.tail(10))
-    #
-    #     print(filtered_chat_df.info())
-    #
-    #     cv = CountVectorizer(ngram_range=(7, 7))
-    #     cv_fit = cv.fit_transform(filtered_chat_df['text'])
-    #     word_list = cv.get_feature_names_out()
-    #
-    #     # Added [0] here to get a 1d-array for iteration by the zip function.
-    #     counts = np.asarray(cv_fit.sum(axis=0))[0]
-    #     word_counts = dict(zip(word_list, counts))
-    #     sorted_word_counts = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
-    #
-    #     # cleaned_word_counts = [(word, count) for word, count in sorted_word_counts if word not in polish_stopwords] # single words
-    #     # cleaned_word_counts = [(words, count) for words, count in sorted_word_counts if not contains_stopwords(words, polish_stopwords)] # bigrams/trigrams
-    #
-    #     for word, count in sorted_word_counts[:200]:
-    #         print(f'{word:60}- {count}')
-    #
-    #     print(filtered_chat_df[filtered_chat_df['text'].str.contains('dobrą opinię jeżeli chodzi it')].head(10))
+        reactions_df = reactions_df.merge(users_df, left_on='reaction_user_ids', right_on='user_id', how='left')
+        reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
+        reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
 
-    # async def given_reactions_counts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    #     # self.generate_reactions_df()
-    #     print('html', self.given_reactions_by_username_count_html)
-    #     await context.bot.send_message(chat_id=update.effective_chat.id, text=self.given_reactions_by_username_count_html, parse_mode='html')
+        print(reactions_df.tail(5))
 
+        # stats_utils.save_df(reactions_df, REACTIONS_PATH)
+
+    def update_reaction_user_ids(self, row):
+        # Ensure 'len_reactions' is an integer
+        if not isinstance(row['len_reactions'], int):
+            row['len_reactions'] = 0
+        # Merge the lists
+        diff = row['len_reactions'] - len(row['reaction_user_ids'])
+
+        result = ([-1] * diff) + row['reaction_user_ids'].tolist()[::-1] if diff > 0 else row['reaction_user_ids']
+        return result
 
 def contains_stopwords(s, stopwords):
     return any(word in stopwords for word in s.split())
