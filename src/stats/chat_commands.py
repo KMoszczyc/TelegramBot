@@ -12,6 +12,9 @@ from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, P
 import src.stats.utils as stats_utils
 
 pd.options.mode.chained_assignment = None
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.width', 1000)
 log = logging.getLogger(__name__)
 
 negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
@@ -38,9 +41,15 @@ class ChatCommands:
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_df, reactions_df, period_mode, mode_time, user, error = self.preprocess_input(context.args)
 
+        sad_reactions_df = self.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
+        text_only_chat_df = chat_df[chat_df['text'] != '']
+
         images_num = len(chat_df[chat_df['photo']])
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
         reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
+        sad_reactions_received_counts = sad_reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
+        sad_reactions_given_counts = sad_reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
+
         message_counts = chat_df.groupby('final_username').size().reset_index(name='count').sort_values('count', ascending=False)
 
         text = "*Chat summary*"
@@ -49,6 +58,10 @@ class ChatCommands:
         text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['count']}*" for _, row in message_counts.head(3).iterrows()])
         text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
         text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
+        text += "\n- *Most disliked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in sad_reactions_received_counts.head(3).iterrows()])
+        text += "\n- *Most disliking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in sad_reactions_given_counts.head(3).iterrows()])
+        text += "\n- *Top message*: " + ", ".join([f"{row['final_username']} [{self.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in text_only_chat_df.head(1).iterrows()])
+
 
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
@@ -180,9 +193,7 @@ class ChatCommands:
         filtered_chat_df = self.filter_by_time_df(self.chat_df, mode, mode_time)
         filtered_reactions_df = self.filter_by_time_df(self.reactions_df, mode, mode_time)
 
-        if emoji_type == EmojiType.NEGATIVE:
-            filtered_chat_df['reaction_emojis'] = filtered_chat_df['reaction_emojis'].apply(
-                lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
+        filtered_chat_df = self.filter_emojis_by_emoji_type(filtered_chat_df, emoji_type, 'reaction_emojis')
 
         filtered_chat_df['reactions_num'] = filtered_chat_df['reaction_emojis'].apply(lambda x: len(x))
         filtered_chat_df = filtered_chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
@@ -195,6 +206,17 @@ class ChatCommands:
         print(filtered_chat_df.tail(1))
 
         return filtered_chat_df, filtered_reactions_df, mode, mode_time, user, error
+
+    def filter_emojis_by_emoji_type(self, df, emoji_type, col='reaction_emojis'):
+        if emoji_type == EmojiType.NEGATIVE:
+            df[col] = df[col].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
+        return df
+
+    def filter_emoji_by_emoji_type(self, df, emoji_type, col='emoji'):
+        if emoji_type == EmojiType.NEGATIVE:
+            df = df[df[col].isin(negative_emojis)]
+            # df = df[df[col] is not None]
+        return df
 
     def extract_int(self, num_str):
         return self.parse_int(''.join(filter(str.isdigit, num_str)))
