@@ -41,6 +41,10 @@ class ChatCommands:
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_df, reactions_df, period_mode, mode_time, user, error = self.preprocess_input(context.args)
 
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
         sad_reactions_df = self.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
 
