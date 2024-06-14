@@ -87,7 +87,7 @@ class ChatETL:
         else:
             return
 
-        new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df else len(merged_chat_df)
+        new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df is not None else len(merged_chat_df)
         log.info(f'New {new_msg_count} messages since {self.metadata['last_message_dt'].tz_convert('Europe/Warsaw')} with {malformed_count} malformed records.')
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
 
