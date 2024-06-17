@@ -85,6 +85,7 @@ class ChatETL:
         elif not latest_chat_df.empty:
             merged_chat_df = latest_chat_df
         else:
+            log.info('Failed to update the chat history.')
             return
 
         new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df is not None else len(merged_chat_df)
