@@ -2,9 +2,28 @@ import os
 import logging
 from enum import Enum
 
+
+def is_docker():
+    def text_in_file(text, filename):
+        try:
+            with open(filename, encoding='utf-8') as lines:
+                return any(text in line for line in lines)
+        except OSError:
+            return False
+
+    cgroup = '/proc/self/cgroup'
+    return os.path.exists('/.dockerenv') or text_in_file('docker', cgroup)
+
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+log = logging.getLogger(__name__)
+log.info(f'Are we running in docker? {is_docker()}')
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = "/data"  # location of a docker mounted volume, shared between etc and bot containers. Specified in docker-compose.yml
-# DATA_DIR = os.path.join(ROOT_DIR, 'data')
+DATA_DIR = "/data" if is_docker() else os.path.join(ROOT_DIR, 'data')
 
 # Chat data
 METADATA_PATH = os.path.join(DATA_DIR, 'chat/metadata.pickle')
@@ -24,11 +43,6 @@ OZJASZ_PHRASES_PATH = os.path.join(DATA_DIR, 'misc/ozjasz-wypowiedzi.txt')
 POLISH_STOPWORDS_PATH = os.path.join(DATA_DIR, 'misc/polish.stopwords.txt')
 BARTOSIAK_PATH = os.path.join(DATA_DIR, 'misc/bartosiak.txt')
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:
@@ -46,6 +60,7 @@ class PeriodFilterMode(Enum):
     MONTH = 'month'
     YEAR = 'year'
     TOTAL = 'total'
+
 
 class EmojiType(Enum):
     """Enum for different reaction emoji types"""
