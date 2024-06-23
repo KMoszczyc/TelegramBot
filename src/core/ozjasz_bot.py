@@ -31,7 +31,8 @@ class OzjaszBot:
                             CommandHandler('topmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.ALL)),
                             CommandHandler('sadmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.NEGATIVE)),
                             CommandHandler('topmemes', lambda update, context: self.chat_commands.memes_by_reactions(update, context, EmojiType.ALL)),
-                            CommandHandler('sadmemes', lambda update, context: self.chat_commands.memes_by_reactions(update, context, EmojiType.NEGATIVE))
+                            CommandHandler('sadmemes', lambda update, context: self.chat_commands.memes_by_reactions(update, context, EmojiType.NEGATIVE)),
+                            CommandHandler('lastmessages', lambda update, context: self.chat_commands.last_messages(update, context))
                             ]
 
         self.application.add_handlers(command_handlers)

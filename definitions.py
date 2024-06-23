@@ -67,3 +67,8 @@ class EmojiType(Enum):
     ALL = 'all'
     POSITIVE = 'positive'
     NEGATIVE = 'negative'
+
+class ArgType(Enum):
+    """Enum for user command argument input."""
+    USER = 'user'
+    PERIOD = 'period'
