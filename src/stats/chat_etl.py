@@ -1,11 +1,16 @@
 import logging
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
+import os
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH
 import src.stats.utils as stats_utils
+
+load_dotenv()
+BOT_ID = os.getenv('BOT_ID')
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -14,6 +19,7 @@ pd.options.mode.chained_assignment = None
 
 log = logging.getLogger(__name__)
 excluded_user_ids = [6455867316, 6455867316, 1660481027, 1626698260, 1653222205, 1626673718, 2103796402]
+BOT_MESSAGE_RETENION_IN_MINUTES = 5
 
 
 class ChatETL:
@@ -25,6 +31,8 @@ class ChatETL:
 
     def update(self, days: int):
         log.info(f"Running chat update for the past: {days} days")
+
+        self.delete_bot_messages()
 
         self.download_chat_history(days)
         self.extract_users()
@@ -175,3 +183,16 @@ class ChatETL:
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
 
         stats_utils.save_df(reactions_df, REACTIONS_PATH)
+
+    def delete_bot_messages(self):
+        """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
+        filter_dt = datetime.now(timezone.utc) - timedelta(minutes=BOT_MESSAGE_RETENION_IN_MINUTES)
+
+        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
+        bot_messages_df = chat_df[chat_df['user_id'] == int(BOT_ID)]
+        old_bot_messages_df = bot_messages_df[bot_messages_df['timestamp'] < filter_dt]
+
+        log.info(f"Deleting {len(old_bot_messages_df)} bot messages older than {BOT_MESSAGE_RETENION_IN_MINUTES} minutes.")
+        message_ids = old_bot_messages_df['message_id'].tolist()
+
+        self.client_api_handler.delete_messages(message_ids)

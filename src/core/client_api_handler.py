@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from definitions import CHAT_IMAGES_DIR_PATH
 import src.core.utils as core_utils
+import src.stats.utils as stats_utils
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ API_HASH = os.getenv('API_HASH')
 CHAT_ID = int(os.getenv('CHAT_ID'))
 TEST_CHAT_ID = int(os.getenv('TEST_CHAT_ID'))
 SESSION = os.getenv('SESSION')
+BOT_ID = int(os.getenv('BOT_ID'))
 
 
 class ClientAPIHandler:
@@ -35,6 +37,7 @@ class ClientAPIHandler:
         days - number of past days of chat messages that will get updated
         :rtype: object
         """
+
         async def helper():
             chat_history = []
             count = 0
@@ -71,6 +74,7 @@ class ClientAPIHandler:
         :param message_ids: a list of message ids
         :return:
         """
+
         # async def helper():
         #     result = await self.client(functions.messages.GetMessageReactionsListRequest(peer=CHAT_ID, id=message_id, limit=100))
         #     return result
@@ -90,3 +94,18 @@ class ClientAPIHandler:
             # channel = self.client(ResolveUsernameRequest('channel_name'))
             for _user in self.client.iter_participants(CHAT_ID):
                 print(_user)
+
+    def delete_messages(self, message_ids: list):
+        """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
+
+        if not stats_utils.check_bot_messages(message_ids, BOT_ID):
+            log.info("Not all messages set for deletion belong to a bot, deletion stopped!")
+            return
+        log.info("All message ids correspond to bot messages. Proceeding with deletion.")
+
+        async def helper():
+            async with self.client:
+                await self.client.delete_messages(entity=CHAT_ID, message_ids=message_ids)
+
+        with self.client:
+            return self.client.loop.run_until_complete(helper())

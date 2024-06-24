@@ -4,8 +4,8 @@ import logging
 import pickle
 import datetime
 from datetime import timezone, timedelta
-from zoneinfo import ZoneInfo
 
+from zoneinfo import ZoneInfo
 import pandas as pd
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType
@@ -120,7 +120,7 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     return command_args
 
 
-def parse_arg(users_df, command_args, arg_str, arg_type: ArgType) -> (str, str):
+def parse_arg(users_df, command_args, arg_str, arg_type: ArgType) -> CommandArgs:
     match arg_type:
         case ArgType.USER:
             return parse_user(users_df, command_args, arg_str)
@@ -280,3 +280,13 @@ def x_to_light_years(x):
     ly = x / 9460730472580.8
     ly = round(ly, 6) if ly < 1 else round(ly, 2)
     return ly
+
+
+def check_bot_messages(message_ids: list, bot_id: int) -> bool:
+    """Check if bot messages are present in chat history."""
+    chat_df = read_df(CHAT_HISTORY_PATH)
+    filtered_df = chat_df[chat_df['message_id'].isin(message_ids)]
+    non_bot_messages_df = filtered_df[filtered_df['user_id'] != bot_id]
+    bot_messages_df = filtered_df[filtered_df['user_id'] == bot_id]
+
+    return non_bot_messages_df.empty and len(message_ids) == len(bot_messages_df)
