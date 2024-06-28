@@ -87,7 +87,7 @@ def remove_file(path):
 
 
 def escape_special_characters(text):
-    special_characters = r'\-.()[{}_]:'
+    special_characters = r'\-.()[{}_]:+'
     return re.sub(f'([{re.escape(special_characters)}])', r'\\\1', text)
 
 
@@ -127,26 +127,38 @@ def parse_arg(users_df, command_args, arg_str, arg_type: ArgType) -> CommandArgs
         case ArgType.PERIOD:
             return parse_period(command_args, arg_str)
         case _:
-            raise ValueError(f"Invalid argument type: {arg_type}")
+            return command_args
 
 
-def parse_period(command_args, period_str) -> (PeriodFilterMode, str):
-    period_mode_str = period_str
+def parse_period(command_args, arg_str) -> CommandArgs:
+    if arg_str == '':
+        command_args.period_error = "Period cannot be empty."
+        log.error(command_args.user_error)
+        return command_args
+
+    period_mode_str = arg_str
     try:
-        if 'h' in period_str and has_numbers(period_str):
-            command_args.period_time, command_args.parse_error = parse_int(period_str.replace('h', ''))
+        if 'h' in arg_str and has_numbers(arg_str):
+            command_args.period_time, command_args.parse_error = parse_int(arg_str.replace('h', ''))
             period_mode_str = 'hour'
-
-        command_args.period_mode = PeriodFilterMode(period_mode_str)
+        if command_args.parse_error == '':
+            command_args.period_mode = PeriodFilterMode(period_mode_str)
     except ValueError:
-        command_args.period_error = f"There is no such time period as {period_str}."
+        command_args.period_error = f"There is no such time period as {arg_str}."
         log.error(command_args.period_error)
+
+    if command_args.parse_error != '' or command_args.period_error != '':
+        command_args.period_mode = PeriodFilterMode.ERROR
 
     return command_args
 
 
-def parse_user(users_df, command_args, arg_str) -> (str, str):
-    error = ''
+def parse_user(users_df, command_args, arg_str) -> CommandArgs:
+    if arg_str == '':
+        command_args.user_error = "User cannot be empty."
+        log.error(command_args.user_error)
+        return command_args
+
     user_str = arg_str.replace('@', '')
 
     exact_matching_users = users_df[users_df['final_username'].str.lower() == user_str.lower()]
@@ -158,7 +170,8 @@ def parse_user(users_df, command_args, arg_str) -> (str, str):
         command_args.user = partially_matching_users.iloc[0]['final_username']
     else:
         command_args.user_error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
-        log.error(error)
+        log.error(command_args.user_error)
+
     return command_args
 
 
@@ -257,9 +270,14 @@ def parse_int(num_str):
         if num > MAX_INT:
             error = f"Kuba's dick is too big ({x_to_light_years(num)} light years), make it smaller!"
             log.error(error)
+        if num < 0:
+            error = "Period time cannot be a negative number!"
+            num = -1
+            log.error(error)
     except ValueError:
         error = f"{num_str} is not a number."
         log.error(error)
+
     return num, error
 
 

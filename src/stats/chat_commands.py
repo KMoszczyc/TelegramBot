@@ -47,17 +47,11 @@ class ChatCommands:
         filtered_chat_df = utils.filter_by_time_df(self.chat_df, command_args)
         filtered_reactions_df = utils.filter_by_time_df(self.reactions_df, command_args)
 
-        print('Heh1')
-        print(filtered_chat_df.tail(5))
-
         filtered_chat_df = utils.filter_emojis_by_emoji_type(filtered_chat_df, emoji_type, 'reaction_emojis')
 
         filtered_chat_df['reactions_num'] = filtered_chat_df['reaction_emojis'].apply(lambda x: len(x))
         filtered_chat_df = filtered_chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
         filtered_chat_df['timestamp'] = filtered_chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
-
-        print('Heh2')
-        print(filtered_chat_df.tail(5))
 
         if command_args.user is not None:
             filtered_chat_df = filtered_chat_df[filtered_chat_df['final_username'] == command_args.user]
@@ -71,6 +65,9 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
 
+        shifted_chat_df = utils.filter_by_shifted_time_df(self.chat_df, command_args)
+        shifted_reactions_df = utils.filter_by_shifted_time_df(self.reactions_df, command_args)
+
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -83,12 +80,18 @@ class ChatCommands:
         reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_received_counts = sad_reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_given_counts = sad_reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
-
         message_counts = chat_df.groupby('final_username').size().reset_index(name='count').sort_values('count', ascending=False)
 
+        # Calculate message and reaction count changes
+        message_count_change = round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1) if not shifted_chat_df.empty else 0
+        reaction_count_change = round((len(reactions_df) - len(shifted_reactions_df)) / len(shifted_reactions_df) * 100, 1) if not shifted_reactions_df.empty else 0
+        message_count_change_text = f'+{message_count_change}%' if message_count_change > 0 else f'{message_count_change}%'
+        reaction_count_change_text = f'+{reaction_count_change}%' if reaction_count_change > 0 else f'{reaction_count_change}%'
+
+        # Create summary
         text = "*Chat summary*"
         text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
-        text += f"\n- *Total*: *{len(chat_df)}* messages, *{len(reactions_df)}* reactions and *{images_num}* images"
+        text += f"\n- *Total*: *{len(chat_df)} ({message_count_change_text})* messages, *{len(reactions_df)} ({reaction_count_change_text})* reactions and *{images_num}* images"
         text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['count']}*" for _, row in message_counts.head(3).iterrows()])
         text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
         text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
@@ -106,7 +109,7 @@ class ChatCommands:
     async def messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER])
-        chat_df, reactions_df, command_args= self.preprocess_input(command_args, emoji_type)
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return

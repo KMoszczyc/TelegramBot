@@ -60,6 +60,7 @@ class PeriodFilterMode(Enum):
     MONTH = 'month'
     YEAR = 'year'
     TOTAL = 'total'
+    ERROR = 'error'
 
 
 class EmojiType(Enum):
