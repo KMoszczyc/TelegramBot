@@ -191,8 +191,9 @@ class ChatETL:
         chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         bot_messages_df = chat_df[chat_df['user_id'] == int(BOT_ID)]
         old_bot_messages_df = bot_messages_df[bot_messages_df['timestamp'] < filter_dt]
+        not_liked_old_bot_messages_df = old_bot_messages_df[old_bot_messages_df['reaction_emojis'].apply(lambda x: len(x) == 0)]
 
-        log.info(f"Deleting {len(old_bot_messages_df)} bot messages older than {BOT_MESSAGE_RETENION_IN_MINUTES} minutes.")
-        message_ids = old_bot_messages_df['message_id'].tolist()
+        log.info(f"Deleting {len(old_bot_messages_df)} bot messages older than {BOT_MESSAGE_RETENION_IN_MINUTES} minutes and without reactions.")
+        message_ids = not_liked_old_bot_messages_df['message_id'].tolist()
 
         self.client_api_handler.delete_messages(message_ids)

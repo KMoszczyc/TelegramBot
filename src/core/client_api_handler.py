@@ -75,10 +75,6 @@ class ClientAPIHandler:
         :return:
         """
 
-        # async def helper():
-        #     result = await self.client(functions.messages.GetMessageReactionsListRequest(peer=CHAT_ID, id=message_id, limit=100))
-        #     return result
-
         async def helper():
             async with self.client:
                 message_reactions = {}
