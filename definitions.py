@@ -15,6 +15,12 @@ def is_docker():
     return os.path.exists('/.dockerenv') or text_in_file('docker', cgroup)
 
 
+def read_str_file(path):
+    with open(path, 'r') as f:
+        lines = f.read().splitlines()
+    return lines
+
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -43,6 +49,12 @@ OZJASZ_PHRASES_PATH = os.path.join(DATA_DIR, 'misc/ozjasz-wypowiedzi.txt')
 POLISH_STOPWORDS_PATH = os.path.join(DATA_DIR, 'misc/polish.stopwords.txt')
 BARTOSIAK_PATH = os.path.join(DATA_DIR, 'misc/bartosiak.txt')
 
+# Load text files with funny phrases
+tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
+tvp_latest_headlines = read_str_file(TVP_LATEST_HEADLINES_PATH)
+ozjasz_phrases = read_str_file(OZJASZ_PHRASES_PATH)
+bartosiak_phrases = read_str_file(BARTOSIAK_PATH)
+
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:
@@ -69,7 +81,10 @@ class EmojiType(Enum):
     POSITIVE = 'positive'
     NEGATIVE = 'negative'
 
+
 class ArgType(Enum):
     """Enum for user command argument input."""
     USER = 'user'
     PERIOD = 'period'
+    TEXT = 'text'
+    REGEX = 'regex'

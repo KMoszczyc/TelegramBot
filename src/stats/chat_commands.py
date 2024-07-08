@@ -8,7 +8,7 @@ import pandas as pd
 
 from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType
 import src.stats.utils as utils
-from src.stats.models.command_args import CommandArgs
+from src.models.command_args import CommandArgs
 
 pd.options.mode.chained_assignment = None
 pd.set_option('display.max_columns', None)

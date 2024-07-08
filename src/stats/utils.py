@@ -10,7 +10,7 @@ import pandas as pd
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType
 from src.core.utils import create_dir
-from src.stats.models.command_args import CommandArgs
+from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 
