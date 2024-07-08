@@ -8,7 +8,7 @@ import src.core.utils as core_utils
 
 async def ozjasz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases)
-    filtered_phrases = core_utils.preprocess_input(command_args)
+    filtered_phrases, command_args = core_utils.preprocess_input(command_args)
     if command_args.error != '':
         await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
         return
