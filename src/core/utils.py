@@ -2,6 +2,7 @@ import os
 import logging
 import random
 import re
+from datetime import datetime
 
 from definitions import ArgType
 from src.models.command_args import CommandArgs
@@ -67,3 +68,15 @@ def is_inside_square_brackets(text):
 
 def select_random_phrase(phrases, error_message):
     return random.choice(phrases) if phrases else error_message
+
+
+def generate_unique_number(user_id):
+    today = int(datetime.now().strftime('%Y%m%d'))
+    user_id_cut = user_id % 100
+
+    log.info(f'Generating lucky number for user [{user_id}] - {today + user_id_cut}')
+    return today + user_id_cut
+
+
+def is_prime(n):
+    return all(False for i in range(2, n) if n % i == 0) and n >= 2
