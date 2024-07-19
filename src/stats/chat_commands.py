@@ -6,8 +6,9 @@ from telegram.ext import ContextTypes
 import telegram
 import pandas as pd
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, CHAT_IMAGES_DIR_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType
 import src.stats.utils as utils
+import src.core.utils as core_utils
 from src.models.command_args import CommandArgs
 
 pd.options.mode.chained_assignment = None
@@ -75,7 +76,7 @@ class ChatCommands:
         sad_reactions_df = utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
 
-        images_num = len(chat_df[chat_df['photo']])
+        images_num = len(chat_df[chat_df['message_type'] == 'image'])
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
         reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_received_counts = sad_reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
@@ -130,8 +131,8 @@ class ChatCommands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-    async def memes_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
-        """Top or sad 5 memes (images) from selected time period by number of reactions"""
+    async def media_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL):
+        """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != '':
@@ -139,24 +140,42 @@ class ChatCommands:
             return
 
         label = utils.emoji_sentiment_to_label(emoji_type)
-        text = f"{label} Cinco memes"
+        text = f"{label} Cinco {message_type.value}"
         text += ' ' if command_args.user is None else f" by {command_args.user}"
         text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-        chat_df = chat_df[chat_df['photo'] == True]
+        # merging video and video notes as one
+        if message_type == MessageType.VIDEO:
+            chat_df = chat_df[chat_df['message_type'].isin([MessageType.VIDEO.value, MessageType.VIDEO_NOTE.value])]
+        else:
+            chat_df = chat_df[chat_df['message_type'] == message_type.value]
+
+        chat_df = chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
-            if row['reactions_num'] == 0:
-                break
-            img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(row['message_id'])}.jpg')
             text = f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
             text += f" [{utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
-            # text = f"\n{i + 1}. {row['final_username']}: {row['text']} [{''.join(row['reaction_emojis'])}]"
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img_path, caption=text)
+            current_message_type = MessageType(row['message_type'])
+            path = core_utils.message_id_to_path(str(row['message_id']), current_message_type)
+            await self.send_message(update, context, current_message_type, path, text)
+
+    async def send_message(self, update, context, message_type: MessageType, path, text):
+        match message_type:
+            case MessageType.GIF:
+                await context.bot.send_animation(chat_id=update.effective_chat.id, animation=path, caption=text)
+            case MessageType.VIDEO:
+                await context.bot.send_video(chat_id=update.effective_chat.id, video=path, caption=text)
+            case MessageType.VIDEO_NOTE:
+                await context.bot.send_video_note(chat_id=update.effective_chat.id, video_note=path)
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+            case MessageType.IMAGE:
+                await context.bot.send_photo(chat_id=update.effective_chat.id, photo=path, caption=text)
+            case MessageType.AUDIO:
+                await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text)
 
     async def last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last 5 messages from chat history"""

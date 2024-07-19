@@ -4,7 +4,7 @@ import random
 import re
 from datetime import datetime
 
-from definitions import ArgType
+from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -80,3 +80,59 @@ def generate_unique_number(user_id):
 
 def is_prime(n):
     return all(False for i in range(2, n) if n % i == 0) and n >= 2
+
+
+def is_gif(message):
+    return message.document and message.document.mime_type == "video/mp4" and message.gif
+
+
+def is_video(message):
+    return message.document and message.document.mime_type == "video/mp4" and not message.gif
+
+
+def message_id_to_path(message_id, message_type: MessageType):
+    match message_type:
+        case MessageType.IMAGE:
+            filename = f'{message_id}.jpg'
+            return os.path.join(CHAT_IMAGES_DIR_PATH, filename)
+        case MessageType.GIF:
+            filename = f'{message_id}.mp4'
+            return os.path.join(CHAT_GIFS_DIR_PATH, filename)
+        case MessageType.VIDEO | MessageType.VIDEO_NOTE:
+            filename = f'{message_id}.mp4'
+            return os.path.join(CHAT_VIDEOS_DIR_PATH, filename)
+        case MessageType.AUDIO:
+            filename = f'{message_id}.ogg'
+            return os.path.join(CHAT_AUDIO_DIR_PATH, filename)
+    return None
+
+def get_message_type(message):
+    if message.photo:
+        return MessageType.IMAGE
+    if message.document and message.document.mime_type == "video/mp4" and message.gif:
+        return MessageType.GIF
+    if message.document and message.document.mime_type == "video/mp4" and not message.gif and not message.video_note:
+        return MessageType.VIDEO
+    if message.document and message.document.mime_type == "video/mp4" and not message.gif and message.video_note:
+        return MessageType.VIDEO_NOTE
+    if message.voice:
+        return MessageType.AUDIO
+
+    return MessageType.TEXT
+
+
+async def download_media(message, message_type):
+    match message_type:
+        case MessageType.IMAGE:
+            path = message_id_to_path(message.id, MessageType.IMAGE)
+        case MessageType.GIF:
+            path = message_id_to_path(message.id, MessageType.GIF)
+        case MessageType.VIDEO:
+            path = message_id_to_path(message.id, MessageType.VIDEO)
+        case MessageType.AUDIO:
+            path = message_id_to_path(message.id, MessageType.AUDIO)
+        case _:
+            return None
+
+    if not os.path.exists(path):
+        await message.download_media(file=path)

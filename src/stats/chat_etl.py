@@ -30,7 +30,7 @@ class ChatETL:
         self.metadata = stats_utils.load_metadata()
 
     def update(self, days: int):
-        log.info(f"Running chat update for the past: {days} days")
+        log.info(f"Running chat ETL for the past: {days} days")
 
         self.delete_bot_messages()
 
@@ -41,11 +41,9 @@ class ChatETL:
 
     def download_chat_history(self, days):
         self.metadata = stats_utils.load_metadata()
-        # latest_messages = self.client_api_handler.get_chat_history(self.metadata['last_message_utc_timestamp'])
-        latest_messages = self.client_api_handler.get_chat_history(days)
-        # self.client_api_handler.get_reactions(270441)
+        latest_messages, message_types = self.client_api_handler.get_chat_history(days)
 
-        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'reaction_emojis', 'reaction_user_ids', 'photo']
+        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'reaction_emojis', 'reaction_user_ids', 'message_type']
         data = []
 
         malformed_count = 0
@@ -53,41 +51,34 @@ class ChatETL:
         message_reactions = self.client_api_handler.get_reactions(message_ids_for_reaction_api_update) if message_ids_for_reaction_api_update else []
         log.info(f'Additional {len(message_ids_for_reaction_api_update)} messages pulled with more detailed reactions.')
 
-        for message in latest_messages:
+        for message, message_type in zip(latest_messages, message_types):
             reaction_emojis, reaction_user_ids = [], []
             if message is None or message.sender is None:
                 continue
             success = True
 
             if message.reactions is not None and message.reactions.recent_reactions is not None:
-                reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message.reactions.recent_reactions,
-                                                                                                    malformed_count, success)
+                reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message.reactions.recent_reactions, malformed_count, success)
                 reactions_count = self.count_reactions(message)
                 if reactions_count > 3 and message_reactions:
-                    reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message_reactions[message.id].reactions,
-                                                                                                        malformed_count, success)
-                    # print(message.date, reaction_emojis, reaction_user_ids)
+                    reaction_emojis, reaction_user_ids, malformed_count, success = self.parse_reactions(message, message_reactions[message.id].reactions, malformed_count, success)
 
             if not success:
                 continue
-            is_photo = bool(message.photo)
             single_message_data = [message.id, message.date, message.sender_id, message.sender.first_name, message.sender.last_name, message.sender.username,
                                    message.text,
                                    reaction_emojis,
                                    reaction_user_ids,
-                                   is_photo]
+                                   message_type.value]
             data.append(single_message_data)
 
         old_chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
 
-        log.info(
-            f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo('Europe/Warsaw')) - timedelta(days=days)} with {malformed_count} malformed records.')
-        # print(latest_chat_df.head(5))
+        log.info(f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo('Europe/Warsaw')) - timedelta(days=days)} with {malformed_count} malformed records.')
         if old_chat_df is not None and not latest_chat_df.empty:
             # merged_chat_df = pd.concat([old_chat_df, latest_chat_df]).drop_duplicates(subset='message_id').reset_index(drop=True)
-            merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(
-                drop=True)
+            merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
         elif old_chat_df is not None:
             merged_chat_df = old_chat_df
         elif not latest_chat_df.empty:
@@ -143,7 +134,7 @@ class ChatETL:
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
         cleaned_df = cleaned_df.merge(users_df, on='user_id')
-        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'reaction_emojis', 'reaction_user_ids', 'photo']]
+        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'reaction_emojis', 'reaction_user_ids', 'message_type']]
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert('Europe/Warsaw')
         cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
 
@@ -186,9 +177,13 @@ class ChatETL:
 
     def delete_bot_messages(self):
         """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
+        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
+        if chat_df is None:
+            log.info('No chat history, no bot messages to delete.')
+            return
+
         filter_dt = datetime.now(timezone.utc) - timedelta(minutes=BOT_MESSAGE_RETENION_IN_MINUTES)
 
-        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         bot_messages_df = chat_df[chat_df['user_id'] == int(BOT_ID)]
         old_bot_messages_df = bot_messages_df[bot_messages_df['timestamp'] < filter_dt]
         not_liked_old_bot_messages_df = old_bot_messages_df[old_bot_messages_df['reaction_emojis'].apply(lambda x: len(x) == 0)]

@@ -6,7 +6,7 @@ from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
 
-from definitions import CHAT_IMAGES_DIR_PATH
+from definitions import CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, MessageType
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -40,30 +40,28 @@ class ClientAPIHandler:
 
         async def helper():
             chat_history = []
+            message_types = []
             count = 0
             offset_dt = datetime.now(tz=timezone.utc) - timedelta(days=days)
             offset_timestamp = offset_dt.timestamp()
-            print(offset_dt, offset_timestamp)
             async with self.client:
                 async for msg in self.client.iter_messages(CHAT_ID, offset_date=offset_timestamp, reverse=True):
                     # for msg in self.client.iter_messages(CHAT_ID, offset_date=date, reverse=True):
                     if msg is None:
                         break
-                    # print(msg)
                     if count % 10000 == 0:
                         if hasattr(msg.sender, 'first_name') and hasattr(msg.sender, 'last_name') and hasattr(msg.sender, 'username'):
                             log.info(f"{msg.date}, {msg.id}, ':', {msg.sender.first_name}, {msg.sender.last_name}, {msg.sender.username}, {msg.sender_id}, ':', {msg.text}")
                         else:
                             log.info(f"{msg.id}, {msg.text}")
 
-                    if msg.photo:
-                        img_path = os.path.join(CHAT_IMAGES_DIR_PATH, f'{str(msg.id)}.jpg')
-                        if not os.path.exists(img_path):
-                            await msg.download_media(file=img_path)
+                    message_type = core_utils.get_message_type(msg)
+                    await core_utils.download_media(msg, message_type)
 
+                    message_types.append(message_type)
                     chat_history.append(msg)
                     count += 1
-            return chat_history
+            return chat_history, message_types
 
         with self.client:
             chat_history = self.client.loop.run_until_complete(helper())

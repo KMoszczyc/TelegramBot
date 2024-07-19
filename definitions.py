@@ -36,6 +36,9 @@ METADATA_PATH = os.path.join(DATA_DIR, 'chat/metadata.pickle')
 UPDATE_REQUIRED_PATH = os.path.join(DATA_DIR, 'chat/update_required.lock')
 CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/chat_history.parquet')
 CHAT_IMAGES_DIR_PATH = os.path.join(DATA_DIR, 'chat/images')
+CHAT_GIFS_DIR_PATH = os.path.join(DATA_DIR, 'chat/gifs')
+CHAT_VIDEOS_DIR_PATH = os.path.join(DATA_DIR, 'chat/videos')
+CHAT_AUDIO_DIR_PATH = os.path.join(DATA_DIR, 'chat/audio')
 
 # CHAT_HISTORY_PATH = os.path.join(ROOT_DIR, 'data/chat/test_chat_history.parquet')
 CLEANED_CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/cleaned_chat_history.parquet')
@@ -88,3 +91,13 @@ class ArgType(Enum):
     PERIOD = 'period'
     TEXT = 'text'
     REGEX = 'regex'
+
+
+class MessageType(Enum):
+    """Enum for message types"""
+    TEXT = 'text'
+    GIF = 'gif'
+    VIDEO = 'video'
+    VIDEO_NOTE = 'video_note'
+    IMAGE = 'image'
+    AUDIO = 'audio'
