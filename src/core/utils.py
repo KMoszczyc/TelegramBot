@@ -127,7 +127,7 @@ async def download_media(message, message_type):
             path = message_id_to_path(message.id, MessageType.IMAGE)
         case MessageType.GIF:
             path = message_id_to_path(message.id, MessageType.GIF)
-        case MessageType.VIDEO:
+        case MessageType.VIDEO | MessageType.VIDEO_NOTE:
             path = message_id_to_path(message.id, MessageType.VIDEO)
         case MessageType.AUDIO:
             path = message_id_to_path(message.id, MessageType.AUDIO)
