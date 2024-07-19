@@ -164,6 +164,7 @@ class ChatCommands:
             await self.send_message(update, context, current_message_type, path, text)
 
     async def send_message(self, update, context, message_type: MessageType, path, text):
+        log.info(f'Sending message: {text} with media type: {message_type} and media path: {path}')
         match message_type:
             case MessageType.GIF:
                 await context.bot.send_animation(chat_id=update.effective_chat.id, animation=path, caption=text)

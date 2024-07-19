@@ -6,3 +6,4 @@
 docker/Dockerfile_bot
 README.md
 docker-compose.yml
+data/

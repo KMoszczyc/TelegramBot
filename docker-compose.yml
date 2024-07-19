@@ -10,6 +10,7 @@ services:
     image: telegram-bot
     volumes:
       - ./data:/data
+      - .:/app
   etl:
     build:
       context: .
@@ -19,3 +20,4 @@ services:
     image: telegram-bot-etl
     volumes:
       - ./data:/data
+      - .:/app

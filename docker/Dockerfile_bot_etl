@@ -4,7 +4,8 @@ RUN apt-get update && apt-get install -y cron dos2unix
 WORKDIR /app
 ENV TZ="Europe/Warsaw"
 
-COPY .. .
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 COPY ./cron_etl /etc/cron.d/cron_etl
 RUN chmod 0644 /etc/cron.d/cron_etl
@@ -14,5 +15,4 @@ RUN crontab /etc/cron.d/cron_etl
 RUN touch /var/log/chat_etl.log
 RUN touch /var/log/cron.log
 
-RUN pip install -r requirements.txt
 CMD printenv > /etc/environment && cron && tail -f /var/log/chat_etl.log /var/log/cron.log
