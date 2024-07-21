@@ -126,8 +126,29 @@ def parse_arg(users_df, command_args, arg_str, arg_type: ArgType) -> CommandArgs
             return parse_user(users_df, command_args, arg_str)
         case ArgType.PERIOD:
             return parse_period(command_args, arg_str)
+        case ArgType.NUMBER:
+            return parse_number(command_args, arg_str)
         case _:
             return command_args
+
+
+def parse_number(command_args, arg_str) -> CommandArgs:
+    if arg_str == '':
+        return command_args
+
+    number, error = parse_int(arg_str)
+    if error != '':
+        command_args.parse_error = error
+        return command_args
+
+    if number > command_args.number_limit:
+        command_args.parse_error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
+        log.error(command_args.parse_error)
+        return command_args
+
+    command_args.number = number
+
+    return command_args
 
 
 def parse_period(command_args, arg_str) -> CommandArgs:
@@ -268,10 +289,10 @@ def parse_int(num_str):
         num = int(num_str)
         # print(num, MAX_INT)
         if num > MAX_INT:
-            error = f"Kuba's dick is too big ({x_to_light_years(num)} light years), make it smaller!"
+            error = f"Kuba's dick is too big ({x_to_light_years_str(num)}), make it smaller!"
             log.error(error)
         if num < 0:
-            error = "Period time cannot be a negative number!"
+            error = "Number cannot be negative!"
             num = -1
             log.error(error)
     except ValueError:
@@ -294,10 +315,14 @@ def dt_to_str(dt):
     return dt.strftime('%d-%m-%Y %H:%M')
 
 
-def x_to_light_years(x):
+def x_to_light_years_str(x):
+    """Kinda to last years, keep small numbers the same."""
+    if x < 10000000:
+        return str(x)
+
     ly = x / 9460730472580.8
     ly = round(ly, 6) if ly < 1 else round(ly, 2)
-    return ly
+    return f'{ly} light years'
 
 
 def check_bot_messages(message_ids: list, bot_id: int) -> bool:

@@ -91,6 +91,7 @@ class ArgType(Enum):
     PERIOD = 'period'
     TEXT = 'text'
     REGEX = 'regex'
+    NUMBER = 'number'
 
 
 class MessageType(Enum):

@@ -14,8 +14,9 @@ class CommandArgs:
     period_mode: PeriodFilterMode = PeriodFilterMode.TOTAL
     period_time: int = -1
     user: str = None
+    number: int = 5
+    number_limit: int = 100
     period_error: str = ''
     user_error: str = ''
     parse_error: str = ''
     error: str = ''
-

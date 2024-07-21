@@ -179,8 +179,8 @@ class ChatCommands:
                 await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text)
 
     async def last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Display last 5 messages from chat history"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER])
+        """Display last n messages from chat history"""
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.NUMBER], number_limit=100)
 
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         chat_df = chat_df.sort_values(by='timestamp', ascending=False)
@@ -188,12 +188,15 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        text = f"Last 5 messages"
+        text = f"Last {command_args.number} messages"
         text += f" by {command_args.user}" if command_args.user is not None else ":"
 
-        for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
+        for i, (index, row) in enumerate(chat_df.head(command_args.number).iterrows()):
             text += f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
             text += f" [{utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
+
+        if len(text) > 4096:
+            text = "Too much text to display. Lower the number of messages."
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
