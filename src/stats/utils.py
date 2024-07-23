@@ -344,10 +344,10 @@ def check_bot_messages(message_ids: list, bot_id: int) -> bool:
 def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     error = ''
     if len(text) < command_args.min_string_length:
-        error = f'{command_args.label} {text} is too short, should have at least {command_args.min_string_length} characters'
+        error = f'{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters.'
     if len(text) > command_args.max_string_length:
-        error = f'{command_args.label} {text} is too long, should have {command_args.max_string_length} characters or less'
+        error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
 
-    command_args.error = error
+    command_args.parse_error = error
     command_args.string = text
     return command_args
