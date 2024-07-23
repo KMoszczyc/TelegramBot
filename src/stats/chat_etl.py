@@ -129,6 +129,8 @@ class ChatETL:
         return sum(reaction_count.count for reaction_count in message.reactions.results) if message.reactions is not None else 0
 
     def clean_chat_history(self):
+        log.info('Cleaning chat history...')
+
         chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         users_df = stats_utils.read_users()
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
@@ -138,18 +140,24 @@ class ChatETL:
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert('Europe/Warsaw')
         cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
 
-        # print(users_df)
-        # print(cleaned_df.head(5))
-
         log.info(f'Cleaned chat history df, from: {len(chat_df)} to: {len(cleaned_df)}')
         stats_utils.save_df(cleaned_df, CLEANED_CHAT_HISTORY_PATH)
 
     def extract_users(self):
+        """Extract users from the chat history"""
+
+        if os.path.exists(USERS_PATH):
+            log.info(f'Users already extracted, {USERS_PATH} exists.')
+            return
+        log.info('Extracting users...')
+
         chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
         unique_chat_df = chat_df.drop_duplicates('user_id')
         users_df = unique_chat_df[['user_id', 'first_name', 'last_name', 'username']]
         filtered_users_df = users_df[~users_df['user_id'].isin(excluded_user_ids)]
         filtered_users_df['final_username'] = filtered_users_df.apply(self.create_final_username, axis=1)
+        filtered_users_df['nicknames'] = [[] for _ in range(len(filtered_users_df))]
+        filtered_users_df = filtered_users_df.set_index('user_id')
 
         stats_utils.save_df(filtered_users_df, USERS_PATH)
 
@@ -161,6 +169,8 @@ class ChatETL:
 
     def generate_reactions_df(self):
         """Include all reactions and fill the missing user_ids with None"""
+        log.info('Generating reactions df...')
+
         chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         users_df = stats_utils.read_df(USERS_PATH)
 

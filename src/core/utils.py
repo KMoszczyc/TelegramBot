@@ -106,6 +106,7 @@ def message_id_to_path(message_id, message_type: MessageType):
             return os.path.join(CHAT_AUDIO_DIR_PATH, filename)
     return None
 
+
 def get_message_type(message):
     if message.photo:
         return MessageType.IMAGE

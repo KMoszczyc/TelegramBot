@@ -92,6 +92,7 @@ class ArgType(Enum):
     TEXT = 'text'
     REGEX = 'regex'
     NUMBER = 'number'
+    STRING = 'string'
 
 
 class MessageType(Enum):

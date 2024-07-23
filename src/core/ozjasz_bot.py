@@ -36,7 +36,10 @@ class OzjaszBot:
                             CommandHandler('topvideos', lambda update, context: self.chat_commands.media_by_reactions(update, context, MessageType.VIDEO, EmojiType.ALL)),
                             CommandHandler('topgifs', lambda update, context: self.chat_commands.media_by_reactions(update, context, MessageType.GIF, EmojiType.ALL)),
                             CommandHandler('topaudio', lambda update, context: self.chat_commands.media_by_reactions(update, context, MessageType.AUDIO, EmojiType.ALL)),
-                            CommandHandler('lastmessages', lambda update, context: self.chat_commands.last_messages(update, context))
+                            CommandHandler('lastmessages', lambda update, context: self.chat_commands.last_messages(update, context)),
+                            CommandHandler('displayusers', lambda update, context: self.chat_commands.display_users(update, context)),
+                            CommandHandler('setusername', lambda update, context: self.chat_commands.set_username(update, context)),
+                            CommandHandler('addnickname', lambda update, context: self.chat_commands.add_nickname(update, context))
                             ]
 
         self.application.add_handlers(command_handlers)

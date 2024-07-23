@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
 MAX_INT = 24 * 365 * 20
+MAX_NICKNAMES_NUM = 5
 
 
 class ChatCommands:
@@ -36,6 +37,8 @@ class ChatCommands:
         log.info('Reloading chat data due to the recent update.')
         self.chat_df = utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         self.reactions_df = utils.read_df(REACTIONS_PATH)
+        self.users_df = utils.read_df(USERS_PATH)
+
         utils.remove_file(UPDATE_REQUIRED_PATH)
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
@@ -200,3 +203,61 @@ class ChatCommands:
             text = "Too much text to display. Lower the number of messages."
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+
+    async def display_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Display all users in chat"""
+
+        text = "All ye who dost partake in this discourse:"
+        for index, row in self.users_df.iterrows():
+            nicknames = ', '.join(row['nicknames'])
+            text += f"\n- *{row['final_username']}*: [{nicknames}]"
+
+        text = utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def add_nickname(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Set username for all users in chat"""
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Nickname')
+        command_args = utils.parse_args(self.users_df, command_args)
+
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        current_nicknames = self.users_df.at[user_id, 'nicknames']
+        current_username = self.users_df.at[user_id, 'final_username']
+        new_nickname = command_args.string
+
+        if len(current_nicknames) >= MAX_NICKNAMES_NUM:
+            error = f'Nickname *{new_nickname}* not added for *{current_username}*. Nicknames limit is {MAX_NICKNAMES_NUM}.'
+            error = utils.escape_special_characters(error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
+        self.users_df.at[user_id, 'nicknames'] = [new_nickname] if len(current_nicknames) == 0 else current_nicknames + [new_nickname]
+        utils.save_df(self.users_df, USERS_PATH)
+
+        current_nicknames = self.users_df.at[user_id, 'nicknames']
+        text = f'Nickname *{new_nickname}* added for *{current_username}*. Resulting in the following nicknames: *{", ".join(current_nicknames)}*. It will get updated in a few minutes.'
+        text = utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def set_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Set username for all users in chat"""
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Username')
+        command_args = utils.parse_args(self.users_df, command_args)
+
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        current_username = self.users_df.at[user_id, 'final_username']
+        new_username = command_args.string
+
+        self.users_df.at[user_id, 'final_username'] = new_username
+        utils.save_df(self.users_df, USERS_PATH)
+        text = f'Username changed from: *{current_username}* to *{new_username}*. It will get updated in a few minutes.'
+        text = utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)

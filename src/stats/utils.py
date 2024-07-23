@@ -107,6 +107,10 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     """
     parse_error, mode_error = '', ''
 
+    command_args.joined_args = ' '.join(command_args.args)
+    if command_args.args_with_spaces:
+        command_args.args = command_args.joined_args.split('|')
+
     if len(command_args.args) > len(command_args.expected_args):
         command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
         return command_args
@@ -128,6 +132,8 @@ def parse_arg(users_df, command_args, arg_str, arg_type: ArgType) -> CommandArgs
             return parse_period(command_args, arg_str)
         case ArgType.NUMBER:
             return parse_number(command_args, arg_str)
+        case ArgType.STRING:
+            return parse_string(command_args, arg_str)
         case _:
             return command_args
 
@@ -333,3 +339,15 @@ def check_bot_messages(message_ids: list, bot_id: int) -> bool:
     bot_messages_df = filtered_df[filtered_df['user_id'] == bot_id]
 
     return non_bot_messages_df.empty and len(message_ids) == len(bot_messages_df)
+
+
+def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
+    error = ''
+    if len(text) < command_args.min_string_length:
+        error = f'{command_args.label} {text} is too short, should have at least {command_args.min_string_length} characters'
+    if len(text) > command_args.max_string_length:
+        error = f'{command_args.label} {text} is too long, should have {command_args.max_string_length} characters or less'
+
+    command_args.error = error
+    command_args.string = text
+    return command_args
