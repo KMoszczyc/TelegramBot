@@ -84,12 +84,16 @@ def are_you_lucky(user_id):
     random.seed(user_hash)
     rand_value = random.random()
 
-    if rand_value < 0.2:
-        message = "Dzisiaj masz pecha :("
-    elif rand_value < 0.8:
+    if rand_value < 0.1:
+        message = "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
+    elif rand_value < 0.3:
+        message = "Dzisiaj masz lekkiego pecha. Zachowaj ostrożność."
+    elif rand_value < 0.7:
         message = "Normalny dzień dla normalnego chłopa."
+    elif rand_value < 0.9:
+        message = "Dzisiaj masz lekkie szczęście. Możesz spróbować coś zrobić, ale może się to nie powieść."
     else:
-        message = "Dzisiaj masz szczęście!"
+        message = "Dzisiaj masz ogromne szczęście! Wyjdź z domu i spróbuj zrobić coś nowego, na pewno Ci się uda!"
 
     log.info(f'User [{user_hash}] ({rand_value}) - {message}')
     return message
