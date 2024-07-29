@@ -70,16 +70,13 @@ async def tusk(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def are_you_lucky_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    lucky_number = core_utils.generate_unique_number(user_id)
-    are_you_lucky = core_utils.is_prime(lucky_number)
-    log.info(f'Is lucky number {lucky_number} a prime? {are_you_lucky}')
 
-    response = 'Dzisiaj masz szczęście!' if are_you_lucky else 'Dzisiaj masz pecha'
+    response = core_utils.are_you_lucky(user_id)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     commands = ['ozjasz [phrase]', 'tvp [phrase]', 'tvp_latest [phrase]', 'tusk', 'chatstats [today,yesterday,week,month,year,total]', 'topmessages [today,yesterday,week,month,year,total]', 'help']
-    response = "Istniejące komendy to:\n- /" + '\n- /'.join(commands)
 
+    response = "Istniejące komendy to:\n- /" + '\n- /'.join(commands)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)

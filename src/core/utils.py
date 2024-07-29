@@ -78,6 +78,23 @@ def generate_unique_number(user_id):
     return today + user_id_cut
 
 
+def are_you_lucky(user_id):
+    today = int(datetime.now().strftime('%Y%m%d'))
+    user_hash = user_id + today
+    random.seed(user_hash)
+    rand_value = random.random()
+
+    if rand_value < 0.2:
+        message = "Dzisiaj masz pecha :("
+    elif rand_value < 0.8:
+        message = "Normalny dzień dla normalnego chłopa."
+    else:
+        message = "Dzisiaj masz szczęście!"
+
+    log.info(f'User [{user_hash}] ({rand_value}) - {message}')
+    return message
+
+
 def is_prime(n):
     return all(False for i in range(2, n) if n % i == 0) and n >= 2
 
