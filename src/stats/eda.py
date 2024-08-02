@@ -1,3 +1,21 @@
+import re
+import string
+import time
+
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer
+
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, POLISH_STOPWORDS_PATH
+import src.stats.utils as stats_utils
+import src.core.utils as core_utils
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.width', 1000)
+pd.options.mode.chained_assignment = None
+
+
 # def generate_chat_plots(self):
 #     chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
 #     chat_df['timestamp'] = chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
@@ -105,38 +123,137 @@
 #     plt.legend()
 #     plt.show()
 
-# def generate_word_stats(self):
-#     chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-#     polish_stopwords = core_utils.read_str_file(POLISH_STOPWORDS_PATH)
-#     filtered_chat_df = chat_df[chat_df['text'] != ''].dropna()
-#     filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"https:\/\/.*", "", regex=True)
-#     filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"\(.*\)", "", regex=True)  # remove text inside braces/brackets
-#     filtered_chat_df['text'] = filtered_chat_df['text'].str.replace('[^\w\s]', '')  # remove special characters
-#
-#     print(len(chat_df), len(filtered_chat_df))
-#     print(filtered_chat_df.head(10))
-#     print(filtered_chat_df.tail(10))
-#
-#     print(filtered_chat_df.info())
-#
-#     cv = CountVectorizer(ngram_range=(7, 7))
-#     cv_fit = cv.fit_transform(filtered_chat_df['text'])
-#     word_list = cv.get_feature_names_out()
-#
-#     # Added [0] here to get a 1d-array for iteration by the zip function.
-#     counts = np.asarray(cv_fit.sum(axis=0))[0]
-#     word_counts = dict(zip(word_list, counts))
-#     sorted_word_counts = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
-#
-#     # cleaned_word_counts = [(word, count) for word, count in sorted_word_counts if word not in polish_stopwords] # single words
-#     # cleaned_word_counts = [(words, count) for words, count in sorted_word_counts if not contains_stopwords(words, polish_stopwords)] # bigrams/trigrams
-#
-#     for word, count in sorted_word_counts[:200]:
-#         print(f'{word:60}- {count}')
-#
-#     print(filtered_chat_df[filtered_chat_df['text'].str.contains('dobrą opinię jeżeli chodzi it')].head(10))
+def prepare_chat_for_word_stats():
+    chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+    filtered_chat_df = chat_df[chat_df['text'] != ''].dropna()
+    filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.startswith('/')]  # remove user commands
+    filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.contains("https")]  # remove rows with links
+    filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"\(.*\)", "", regex=True)  # remove text inside braces/brackets
 
-# async def given_reactions_counts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     # self.generate_reactions_df()
-#     print('html', self.given_reactions_by_username_count_html)
-#     await context.bot.send_message(chat_id=update.effective_chat.id, text=self.given_reactions_by_username_count_html, parse_mode='html')
+    return filtered_chat_df
+
+def generate_word_statsv2():
+    polish_stopwords = core_utils.read_str_file(POLISH_STOPWORDS_PATH)
+    chat_df = prepare_chat_for_word_stats()
+
+    start = time.time()
+    cv = CountVectorizer(ngram_range=(1, 1), tokenizer=my_tokenizer)
+    cv_fit = cv.fit_transform(chat_df['text'])
+    word_list = cv.get_feature_names_out()
+    end = time.time()
+    print('Elapsed time in ms:', (end - start) * 1000)
+
+    # print('word_list', word_list)
+    # # Added [0] here to get a 1d-array for iteration by the zip function.
+    # counts = np.asarray(cv_fit.sum(axis=0))[0]
+    # word_counts = dict(zip(word_list, counts))
+    # sorted_word_counts = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+    #
+    # # cleaned_word_counts = [(word, count) for word, count in sorted_word_counts if word not in polish_stopwords] # single words
+    # cleaned_word_counts = [(words_str, count) for words_str, count in sorted_word_counts if
+    #                        not stats_utils.contains_stopwords(words_str, polish_stopwords) and stats_utils.is_ngram_valid(words_str)]  # bigrams/trigrams
+    # kinda_cleaned_word_counts = [(words_str, count) for words_str, count in sorted_word_counts if
+    #                              (not stats_utils.is_ngram_contaminated_by_stopwords(words_str, 0.6, polish_stopwords)) and stats_utils.is_ngram_valid(words_str)]  # bigrams/trigrams
+    #
+    # print('\n================== Dirty! ==================')
+    # for word, count in sorted_word_counts[:30]:
+    #     print(f'{word:60}- {count}')
+    #
+    # print('\n================== Kinda Cleaned! ==================')
+    # for word, count in kinda_cleaned_word_counts[:30]:
+    #     print(f'{word:60}- {count}')
+    #
+    # print('\n==================Cleaned!==================')
+    # for word, count in cleaned_word_counts[:30]:
+    #     print(f'{word:60}- {count}')
+
+def generate_word_stats():
+    """TODO: most used commads
+    TODO: who uses the commands the most
+    TODO: remove commads from the most common words
+
+    """
+    chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+    polish_stopwords = core_utils.read_str_file(POLISH_STOPWORDS_PATH)
+    filtered_chat_df = chat_df[chat_df['text'] != ''].dropna()
+    filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.startswith('/')]  # remove user commands
+    filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.contains("https")] # remove rows with links
+    filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"\(.*\)", "", regex=True)  # remove text inside braces/brackets
+
+    cv = CountVectorizer(ngram_range=(3, 3), tokenizer=my_tokenizer)
+    cv_fit = cv.fit_transform(filtered_chat_df['text'])
+    word_list = cv.get_feature_names_out()
+
+    print('word_list', word_list)
+    # Added [0] here to get a 1d-array for iteration by the zip function.
+    counts = np.asarray(cv_fit.sum(axis=0))[0]
+    word_counts = dict(zip(word_list, counts))
+    sorted_word_counts = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+
+    # cleaned_word_counts = [(word, count) for word, count in sorted_word_counts if word not in polish_stopwords] # single words
+    cleaned_word_counts = [(words_str, count) for words_str, count in sorted_word_counts if
+                           not stats_utils.contains_stopwords(words_str, polish_stopwords) and stats_utils.is_ngram_valid(words_str)]  # bigrams/trigrams
+    kinda_cleaned_word_counts = [(words_str, count) for words_str, count in sorted_word_counts if
+                                 (not stats_utils.is_ngram_contaminated_by_stopwords(words_str, 0.6, polish_stopwords)) and stats_utils.is_ngram_valid(words_str)]  # bigrams/trigrams
+
+    stats_utils.save_vectorizer(cv_fit)
+
+    print('\n================== Dirty! ==================')
+    for word, count in sorted_word_counts[:30]:
+        print(f'{word:60}- {count}')
+
+    print('\n================== Kinda Cleaned! ==================')
+    for word, count in kinda_cleaned_word_counts[:30]:
+        print(f'{word:60}- {count}')
+
+    print('\n==================Cleaned!==================')
+    for word, count in cleaned_word_counts[:30]:
+        print(f'{word:60}- {count}')
+
+    print(filtered_chat_df[filtered_chat_df['text'].str.contains('dobrą opinię jeżeli chodzi it')].head(10))
+
+def identity_preprocessor(text):
+    return text
+
+def my_tokenizer(text):
+    return re.sub(r'[,.!?*]', '', text).split()
+
+
+def test():
+    training_data = [
+        'This is the first document.',
+        'This document is the second document.',
+        'And this is the third one.',
+        'Is this the first document?',
+
+    ]
+    test_data = [
+        'This is the ninth document.',
+        'This is sparta!',
+    ]
+
+    cv = CountVectorizer(ngram_range=(1, 1), tokenizer=my_tokenizer)
+    cv_fit = cv.fit_transform(training_data)
+    word_list = cv.get_feature_names_out()
+
+    counts = np.asarray(cv_fit.sum(axis=0))[0]
+    word_counts = dict(zip(word_list, counts))
+    sorted_word_counts = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+
+    print(sorted_word_counts)
+
+    cv_fit = cv.transform(test_data)
+    word_list = cv.get_feature_names_out()
+    counts = np.asarray(cv_fit.sum(axis=0))[0]
+    word_counts = dict(zip(word_list, counts))
+    sorted_word_counts = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+
+    print(sorted_word_counts)
+
+
+
+if __name__ == '__main__':
+    start = time.time()
+    test()
+    end = time.time()
+    print('Elapsed time in ms:', (end - start) * 1000)

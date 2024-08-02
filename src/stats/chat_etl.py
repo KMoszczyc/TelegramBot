@@ -1,13 +1,16 @@
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import os
 
 import pandas as pd
 from dotenv import load_dotenv
+from sklearn.feature_extraction.text import CountVectorizer
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, POLISH_STOPWORDS_PATH
 import src.stats.utils as stats_utils
+import src.core.utils as core_utils
 
 load_dotenv()
 BOT_ID = os.getenv('BOT_ID')
@@ -38,6 +41,8 @@ class ChatETL:
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
+        self.generate_word_stats()
+
 
     def download_chat_history(self, days):
         self.metadata = stats_utils.load_metadata()
@@ -202,3 +207,24 @@ class ChatETL:
         message_ids = not_liked_old_bot_messages_df['message_id'].tolist()
 
         self.client_api_handler.delete_messages(message_ids)
+
+    def generate_word_stats(self):
+        """TODO: most used commads
+        TODO: who uses the commands the most
+        TODO: remove commads from the most common words
+
+        """
+        chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        filtered_chat_df = chat_df[chat_df['text'] != ''].dropna()
+        filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.startswith('/')]  # remove user commands
+        filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.contains("https")]  # remove rows with links
+        filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"\(.*\)", "", regex=True)  # remove text inside braces/brackets
+
+        ngram_nums = [1, 2, 3, 5]
+        for ngram_num in ngram_nums:
+            cv = CountVectorizer(ngram_range=(ngram_num, ngram_num), tokenizer=self.my_tokenizer)
+            cv_fit = cv.fit(filtered_chat_df['text'])
+            stats_utils.save_vectorizer(cv_fit, ngram_num)
+
+    def my_tokenizer(self, text):
+        return re.sub(r'[,.!?*]', '', text).split()

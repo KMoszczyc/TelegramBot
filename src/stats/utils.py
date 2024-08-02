@@ -6,9 +6,11 @@ import datetime
 from datetime import timezone, timedelta
 
 from zoneinfo import ZoneInfo
+
+import joblib
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, COUNT_VECTORIZER_DIR_PATH
 from src.core.utils import create_dir
 from src.models.command_args import CommandArgs
 
@@ -93,6 +95,26 @@ def escape_special_characters(text):
 
 def contains_stopwords(s, stopwords):
     return any(word in stopwords for word in s.split())
+
+
+def is_ngram_contaminated_by_stopwords(words_str: str, ratio_threshold: float, stopwords: list[str]) -> bool:
+    """Filter ngrams that contain too many stopwords, controlled by ratio_threshold.
+
+    :param words_str:
+    :param ratio_threshold: The maximum stopword / word ratio for a word n_gram to be considered interesting and not overly saturated by stopwords.
+    :param stopwords:
+    :return:
+    """
+    words = words_str.split()
+    filtered_stopwords = [word for word in words if word in stopwords]
+    ratio = len(filtered_stopwords) / len(words)
+    print(words_str, ratio, ratio > ratio_threshold)
+    return ratio > ratio_threshold
+
+
+def is_ngram_valid(words_str: str) -> bool:
+    words = words_str.split()
+    return len(words) <= 1 or words[0] != words[1]
 
 
 def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
@@ -181,6 +203,7 @@ def parse_period(command_args, arg_str) -> CommandArgs:
 
 
 def parse_user(users_df, command_args, arg_str) -> CommandArgs:
+    """TODO: Utilize nicknames!"""
     if arg_str == '':
         command_args.user_error = "User cannot be empty."
         log.error(command_args.user_error)
@@ -351,3 +374,19 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     command_args.parse_error = error
     command_args.string = text
     return command_args
+
+
+def get_vectorizer_path(ngram_num):
+    return os.path.join(COUNT_VECTORIZER_DIR_PATH, f'count_vectorizer_{ngram_num}.pkl')
+
+
+def save_vectorizer(vectorizer, ngram_num):
+    path = get_vectorizer_path(ngram_num)
+    create_dir(COUNT_VECTORIZER_DIR_PATH)
+
+    joblib.dump(vectorizer, path)
+
+
+def load_vectorizer(ngram_num):
+    path = get_vectorizer_path(ngram_num)
+    return joblib.load(path)
