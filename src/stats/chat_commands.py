@@ -256,6 +256,12 @@ class ChatCommands:
         user_id = update.effective_user.id
         current_username = self.users_df.at[user_id, 'final_username']
         new_username = command_args.string
+        current_usernames = self.users_df['final_username'].tolist()
+        if new_username in current_usernames:
+            error = (f"Username *{new_username}* not changed to *{current_username}*. User with this display name already exists! Choose a different one u dummy. (Wiem, że to ty kuba)")
+            error = utils.escape_special_characters(error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
 
         self.users_df.at[user_id, 'final_username'] = new_username
         utils.save_df(self.users_df, USERS_PATH)
