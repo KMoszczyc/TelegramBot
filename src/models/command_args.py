@@ -9,6 +9,9 @@ class CommandArgs:
     joined_args: str = ''
     joined_args_lower: str = ''
     expected_args: list[ArgType] = field(default_factory=lambda: [])
+    handled_expected_args: list[ArgType] = field(default_factory=lambda: [])
+    optional: list[bool] = field(default_factory=lambda: [])
+    errors: list[str] = field(default_factory=lambda: [])
     arg_type: ArgType = None
     phrases: list[str] = field(default_factory=lambda: [])
     period_mode: PeriodFilterMode = PeriodFilterMode.TOTAL
@@ -25,3 +28,7 @@ class CommandArgs:
     user_error: str = ''
     parse_error: str = ''
     error: str = ''
+
+    def __post_init__(self):
+        if not self.optional:
+            self.optional = [False] * len(self.expected_args)

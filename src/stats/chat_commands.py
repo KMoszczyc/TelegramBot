@@ -66,7 +66,7 @@ class ChatCommands:
         return filtered_chat_df, filtered_reactions_df, command_args
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
 
         shifted_chat_df = utils.filter_by_shifted_time_df(self.chat_df, command_args)
@@ -112,9 +112,10 @@ class ChatCommands:
 
     async def messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != '':
+            print(command_args.error)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
@@ -123,7 +124,7 @@ class ChatCommands:
 
         text = f"{label} Cinco messages"
         text += f" by {command_args.user}" if command_args.user is not None else " "
-        text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             if row['reactions_num'] == 0:
@@ -136,7 +137,7 @@ class ChatCommands:
 
     async def media_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL):
         """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -145,7 +146,7 @@ class ChatCommands:
         label = utils.emoji_sentiment_to_label(emoji_type)
         text = f"{label} Cinco {message_type.value}"
         text += ' ' if command_args.user is None else f" by {command_args.user}"
-        text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 

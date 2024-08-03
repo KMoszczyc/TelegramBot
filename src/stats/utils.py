@@ -1,3 +1,5 @@
+import copy
+import dataclasses
 import re
 import os
 import logging
@@ -105,37 +107,78 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     Returns:
         command_args: Dataclass with the command arguments related data
     """
-    parse_error, mode_error = '', ''
+    args_num = len(command_args.args)
+    expected_args_num = len(command_args.expected_args)
 
     command_args.joined_args = ' '.join(command_args.args)
     if command_args.args_with_spaces:
         command_args.args = command_args.joined_args.split('|')
 
-    if len(command_args.args) > len(command_args.expected_args):
+    if args_num > expected_args_num:
         command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
         return command_args
 
+    # Handle optional args
+    command_args, success = handle_optional_args(users_df, command_args)
+    if not success:
+        command_args.error = '\n'.join(command_args.errors).strip()
+        return command_args
+
+    # Parse args
     for i, arg in enumerate(command_args.args):
-        arg_type = command_args.expected_args[i]
+        arg_type = command_args.handled_expected_args[i]
         command_args = parse_arg(users_df, command_args, arg, arg_type)
 
-    command_args.error = command_args.period_error + command_args.user_error + command_args.parse_error
-
+    command_args.error = '\n'.join(command_args.errors).strip()
     return command_args
 
 
-def parse_arg(users_df, command_args, arg_str, arg_type: ArgType) -> CommandArgs:
+def handle_optional_args(users_df, command_args_ref: CommandArgs):
+    """Handle optional arguments like Period or User."""
+    if len(command_args_ref.args) == 0 or len(command_args_ref.args) == len(command_args_ref.expected_args) or sum(command_args_ref.optional) == 0:
+        command_args_ref.handled_expected_args = command_args_ref.expected_args
+        return command_args_ref, True
+
+    command_args = copy.deepcopy(command_args_ref)
+    successes = []
+    expected_args = command_args.expected_args.copy()
+    handled_expected_args = command_args.expected_args.copy()
+    for i, arg_type in enumerate(expected_args):
+        if not command_args.optional[i]:
+            continue
+
+        for arg in command_args.args:
+            command_args = parse_arg(users_df, command_args, arg, arg_type)
+            if command_args.errors[i] != '':
+                handled_expected_args.remove(arg_type)
+                successes.append(False)
+            else:
+                successes.append(True)
+
+    if sum(successes) == len(command_args.args):
+        log.info("All optional args were parsed successfully.")
+        command_args_ref.handled_expected_args = handled_expected_args
+        return command_args_ref, True
+
+    log.info("None of the optional args were parsed successfully, despite there being an argument send by user.")
+    return command_args, False
+
+
+def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
+    command_args = dataclasses.replace(command_args_ref)
     match arg_type:
         case ArgType.USER:
-            return parse_user(users_df, command_args, arg_str)
+            command_args = parse_user(users_df, command_args, arg_str)
         case ArgType.PERIOD:
-            return parse_period(command_args, arg_str)
+            command_args = parse_period(command_args, arg_str)
         case ArgType.NUMBER:
-            return parse_number(command_args, arg_str)
+            command_args = parse_number(command_args, arg_str)
         case ArgType.STRING:
-            return parse_string(command_args, arg_str)
+            command_args = parse_string(command_args, arg_str)
         case _:
-            return command_args
+            command_args = command_args
+
+    return command_args
 
 
 def parse_number(command_args, arg_str) -> CommandArgs:
@@ -144,23 +187,25 @@ def parse_number(command_args, arg_str) -> CommandArgs:
 
     number, error = parse_int(arg_str)
     if error != '':
-        command_args.parse_error = error
+        command_args.errors.append(error)
         return command_args
 
     if number > command_args.number_limit:
-        command_args.parse_error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
-        log.error(command_args.parse_error)
+        error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
+        command_args.errors.append(error)
+        log.error(error)
         return command_args
 
     command_args.number = number
-
+    command_args.errors.append('')
     return command_args
 
 
 def parse_period(command_args, arg_str) -> CommandArgs:
     if arg_str == '':
-        command_args.period_error = "Period cannot be empty."
-        log.error(command_args.user_error)
+        error = "Period cannot be empty."
+        command_args.errors.append(error)
+        log.error(error)
         return command_args
 
     period_mode_str = arg_str
@@ -171,19 +216,23 @@ def parse_period(command_args, arg_str) -> CommandArgs:
         if command_args.parse_error == '':
             command_args.period_mode = PeriodFilterMode(period_mode_str)
     except ValueError:
-        command_args.period_error = f"There is no such time period as {arg_str}."
-        log.error(command_args.period_error)
+        error = f"There is no such time period as {arg_str}."
+        command_args.errors.append(error)
+        log.error(error)
 
-    if command_args.parse_error != '' or command_args.period_error != '':
+    if command_args.parse_error != '':
+        command_args.errors.append(command_args.parse_error)
         command_args.period_mode = PeriodFilterMode.ERROR
-
+    else:
+        command_args.errors.append('')
     return command_args
 
 
 def parse_user(users_df, command_args, arg_str) -> CommandArgs:
     if arg_str == '':
-        command_args.user_error = "User cannot be empty."
-        log.error(command_args.user_error)
+        error = "User cannot be empty."
+        command_args.errors.append(error)
+        log.error(command_args.error)
         return command_args
 
     user_str = arg_str.replace('@', '')
@@ -196,9 +245,12 @@ def parse_user(users_df, command_args, arg_str) -> CommandArgs:
     elif len(user_str) >= 3 and not partially_matching_users.empty:
         command_args.user = partially_matching_users.iloc[0]['final_username']
     else:
-        command_args.user_error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
-        log.error(command_args.user_error)
+        error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
+        command_args.errors.append(error)
+        log.error(command_args.error)
+        return command_args
 
+    command_args.errors.append('')
     return command_args
 
 
@@ -348,6 +400,6 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     if len(text) > command_args.max_string_length:
         error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
 
-    command_args.parse_error = error
+    command_args.errors.append(error)
     command_args.string = text
     return command_args
