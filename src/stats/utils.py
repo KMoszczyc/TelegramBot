@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
 MAX_INT = 24 * 365 * 20
+MATCHING_USERNAME_THRESHOLD = 5
 
 
 def load_metadata():
@@ -403,3 +404,31 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     command_args.errors.append(error)
     command_args.string = text
     return command_args
+
+
+def check_new_username(users_df, new_username, current_username):
+    """Check during setting new username whether the new username is valid."""
+    error = ''
+    new_username_lower = new_username.lower()
+    new_username_prefix = new_username_lower[:min(MATCHING_USERNAME_THRESHOLD, len(new_username_lower))]
+    usernames = users_df['final_username'].tolist()
+    matching_usernames = [username for username in usernames if new_username_prefix == username.lower()[:len(new_username_prefix)]]
+
+    if new_username in usernames:
+        error = f"Username *{current_username}* not changed to *{new_username}*. User with this display name already exists! Choose a different one u dummy. (Wiem, że to ty kuba)"
+
+    if matching_usernames:
+        error = f"Username *{current_username}* not changed to *{new_username}*. Users with similar names, like: *{'*, *'.join(matching_usernames)}* - already exist! First {MATCHING_USERNAME_THRESHOLD} letters should be unique."
+
+    if is_alpha_numeric(new_username):
+        error = f"Username *{current_username}* not changed to *{new_username}*. Username can only contain letters and numbers."
+
+    if error != '':
+        log.error(error)
+        return False, error
+
+    return True, ''
+
+
+def is_alpha_numeric(text):
+    return any(not c.isalnum() for c in text)
