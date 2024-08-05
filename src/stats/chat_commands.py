@@ -79,12 +79,19 @@ class ChatCommands:
         sad_reactions_df = utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
 
+        # Calculate message and reaction count
         images_num = len(chat_df[chat_df['message_type'] == 'image'])
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
         reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_received_counts = sad_reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_given_counts = sad_reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
         message_counts = chat_df.groupby('final_username').size().reset_index(name='count').sort_values('count', ascending=False)
+
+        # Ratios
+        message_counts['reaction_ratio'] = (reactions_received_counts['count'] / message_counts['count']).round(2)
+        reactions_given_counts['reactions_given_ratio'] = (reactions_given_counts['count'] / reactions_received_counts['count']).round(2)
+        reactions_to_messages_ratio = message_counts[['final_username', 'reaction_ratio']].copy().sort_values('reaction_ratio', ascending=False)
+        reacations_given_to_received_ratio = reactions_given_counts[['reacting_username', 'reactions_given_ratio']].copy().sort_values('reactions_given_ratio', ascending=False)
 
         # Calculate message and reaction count changes
         message_count_change = round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1) if not shifted_chat_df.empty else 0
@@ -97,6 +104,9 @@ class ChatCommands:
         text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
         text += f"\n- *Total*: *{len(chat_df)} ({message_count_change_text})* messages, *{len(reactions_df)} ({reaction_count_change_text})* reactions and *{images_num}* images"
         text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['count']}*" for _, row in message_counts.head(3).iterrows()])
+        text += "\n- *Fun meter*: " + ", ".join([f"{row['final_username']}: *{row['reaction_ratio']}*" for _, row in reactions_to_messages_ratio.head(3).iterrows()])
+        text += "\n- *Wholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['reactions_given_ratio']}*" for _, row in reacations_given_to_received_ratio.head(3).iterrows()])
+        text += "\n- *Unwholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['reactions_given_ratio']}*" for _, row in reacations_given_to_received_ratio.sort_values('reactions_given_ratio', ascending=True).head(3).iterrows()])
         text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
         text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
         text += "\n- *Most disliked*: " + ", ".join(
