@@ -66,7 +66,7 @@ class ChatCommands:
         return filtered_chat_df, filtered_reactions_df, command_args
 
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
 
         shifted_chat_df = utils.filter_by_shifted_time_df(self.chat_df, command_args)
