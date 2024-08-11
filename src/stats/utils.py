@@ -6,6 +6,7 @@ import logging
 import pickle
 import datetime
 from datetime import timezone, timedelta
+from enum import Enum
 
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -409,19 +410,23 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
 def check_new_username(users_df, new_username, current_username):
     """Check during setting new username whether the new username is valid."""
     error = ''
+    forbidden_usernames = get_forbidden_usernames()
     new_username_lower = new_username.lower()
     new_username_prefix = new_username_lower[:min(MATCHING_USERNAME_THRESHOLD, len(new_username_lower))]
     usernames = users_df['final_username'].tolist()
     matching_usernames = [username for username in usernames if new_username_prefix == username.lower()[:len(new_username_prefix)]]
 
     if new_username in usernames:
-        error = f"Username *{current_username}* not changed to *{new_username}*. User with this display name already exists! Choose a different one u dummy. (Wiem, że to ty kuba)"
+        error = "User with this display name already exists! Choose a different one u dummy. (Wiem, że to ty kuba)"
 
     if matching_usernames:
-        error = f"Username *{current_username}* not changed to *{new_username}*. Users with similar names, like: *{'*, *'.join(matching_usernames)}* - already exist! First {MATCHING_USERNAME_THRESHOLD} letters should be unique."
+        error = f"Users with similar names, like: *{'*, *'.join(matching_usernames)}* - already exist! First {MATCHING_USERNAME_THRESHOLD} letters should be unique."
 
     if is_alpha_numeric(new_username):
-        error = f"Username *{current_username}* not changed to *{new_username}*. Username can only contain letters and numbers."
+        error = "Username can only contain letters and numbers."
+
+    if new_username_lower in forbidden_usernames:
+        error = "This username is forbidden. Please choose a different one."
 
     if error != '':
         log.error(error)
@@ -432,3 +437,11 @@ def check_new_username(users_df, new_username, current_username):
 
 def is_alpha_numeric(text):
     return any(not c.isalnum() for c in text)
+
+
+def enum_to_list(enum):
+    return [member.value for member in enum]
+
+
+def get_forbidden_usernames():
+    return enum_to_list(PeriodFilterMode)
