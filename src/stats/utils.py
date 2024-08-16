@@ -407,7 +407,7 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     return command_args
 
 
-def check_new_username(users_df, new_username, current_username):
+def check_new_username(users_df, new_username):
     """Check during setting new username whether the new username is valid."""
     error = ''
     forbidden_usernames = get_forbidden_usernames()
@@ -422,8 +422,8 @@ def check_new_username(users_df, new_username, current_username):
     if matching_usernames:
         error = f"Users with similar names, like: *{'*, *'.join(matching_usernames)}* - already exist! First {MATCHING_USERNAME_THRESHOLD} letters should be unique."
 
-    if is_alpha_numeric(new_username):
-        error = "Username can only contain letters and numbers."
+    if is_alpha_numeric(new_username) or not new_username.isascii():
+        error = "Username can only contain ASCII letters and numbers."
 
     if new_username_lower in forbidden_usernames:
         error = "This username is forbidden. Please choose a different one."

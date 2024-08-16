@@ -265,7 +265,7 @@ class ChatCommands:
         user_id = update.effective_user.id
         current_username = self.users_df.at[user_id, 'final_username']
         new_username = command_args.string
-        is_valid, error = utils.check_new_username(self.users_df, new_username, current_username)
+        is_valid, error = utils.check_new_username(self.users_df, new_username)
 
         if not is_valid:
             error = utils.escape_special_characters(error)
