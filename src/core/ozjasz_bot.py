@@ -39,7 +39,9 @@ class OzjaszBot:
                             CommandHandler('lastmessages', lambda update, context: self.chat_commands.last_messages(update, context)),
                             CommandHandler('displayusers', lambda update, context: self.chat_commands.display_users(update, context)),
                             CommandHandler('setusername', lambda update, context: self.chat_commands.set_username(update, context)),
-                            CommandHandler('addnickname', lambda update, context: self.chat_commands.add_nickname(update, context))
+                            CommandHandler('addnickname', lambda update, context: self.chat_commands.add_nickname(update, context)),
+                            CommandHandler('fun', lambda update, context: self.chat_commands.fun(update, context)),
+                            CommandHandler('wholesome', lambda update, context: self.chat_commands.wholesome(update, context))
                             ]
 
         self.application.add_handlers(command_handlers)

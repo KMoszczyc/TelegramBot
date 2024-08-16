@@ -28,6 +28,11 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 log.info(f'Are we running in docker? {is_docker()}')
 
+# Constants
+MAX_USERNAME_LENGTH = 20
+MAX_NICKNAMES_NUM = 5
+
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "/data" if is_docker() else os.path.join(ROOT_DIR, 'data')
 

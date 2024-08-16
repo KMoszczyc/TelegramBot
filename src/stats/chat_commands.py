@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 import telegram
 import pandas as pd
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH
 import src.stats.utils as utils
 import src.core.utils as core_utils
 from src.models.command_args import CommandArgs
@@ -88,14 +88,12 @@ class ChatCommands:
         message_counts = chat_df.groupby('final_username').size().reset_index(name='count').sort_values('count', ascending=False)
 
         # Ratios
-        message_counts['reaction_ratio'] = (reactions_received_counts['count'] / message_counts['count']).round(2)
-        reactions_given_counts['reactions_given_ratio'] = (reactions_given_counts['count'] / reactions_received_counts['count']).round(2)
-        reactions_to_messages_ratio = message_counts[['final_username', 'reaction_ratio']].copy().sort_values('reaction_ratio', ascending=False)
-        reacations_given_to_received_ratio = reactions_given_counts[['reacting_username', 'reactions_given_ratio']].copy().sort_values('reactions_given_ratio', ascending=False)
+        fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
+        wholesome_metric = self.calculate_wholesome_metric(reactions_df)
 
         # Calculate message and reaction count changes
-        message_count_change = round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1) if not shifted_chat_df.empty else 0
-        reaction_count_change = round((len(reactions_df) - len(shifted_reactions_df)) / len(shifted_reactions_df) * 100, 1) if not shifted_reactions_df.empty else 0
+        message_count_change = 0 if shifted_chat_df.empty else round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1)
+        reaction_count_change = 0 if shifted_reactions_df.empty else round((len(reactions_df) - len(shifted_reactions_df)) / len(shifted_reactions_df) * 100, 1)
         message_count_change_text = f'+{message_count_change}%' if message_count_change > 0 else f'{message_count_change}%'
         reaction_count_change_text = f'+{reaction_count_change}%' if reaction_count_change > 0 else f'{reaction_count_change}%'
 
@@ -104,9 +102,10 @@ class ChatCommands:
         text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
         text += f"\n- *Total*: *{len(chat_df)} ({message_count_change_text})* messages, *{len(reactions_df)} ({reaction_count_change_text})* reactions and *{images_num}* images"
         text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['count']}*" for _, row in message_counts.head(3).iterrows()])
-        text += "\n- *Fun meter*: " + ", ".join([f"{row['final_username']}: *{row['reaction_ratio']}*" for _, row in reactions_to_messages_ratio.head(3).iterrows()])
-        text += "\n- *Wholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['reactions_given_ratio']}*" for _, row in reacations_given_to_received_ratio.head(3).iterrows()])
-        text += "\n- *Unwholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['reactions_given_ratio']}*" for _, row in reacations_given_to_received_ratio.sort_values('reactions_given_ratio', ascending=True).head(3).iterrows()])
+        text += "\n- *Fun meter*: " + ", ".join([f"{row['final_username']}: *{row['ratio']}*" for _, row in fun_metric.head(3).iterrows()])
+        text += "\n- *Wholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.head(3).iterrows()])
+        text += "\n- *Unwholesome meter*: " + ", ".join(
+            [f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()])
         text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
         text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
         text += "\n- *Most disliked*: " + ", ".join(
@@ -256,7 +255,7 @@ class ChatCommands:
 
     async def set_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Username')
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=MAX_USERNAME_LENGTH, label='Username')
         command_args = utils.parse_args(self.users_df, command_args)
 
         if command_args.error != '':
@@ -278,3 +277,69 @@ class ChatCommands:
         text = f'Username changed from: *{current_username}* to *{new_username}*. It will get updated in a few minutes.'
         text = utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def fun(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
+        command_args = utils.parse_args(self.users_df, command_args)
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
+
+        text = "``` Funmeter"
+        text += f" for {command_args.user}" if command_args.user is not None else " "
+        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+
+        for i, (index, row) in enumerate(fun_ratios.iterrows()):
+            text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
+
+        text += "```"
+        text = utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def wholesome(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
+        command_args = utils.parse_args(self.users_df, command_args)
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
+
+        text = "``` Wholesomemeter"
+        text += f" for {command_args.user}" if command_args.user is not None else " "
+        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+
+        for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
+            text += f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
+
+        text += "```"
+        text = utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    def calculate_fun_metric(self, chat_df, reactions_df):
+        reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='reaction_count')
+        message_counts = chat_df.groupby('final_username').size().reset_index(name='message_count')
+        message_counts = message_counts[message_counts['message_count'] > 0]
+
+        merged_df = reactions_received_counts.merge(message_counts, left_on='reacted_to_username', right_on='final_username', how='inner').fillna(0)
+        merged_df['ratio'] = (merged_df['reaction_count'] / merged_df['message_count']).round(2)
+        fun_ratios = merged_df[['final_username', 'ratio']].copy().sort_values('ratio', ascending=False)
+
+        return fun_ratios
+
+    def calculate_wholesome_metric(self, reactions_df):
+        reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='reactions_received_count')
+        reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='reactions_given_count')
+        reactions_received_counts = reactions_received_counts[reactions_received_counts['reactions_received_count'] > 0]
+
+        merged_df = reactions_received_counts.merge(reactions_given_counts, left_on='reacted_to_username', right_on='reacting_username', how='inner').fillna(0)
+        merged_df['ratio'] = (merged_df['reactions_given_count'] / merged_df['reactions_received_count']).round(2)
+        wholesome_ratios = merged_df[['reacting_username', 'ratio']].copy().sort_values('ratio', ascending=False)
+
+        return wholesome_ratios
