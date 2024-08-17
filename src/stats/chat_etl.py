@@ -1,4 +1,5 @@
 import logging
+import shutil
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import os
@@ -6,7 +7,7 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR
 import src.stats.utils as stats_utils
 
 load_dotenv()
@@ -32,8 +33,11 @@ class ChatETL:
     def update(self, days: int):
         log.info(f"Running chat ETL for the past: {days} days")
 
+        # Cleanup
         self.delete_bot_messages()
+        self.cleanup_temp_dir()
 
+        # ETL
         self.download_chat_history(days)
         self.extract_users()
         self.clean_chat_history()
@@ -202,3 +206,9 @@ class ChatETL:
         message_ids = not_liked_old_bot_messages_df['message_id'].tolist()
 
         self.client_api_handler.delete_messages(message_ids)
+
+    def cleanup_temp_dir(self):
+        files_num = len(os.listdir(TEMP_DIR))
+        if os.path.exists(TEMP_DIR):
+            log.info(f'Removing {files_num} files from temp dir...')
+            shutil.rmtree(TEMP_DIR)

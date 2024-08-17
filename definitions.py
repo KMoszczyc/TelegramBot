@@ -35,6 +35,8 @@ MAX_NICKNAMES_NUM = 5
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "/data" if is_docker() else os.path.join(ROOT_DIR, 'data')
+TEMP_DIR = os.path.join(DATA_DIR, 'temp')
+
 
 # Chat data
 METADATA_PATH = os.path.join(DATA_DIR, 'chat/metadata.pickle')

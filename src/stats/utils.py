@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import random
 import re
 import os
 import logging
@@ -445,3 +446,10 @@ def enum_to_list(enum):
 
 def get_forbidden_usernames():
     return enum_to_list(PeriodFilterMode)
+
+def generate_random_file_id():
+    # return f"{datetime.datetime.now()}_{random.randint(1000, 9999)}"
+    return f"{random.randint(10000000000, 100000000000)}"
+
+def generate_random_filename(extension):
+    return f"{generate_random_file_id()}.{extension}"
