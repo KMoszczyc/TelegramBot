@@ -401,7 +401,6 @@ class ChatCommands:
         plt.legend(loc='best')
 
         path = os.path.abspath(os.path.join(TEMP_DIR, utils.generate_random_filename('jpg')))
-        core_utils.create_dir(TEMP_DIR)
         plt.savefig(path, bbox_inches='tight')
 
         return path
