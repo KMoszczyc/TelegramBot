@@ -3,3 +3,5 @@ python-dotenv
 telethon
 pandas
 pyarrow
+matplotlib
+pillow
