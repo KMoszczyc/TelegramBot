@@ -1,0 +1,22 @@
+addnickname - (new_nickname) add a new nickname, so it's easier for you and others to use filtering
+bartosiak - text_filter or [regex] - Best of our favourite geopolitician Jacek Bartosiak
+displayusers - just display all existing users on the chat and their nicknames
+fun - (period[optional]) fun metric for all users
+funchart - (username[optional], period[optional]) fun metric chart
+help - a list of commands
+lastmessages - (username, number[optional]) display last x messages from chat history
+ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
+sadmemes - (username[optional], period[optional]) top sad memes (images) sorted by a number of reactions
+sadmessages - (username[optional], period[optional]) top sad messages sorted by a number of reactions, filtered on negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
+setusername - (new_username) set your new username
+starababa - using the current date f.e: 20240709 and the last 2 digits of your user_id, a magic number is created. If it's prime you are lucky today!
+summary - (username[optional], period[optional]) summary of chat stats
+topaudio - (username[optional], period[optional]) top audio (and voice messages) sorted by a number of reactions
+topgifs - (username[optional], period[optional]) top gifs sorted by a number of reactions
+topmemes - (username[optional], period[optional]) top memes (images) sorted by a number of reactions
+topmessages - (username[optional], period[optional]) top messages sorted by a number of reactions
+topvideos - (username[optional], period[optional]) top videos (and video notes) sorted by a number of reactions
+tvp - text_filter or [regex] - all TVP headlines, from the past few years
+tvp_latest - text_filter or [regex] - latest TVP headlines
+tusk - text_filter or [regex] - epic TVP Tusk reference
+wholesome - (period[optional]) summary metric for all users

@@ -58,13 +58,15 @@ TVP_LATEST_HEADLINES_PATH = os.path.join(DATA_DIR, 'misc/tvp_latest_headlines.tx
 OZJASZ_PHRASES_PATH = os.path.join(DATA_DIR, 'misc/ozjasz-wypowiedzi.txt')
 POLISH_STOPWORDS_PATH = os.path.join(DATA_DIR, 'misc/polish.stopwords.txt')
 BARTOSIAK_PATH = os.path.join(DATA_DIR, 'misc/bartosiak.txt')
+COMMANDS_PATH = os.path.join(DATA_DIR, 'misc/commands.txt')
+
 
 # Load text files with funny phrases
 tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
 tvp_latest_headlines = read_str_file(TVP_LATEST_HEADLINES_PATH)
 ozjasz_phrases = read_str_file(OZJASZ_PHRASES_PATH)
 bartosiak_phrases = read_str_file(BARTOSIAK_PATH)
-
+commands = read_str_file(COMMANDS_PATH)
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:
