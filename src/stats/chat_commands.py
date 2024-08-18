@@ -72,7 +72,9 @@ class ChatCommands:
 
         shifted_chat_df = utils.filter_by_shifted_time_df(self.chat_df, command_args)
         shifted_reactions_df = utils.filter_by_shifted_time_df(self.reactions_df, command_args)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         sad_reactions_df = utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
@@ -121,7 +123,9 @@ class ChatCommands:
         """Top or worst 5 messages from selected time period by number of reactions"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         chat_df = chat_df[chat_df['text'] != '']
         label = utils.emoji_sentiment_to_label(emoji_type)
@@ -140,7 +144,9 @@ class ChatCommands:
         """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         label = utils.emoji_sentiment_to_label(emoji_type)
         text = self.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
@@ -184,7 +190,9 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.NUMBER], number_limit=100)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         chat_df = chat_df.sort_values(by='timestamp', ascending=False)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         text = f"Last {command_args.number} messages"
         text += f" by {command_args.user}" if command_args.user is not None else ":"
@@ -214,7 +222,9 @@ class ChatCommands:
         """Set username for all users in chat"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Nickname')
         command_args = utils.parse_args(self.users_df, command_args)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         user_id = update.effective_user.id
         current_nicknames = self.users_df.at[user_id, 'nicknames']
@@ -239,7 +249,9 @@ class ChatCommands:
         """Set username for all users in chat"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=MAX_USERNAME_LENGTH, label='Username')
         command_args = utils.parse_args(self.users_df, command_args)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         user_id = update.effective_user.id
         current_username = self.users_df.at[user_id, 'final_username']
@@ -261,7 +273,9 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
         command_args = utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
 
@@ -280,7 +294,9 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
         command_args = utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
         text = self.generate_response_headline(command_args, label='Wholesome meter')
@@ -295,7 +311,9 @@ class ChatCommands:
     async def funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         text = self.generate_response_headline(command_args, label='Funmeter')
 
@@ -312,7 +330,9 @@ class ChatCommands:
     async def spamchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         text = self.generate_response_headline(command_args, label='Spamchart')
 
@@ -330,7 +350,9 @@ class ChatCommands:
     async def likechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-        await self.handle_args_error(context, update, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
         text = self.generate_response_headline(command_args, label='Likechart')
 
@@ -350,11 +372,6 @@ class ChatCommands:
         text += f" for {command_args.user}" if command_args.user is not None else " "
         text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
         return text
-
-    async def handle_args_error(self, context, update, command_args):
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
 
     def calculate_fun_metric(self, chat_df, reactions_df):
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='reaction_count')
@@ -401,19 +418,20 @@ class ChatCommands:
         filtered_df.index = filtered_df.index.to_timestamp()
 
         if len(users) == 1:
-            filtered_df.plot(y=y_col, kind='line', figsize=(10, 5), label='value')
+            cmap = plt.get_cmap("tab10")
+            filtered_df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
 
             # Generate shifted weekly plot
             weekly_data = filtered_df[y_col].resample('W').mean()
             weekly_data.index = weekly_data.index - pd.offsets.Day(3)
-            weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg')
+            weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg', color=cmap(2))
 
             # Generate shifted monthly plot, so it shows in the middle of the month on chart
             monthly_data = filtered_df[y_col].resample('M').mean()
             monthly_data.index = monthly_data.index - pd.offsets.Day(15)
-            monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg')
+            monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
         else:
-            pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col, fill_value=0)
+            pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col)
             pivot_df.plot(kind='bar', stacked=True, figsize=(10, 5))
 
         plt.title(title)
