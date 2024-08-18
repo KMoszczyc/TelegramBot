@@ -72,10 +72,7 @@ class ChatCommands:
 
         shifted_chat_df = utils.filter_by_shifted_time_df(self.chat_df, command_args)
         shifted_reactions_df = utils.filter_by_shifted_time_df(self.reactions_df, command_args)
-
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         sad_reactions_df = utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
@@ -124,17 +121,11 @@ class ChatCommands:
         """Top or worst 5 messages from selected time period by number of reactions"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
-        if command_args.error != '':
-            print(command_args.error)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         chat_df = chat_df[chat_df['text'] != '']
         label = utils.emoji_sentiment_to_label(emoji_type)
-
-        text = f"{label} Cinco messages"
-        text += f" by {command_args.user}" if command_args.user is not None else " "
-        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text = self.generate_response_headline(command_args, label=f"{label} Cinco messages")
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             if row['reactions_num'] == 0:
@@ -149,14 +140,10 @@ class ChatCommands:
         """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         label = utils.emoji_sentiment_to_label(emoji_type)
-        text = f"{label} Cinco {message_type.value}"
-        text += ' ' if command_args.user is None else f" by {command_args.user}"
-        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text = self.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
@@ -195,12 +182,9 @@ class ChatCommands:
     async def last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last n messages from chat history"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.NUMBER], number_limit=100)
-
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         chat_df = chat_df.sort_values(by='timestamp', ascending=False)
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         text = f"Last {command_args.number} messages"
         text += f" by {command_args.user}" if command_args.user is not None else ":"
@@ -230,10 +214,7 @@ class ChatCommands:
         """Set username for all users in chat"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Nickname')
         command_args = utils.parse_args(self.users_df, command_args)
-
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         user_id = update.effective_user.id
         current_nicknames = self.users_df.at[user_id, 'nicknames']
@@ -258,10 +239,7 @@ class ChatCommands:
         """Set username for all users in chat"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=MAX_USERNAME_LENGTH, label='Username')
         command_args = utils.parse_args(self.users_df, command_args)
-
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         user_id = update.effective_user.id
         current_username = self.users_df.at[user_id, 'final_username']
@@ -283,10 +261,7 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
         command_args = utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
 
@@ -305,16 +280,10 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
         command_args = utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
-
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
+        await self.handle_args_error(context, update, command_args)
 
         wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
-
-        text = "``` Wholesomemeter"
-        text += f" for {command_args.user}" if command_args.user is not None else " "
-        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text = self.generate_response_headline(command_args, label='Wholesome meter')
 
         for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
             text += f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
@@ -326,14 +295,9 @@ class ChatCommands:
     async def funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+        await self.handle_args_error(context, update, command_args)
 
-        if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
-            return
-
-        text = "Funmeter"
-        text += f" for {command_args.user}" if command_args.user is not None else " "
-        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text = self.generate_response_headline(command_args, label='Funmeter')
 
         users = [command_args.user]
         if command_args.user is None:
@@ -344,6 +308,17 @@ class ChatCommands:
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
+
+    def generate_response_headline(self, command_args, label):
+        text = label
+        text += f" for {command_args.user}" if command_args.user is not None else " "
+        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        return text
+
+    async def handle_args_error(self, context, update, command_args):
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
 
     def calculate_fun_metric(self, chat_df, reactions_df):
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='reaction_count')
