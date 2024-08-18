@@ -43,6 +43,8 @@ class OzjaszBot:
                             CommandHandler('fun', lambda update, context: self.chat_commands.fun(update, context)),
                             CommandHandler('wholesome', lambda update, context: self.chat_commands.wholesome(update, context)),
                             CommandHandler('funchart', lambda update, context: self.chat_commands.funchart(update, context)),
+                            CommandHandler('spamchart', lambda update, context: self.chat_commands.spamchart(update, context)),
+                            CommandHandler('likechart', lambda update, context: self.chat_commands.likechart(update, context))
                             ]
 
         self.application.add_handlers(command_handlers)

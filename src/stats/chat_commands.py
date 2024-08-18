@@ -309,6 +309,42 @@ class ChatCommands:
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
 
+    async def spamchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+        await self.handle_args_error(context, update, command_args)
+
+        text = self.generate_response_headline(command_args, label='Spamchart')
+
+        users = [command_args.user]
+        if command_args.user is None:
+            users = self.users_df['final_username'].unique()
+
+        chat_df['period'] = chat_df['timestamp'].dt.to_period('D')
+        message_counts = chat_df.groupby(['period', 'final_username']).size().reset_index(name='message_count')
+        path = self.generate_plot(users, message_counts, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages')
+
+        current_message_type = MessageType.IMAGE
+        await self.send_message(update, context, current_message_type, path, text)
+
+    async def likechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+        await self.handle_args_error(context, update, command_args)
+
+        text = self.generate_response_headline(command_args, label='Likechart')
+
+        users = [command_args.user]
+        if command_args.user is None:
+            users = self.users_df['final_username'].unique()
+
+        reactions_df['period'] = reactions_df['timestamp'].dt.to_period('D')
+        reaction_counts = reactions_df.groupby(['period', 'reacted_to_username']).size().reset_index(name='reaction_count')
+        path = self.generate_plot(users, reaction_counts, 'reacted_to_username', 'period', 'reaction_count', text, x_label='time', y_label='likes received')
+
+        current_message_type = MessageType.IMAGE
+        await self.send_message(update, context, current_message_type, path, text)
+
     def generate_response_headline(self, command_args, label):
         text = label
         text += f" for {command_args.user}" if command_args.user is not None else " "
@@ -377,9 +413,8 @@ class ChatCommands:
             monthly_data.index = monthly_data.index - pd.offsets.Day(15)
             monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg')
         else:
-            fig, ax = plt.subplots()
-            for key, grp in df.groupby([user_col]):
-                ax = grp.plot(ax=ax, x=x_col, y=y_col, kind='line', figsize=(10, 5), label=key)
+            pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col, fill_value=0)
+            pivot_df.plot(kind='bar', stacked=True, figsize=(10, 5))
 
         plt.title(title)
         plt.xlabel(x_label)
