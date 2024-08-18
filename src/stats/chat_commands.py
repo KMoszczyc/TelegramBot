@@ -325,7 +325,6 @@ class ChatCommands:
 
     async def funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
-        command_args = utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
 
         if command_args.error != '':
@@ -387,10 +386,14 @@ class ChatCommands:
 
     def generate_plot(self, users, df, user_col, x_col, y_col, title, x_label='time', y_label='value'):
         filtered_df = df[df[user_col].isin(users)]
+        filtered_df.set_index(x_col, inplace=True)
 
         if len(users) == 1:
-            filtered_df.plot(x=x_col, y=y_col, kind='line', figsize=(10, 5))
+            filtered_df.plot(y=y_col, kind='line', figsize=(10, 5), label='value')
+            filtered_df[y_col].resample('W').mean().plot(y=y_col, kind='line', figsize=(10, 5), label='weekly avg')
+            filtered_df[y_col].resample('M').mean().plot(y=y_col, kind='line', figsize=(10, 5), label='monthly avg')
         else:
+            fig, ax = plt.subplots()
             for key, grp in df.groupby([user_col]):
                 ax = grp.plot(ax=ax, x=x_col, y=y_col, kind='line', figsize=(10, 5), label=key)
 
