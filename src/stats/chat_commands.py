@@ -341,7 +341,7 @@ class ChatCommands:
             users = self.users_df['final_username'].unique()
 
         chat_df['period'] = chat_df['timestamp'].dt.to_period('D')
-        message_counts = chat_df.groupby(['period', 'final_username']).size().reset_index(name='message_count')
+        message_counts = chat_df.groupby(['period', 'final_username']).size().unstack(fill_value=0).stack().reset_index(name='message_count')
         path = self.generate_plot(users, message_counts, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages')
 
         current_message_type = MessageType.IMAGE
@@ -361,7 +361,7 @@ class ChatCommands:
             users = self.users_df['final_username'].unique()
 
         reactions_df['period'] = reactions_df['timestamp'].dt.to_period('D')
-        reaction_counts = reactions_df.groupby(['period', 'reacted_to_username']).size().reset_index(name='reaction_count')
+        reaction_counts = reactions_df.groupby(['period', 'reacted_to_username']).size().unstack(fill_value=0).stack().reset_index(name='reaction_count')
         path = self.generate_plot(users, reaction_counts, 'reacted_to_username', 'period', 'reaction_count', text, x_label='time', y_label='likes received')
 
         current_message_type = MessageType.IMAGE
@@ -431,8 +431,10 @@ class ChatCommands:
             monthly_data.index = monthly_data.index - pd.offsets.Day(15)
             monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
         else:
-            pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col)
-            pivot_df.plot(kind='bar', stacked=True, figsize=(10, 5))
+            cmap = plt.get_cmap("tab20")
+            fig, ax = plt.subplots()
+            for i, (key, grp) in enumerate(df.groupby([user_col])):
+                ax = grp.plot(ax=ax, x=x_col, y=y_col, kind='line', figsize=(10, 5), label=key, color=cmap(i))
 
         plt.title(title)
         plt.xlabel(x_label)
