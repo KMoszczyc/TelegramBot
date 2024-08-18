@@ -387,11 +387,20 @@ class ChatCommands:
     def generate_plot(self, users, df, user_col, x_col, y_col, title, x_label='time', y_label='value'):
         filtered_df = df[df[user_col].isin(users)]
         filtered_df.set_index(x_col, inplace=True)
+        filtered_df.index = filtered_df.index.to_timestamp()
 
         if len(users) == 1:
             filtered_df.plot(y=y_col, kind='line', figsize=(10, 5), label='value')
-            filtered_df[y_col].resample('W').mean().plot(y=y_col, kind='line', figsize=(10, 5), label='weekly avg')
-            filtered_df[y_col].resample('M').mean().plot(y=y_col, kind='line', figsize=(10, 5), label='monthly avg')
+
+            # Generate shifted weekly plot
+            weekly_data = filtered_df[y_col].resample('W').mean()
+            weekly_data.index = weekly_data.index - pd.offsets.Day(3)
+            weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg')
+
+            # Generate shifted monthly plot, so it shows in the middle of the month on chart
+            monthly_data = filtered_df[y_col].resample('M').mean()
+            monthly_data.index = monthly_data.index - pd.offsets.Day(15)
+            monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg')
         else:
             fig, ax = plt.subplots()
             for key, grp in df.groupby([user_col]):
