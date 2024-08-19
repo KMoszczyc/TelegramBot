@@ -454,8 +454,8 @@ class ChatCommands:
         if days_diff > 90:  # line chart
             fig, ax = plt.subplots()
             for i, (key, grp) in enumerate(df.groupby([user_col])):
-                grp = df[y_col].resample('ME').mean()
-                ax = grp.plot(ax=ax, kind='line', figsize=(10, 5), label=key[0], color=cmap(i))
+                grp = df[y_col].resample('W').mean() if days_diff > 180 else grp
+                ax = grp.plot(ax=ax, y=y_col, kind='line', figsize=(10, 5), label=key[0], color=cmap(i))
         else:  # stacked bar chart
             pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col, fill_value=0)
             pivot_df.index = pivot_df.index.strftime('%Y-%m-%d')
