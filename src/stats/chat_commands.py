@@ -1,7 +1,7 @@
 import os.path
 import logging
 
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, ticker
 from telegram import Update
 from telegram.ext import ContextTypes
 import telegram
@@ -418,23 +418,9 @@ class ChatCommands:
         filtered_df.index = filtered_df.index.to_timestamp()
 
         if len(users) == 1:
-            cmap = plt.get_cmap("tab10")
-            filtered_df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
-
-            # Generate shifted weekly plot
-            weekly_data = filtered_df[y_col].resample('W').mean()
-            weekly_data.index = weekly_data.index - pd.offsets.Day(3)
-            weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg', color=cmap(2))
-
-            # Generate shifted monthly plot, so it shows in the middle of the month on chart
-            monthly_data = filtered_df[y_col].resample('M').mean()
-            monthly_data.index = monthly_data.index - pd.offsets.Day(15)
-            monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
+            self.generate_plot_for_single_user(filtered_df, y_col)
         else:
-            cmap = plt.get_cmap("tab20")
-            fig, ax = plt.subplots()
-            for i, (key, grp) in enumerate(df.groupby([user_col])):
-                ax = grp.plot(ax=ax, x=x_col, y=y_col, kind='line', figsize=(10, 5), label=key, color=cmap(i))
+            self.generate_plot_for_multiple_users(filtered_df, x_col, y_col, user_col)
 
         plt.title(title)
         plt.xlabel(x_label)
@@ -447,3 +433,31 @@ class ChatCommands:
         plt.savefig(path, bbox_inches='tight')
 
         return path
+
+    def generate_plot_for_single_user(self, df, y_col):
+        cmap = plt.get_cmap("tab10")
+        df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
+
+        # Generate shifted weekly plot
+        weekly_data = df[y_col].resample('W').mean()
+        weekly_data.index = weekly_data.index - pd.offsets.Day(3)
+        weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg', color=cmap(2))
+
+        # Generate shifted monthly plot, so it shows in the middle of the month on chart
+        monthly_data = df[y_col].resample('M').mean()
+        monthly_data.index = monthly_data.index - pd.offsets.Day(15)
+        monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
+
+    def generate_plot_for_multiple_users(self, df, x_col, y_col, user_col):
+        cmap = plt.get_cmap("tab20")
+        days_diff = (max(df.index) - min(df.index)).days
+        if days_diff > 90:  # line chart
+            fig, ax = plt.subplots()
+            for i, (key, grp) in enumerate(df.groupby([user_col])):
+                grp = df[y_col].resample('ME').mean()
+                ax = grp.plot(ax=ax, kind='line', figsize=(10, 5), label=key[0], color=cmap(i))
+        else:  # stacked bar chart
+            pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col, fill_value=0)
+            pivot_df.index = pivot_df.index.strftime('%Y-%m-%d')
+            pivot_df.plot(kind='bar', stacked=True, figsize=(10, 7), cmap=cmap)
+            plt.xticks(rotation=70, ha='right')
