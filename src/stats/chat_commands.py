@@ -460,4 +460,4 @@ class ChatCommands:
             pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col, fill_value=0)
             pivot_df.index = pivot_df.index.strftime('%Y-%m-%d')
             pivot_df.plot(kind='bar', stacked=True, figsize=(10, 7), cmap=cmap)
-            plt.xticks(rotation=70, ha='right')
+            plt.xticks(rotation=70, ha='right', fontsize=6)
