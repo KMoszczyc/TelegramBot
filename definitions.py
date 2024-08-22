@@ -2,6 +2,8 @@ import os
 import logging
 from enum import Enum
 
+import pandas as pd
+
 
 def is_docker():
     def text_in_file(text, filename):
@@ -59,7 +61,7 @@ OZJASZ_PHRASES_PATH = os.path.join(DATA_DIR, 'misc/ozjasz-wypowiedzi.txt')
 POLISH_STOPWORDS_PATH = os.path.join(DATA_DIR, 'misc/polish.stopwords.txt')
 BARTOSIAK_PATH = os.path.join(DATA_DIR, 'misc/bartosiak.txt')
 COMMANDS_PATH = os.path.join(DATA_DIR, 'misc/commands.txt')
-
+BIBLE_PATH = os.path.join(DATA_DIR, 'misc/bible.parquet')
 
 # Load text files with funny phrases
 tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
@@ -67,6 +69,7 @@ tvp_latest_headlines = read_str_file(TVP_LATEST_HEADLINES_PATH)
 ozjasz_phrases = read_str_file(OZJASZ_PHRASES_PATH)
 bartosiak_phrases = read_str_file(BARTOSIAK_PATH)
 commands = read_str_file(COMMANDS_PATH)
+bible_df = pd.read_parquet(BIBLE_PATH)
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:

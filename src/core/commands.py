@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from src.models.command_args import CommandArgs
-from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands
+from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df
 import src.core.utils as core_utils
 
 log = logging.getLogger(__name__)
@@ -78,4 +78,23 @@ async def are_you_lucky_today(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = "Existing commands:\n- /" + '\n- /'.join(commands)
     print(len(response), response)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+
+async def bible(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    command_args = CommandArgs(args=context.args)
+    command_args = core_utils.parse_args(command_args)
+    if command_args.error != '':
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+        return
+
+    filter_phrase = command_args.joined_args_lower
+    filtered_phrases = bible_df[bible_df['text'].str.lower().str.contains(filter_phrase)]
+
+    if filtered_phrases.empty:
+        response = 'Nie ma takiego cytatu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
+    else:
+        random_row = filtered_phrases.sample(1).iloc[0]
+        response = f"[{random_row['abbreviation']} {random_row['chapter']}, {random_row['verse']}] {random_row['text']}"
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)

@@ -28,6 +28,7 @@ class OzjaszBot:
                             CommandHandler('tusk', commands.tusk),
                             CommandHandler('starababa', commands.are_you_lucky_today),
                             CommandHandler('help', commands.help),
+                            CommandHandler('bible', commands.bible),
                             CommandHandler('summary', self.chat_commands.summary),
                             CommandHandler('topmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.ALL)),
                             CommandHandler('sadmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.NEGATIVE)),
