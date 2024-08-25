@@ -11,6 +11,7 @@ class CommandArgs:
     expected_args: list[ArgType] = field(default_factory=lambda: [])
     handled_expected_args: list[ArgType] = field(default_factory=lambda: [])
     optional: list[bool] = field(default_factory=lambda: [])
+    named: list[bool] = field(default_factory=lambda: [])
     errors: list[str] = field(default_factory=lambda: [])
     arg_type: ArgType = None
     phrases: list[str] = field(default_factory=lambda: [])

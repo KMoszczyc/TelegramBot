@@ -7,7 +7,7 @@ ENV TZ="Europe/Warsaw"
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY ./cron_etl /etc/cron.d/cron_etl
+COPY ./docker/cron_etl /etc/cron.d/cron_etl
 RUN chmod 0644 /etc/cron.d/cron_etl
 RUN dos2unix /etc/cron.d/cron_etl #remove \r that windows adds to the files and it causes issues on linux
 RUN crontab /etc/cron.d/cron_etl

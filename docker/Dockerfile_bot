@@ -7,5 +7,6 @@ RUN apt-get update && apt-get install -y cron
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 ENV TZ="Europe/Warsaw"
+ENV PYTHONPATH=/app
 
-CMD ["python", "main.py"]
+CMD ["python", "src/main.py"]

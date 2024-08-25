@@ -1,7 +1,7 @@
 import os.path
 import logging
 
-from matplotlib import pyplot as plt, ticker
+from matplotlib import pyplot as plt
 from telegram import Update
 from telegram.ext import ContextTypes
 import telegram

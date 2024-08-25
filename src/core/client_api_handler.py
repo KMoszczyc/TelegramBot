@@ -6,7 +6,7 @@ from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
 
-from definitions import CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, MessageType
+from definitions import CHAT_IMAGES_DIR_PATH
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
