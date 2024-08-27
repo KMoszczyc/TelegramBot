@@ -2,11 +2,17 @@ FROM python:3.12.2-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y cron
+RUN apt-get update && apt-get install -y cron locales
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 ENV TZ="Europe/Warsaw"
 ENV PYTHONPATH=/app
+
+RUN sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
+ENV LANG pl_PL.UTF-8
+ENV LANGUAGE pl_PL:pl
+ENV LC_ALL pl_PL.UTF-8
 
 CMD ["python", "src/main.py"]
