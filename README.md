@@ -11,13 +11,13 @@ This Telegram bot provides detailed chat statistics, including top messages, mem
 - **Extras**: Quotes by Janusz Korwin Mikke, Jacek Bartosiak, TVP headlines and the entire fucking Bible that's fully searchable by regex and filter phrases.
 
 <p float="left">
-    <img src="https://github.com/user-attachments/assets/d34015d3-e4bf-4037-b1b3-9369f2378adc" width="470" /> 
-    <img src="https://github.com/user-attachments/assets/92bf63d0-6b5e-4e7d-9069-7014576dfbb3" width="470" /> 
-    <img src="https://github.com/user-attachments/assets/75df4193-716d-4aaf-802a-a10a2a7c3460" width="470" />
-    <img src="https://github.com/user-attachments/assets/5f716e96-823a-4949-b1b1-b0ee92986fb5" width="470" />
-     <img src="https://github.com/user-attachments/assets/c24f133e-49c4-4e43-8a0b-7654347b8573"  width="320"/>
-<img src="https://github.com/user-attachments/assets/19ad79d1-fa4d-453d-b22d-787279330dff"  width="320"/>
-    <img src="https://github.com/user-attachments/assets/e77a3290-ebd1-439b-a94a-66ae34b709b5"  width="320"/>
+    <img src="https://github.com/user-attachments/assets/d34015d3-e4bf-4037-b1b3-9369f2378adc" width="450" /> 
+    <img src="https://github.com/user-attachments/assets/92bf63d0-6b5e-4e7d-9069-7014576dfbb3" width="450" /> 
+    <img src="https://github.com/user-attachments/assets/75df4193-716d-4aaf-802a-a10a2a7c3460" width="450" />
+    <img src="https://github.com/user-attachments/assets/5f716e96-823a-4949-b1b1-b0ee92986fb5" width="450" />
+     <img src="https://github.com/user-attachments/assets/c24f133e-49c4-4e43-8a0b-7654347b8573"  width="300"/>
+<img src="https://github.com/user-attachments/assets/19ad79d1-fa4d-453d-b22d-787279330dff"  width="300"/>
+    <img src="https://github.com/user-attachments/assets/e77a3290-ebd1-439b-a94a-66ae34b709b5"  width="300"/>
 </p>
 
 ## Installation
