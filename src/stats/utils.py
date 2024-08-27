@@ -11,14 +11,13 @@ from datetime import timezone, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType
-from src.core.utils import create_dir
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType
+from src.core.utils import create_dir, parse_string, parse_number, parse_int
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 
 negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
-MAX_INT = 24 * 365 * 20
 MATCHING_USERNAME_THRESHOLD = 5
 
 
@@ -166,6 +165,7 @@ def handle_optional_args(users_df, command_args_ref: CommandArgs):
     return command_args, False
 
 
+
 def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
     command_args = dataclasses.replace(command_args_ref)
     match arg_type:
@@ -173,8 +173,8 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> Command
             command_args = parse_user(users_df, command_args, arg_str)
         case ArgType.PERIOD:
             command_args = parse_period(command_args, arg_str)
-        case ArgType.NUMBER:
-            command_args = parse_number(command_args, arg_str)
+        case ArgType.POSITIVE_INT:
+            command_args = parse_number(command_args, arg_str, positive_only=True)
         case ArgType.STRING:
             command_args = parse_string(command_args, arg_str)
         case _:
@@ -182,25 +182,6 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> Command
 
     return command_args
 
-
-def parse_number(command_args, arg_str) -> CommandArgs:
-    if arg_str == '':
-        return command_args
-
-    number, error = parse_int(arg_str)
-    if error != '':
-        command_args.errors.append(error)
-        return command_args
-
-    if number > command_args.number_limit:
-        error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
-        command_args.errors.append(error)
-        log.error(error)
-        return command_args
-
-    command_args.number = number
-    command_args.errors.append('')
-    return command_args
 
 
 def parse_period(command_args, arg_str) -> CommandArgs:
@@ -213,7 +194,7 @@ def parse_period(command_args, arg_str) -> CommandArgs:
     period_mode_str = arg_str
     try:
         if 'h' in arg_str and has_numbers(arg_str):
-            command_args.period_time, command_args.parse_error = parse_int(arg_str.replace('h', ''))
+            command_args.period_time, command_args.parse_error = parse_int(arg_str.replace('h', ''), positive_only=True)
             period_mode_str = 'hour'
         if command_args.parse_error == '':
             command_args.period_mode = PeriodFilterMode(period_mode_str)
@@ -334,32 +315,10 @@ def filter_emoji_by_emoji_type(df, emoji_type, col='emoji'):
     return df
 
 
-def extract_int(num_str):
-    return parse_int(''.join(filter(str.isdigit, num_str)))
-
 
 def has_numbers(num_str):
     return any(char.isdigit() for char in num_str)
 
-
-def parse_int(num_str):
-    error = ''
-    num = None
-    try:
-        num = int(num_str)
-        # print(num, MAX_INT)
-        if num > MAX_INT:
-            error = f"Kuba's dick is too big ({x_to_light_years_str(num)}), make it smaller!"
-            log.error(error)
-        if num < 0:
-            error = "Number cannot be negative!"
-            num = -1
-            log.error(error)
-    except ValueError:
-        error = f"{num_str} is not a number."
-        log.error(error)
-
-    return num, error
 
 
 def emoji_sentiment_to_label(emoji_type: EmojiType):
@@ -375,16 +334,6 @@ def dt_to_str(dt):
     return dt.strftime('%d-%m-%Y %H:%M')
 
 
-def x_to_light_years_str(x):
-    """Kinda to last years, keep small numbers the same."""
-    if x < 10000000:
-        return str(x)
-
-    ly = x / 9460730472580.8
-    ly = round(ly, 6) if ly < 1 else round(ly, 2)
-    return f'{ly} light years'
-
-
 def check_bot_messages(message_ids: list, bot_id: int) -> bool:
     """Check if bot messages are present in chat history."""
     chat_df = read_df(CHAT_HISTORY_PATH)
@@ -393,18 +342,6 @@ def check_bot_messages(message_ids: list, bot_id: int) -> bool:
     bot_messages_df = filtered_df[filtered_df['user_id'] == bot_id]
 
     return non_bot_messages_df.empty and len(message_ids) == len(bot_messages_df)
-
-
-def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
-    error = ''
-    if len(text) < command_args.min_string_length:
-        error = f'{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters.'
-    if len(text) > command_args.max_string_length:
-        error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
-
-    command_args.errors.append(error)
-    command_args.string = text
-    return command_args
 
 
 def check_new_username(users_df, new_username):

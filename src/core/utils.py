@@ -1,3 +1,4 @@
+import copy
 import os
 import logging
 import random
@@ -8,6 +9,7 @@ from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
+MAX_INT = 24 * 365 * 20
 
 
 def read_str_file(path):
@@ -31,6 +33,7 @@ def preprocess_input(command_args: CommandArgs):
 
 
 def parse_args(command_args: CommandArgs) -> CommandArgs:
+    command_args = parse_named_args(command_args)
     command_args.joined_args = ' '.join(command_args.args)
     command_args.joined_args_lower = ' '.join(command_args.args).lower()
     command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
@@ -160,3 +163,122 @@ async def download_media(message, message_type):
         await message.download_media(file=path)
 
 
+def parse_arg(command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
+    command_args = copy.deepcopy(command_args_ref)
+    match arg_type:
+        case ArgType.POSITIVE_INT:
+            command_args = parse_number(command_args, arg_str, positive_only=True)
+        case ArgType.STRING:
+            command_args = parse_string(command_args, arg_str)
+        case _:
+            command_args = command_args
+
+    return command_args
+
+
+def parse_named_args(command_args_ref: CommandArgs):
+    # TODO: Just do it
+    command_args = copy.deepcopy(command_args_ref)
+    shortened_available_named_args = [arg[0] for arg in command_args.available_named_args]
+    args = copy.deepcopy(command_args.args)
+    for i, arg in enumerate(args):
+        named_arg = parse_named_arg(arg, shortened_available_named_args, command_args.available_named_args)
+        if named_arg is None:
+            continue
+        if command_args.available_named_args[named_arg] == ArgType.NONE:
+            command_args.named_args[named_arg] = None
+        elif i + 1 < len(args) and not is_named_arg(args[i + 1], shortened_available_named_args, command_args.available_named_args):  # this arg has a value
+            arg_type = command_args.available_named_args[named_arg]
+            command_args = parse_arg(command_args, args[i + 1], arg_type)
+            command_args.args.remove(args[i + 1])
+            if get_error(command_args) == '':
+                command_args.named_args[named_arg] = command_args.number
+        else:
+            command_args.errors.append(f'Argument {named_arg} requires a value')
+        command_args.args.remove(arg)
+
+    command_args.error = get_error(command_args)
+    return command_args
+
+
+def parse_named_arg(arg, shortened_available_named_args, available_named_args):
+    if is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args):
+        return arg.replace('-', '')
+    return None
+
+
+def is_shortened_named_arg(arg, shortened_available_named_args):
+    return (arg.startswith('-') and arg[1:] in shortened_available_named_args)
+
+
+def is_normal_named_arg(arg, available_named_args):
+    return arg.startswith('--') and arg[2:] in available_named_args
+
+
+def is_named_arg(arg, shortened_available_named_args, available_named_args):
+    return is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args)
+
+
+def parse_number(command_args, arg_str, positive_only=False) -> CommandArgs:
+    if arg_str == '':
+        return command_args
+
+    number, error = parse_int(arg_str, positive_only)
+    if error != '':
+        command_args.errors.append(error)
+        return command_args
+
+    if number > command_args.number_limit:
+        error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
+        command_args.errors.append(error)
+        log.error(error)
+        return command_args
+
+    command_args.number = number
+    command_args.errors.append('')
+    return command_args
+
+
+def get_error(command_args: CommandArgs) -> str:
+    return '\n'.join(command_args.errors).strip()
+
+
+def parse_int(num_str, positive_only=False):
+    error = ''
+    num = None
+    try:
+        num = int(num_str)
+        if num > MAX_INT:
+            error = f"Kuba's dick is too big ({x_to_light_years_str(num)}), make it smaller!"
+            log.error(error)
+        if positive_only and num < 0:
+            error = "Number cannot be negative!"
+            num = -1
+            log.error(error)
+    except ValueError:
+        error = f"{num_str} is not a number."
+        log.error(error)
+
+    return num, error
+
+
+def x_to_light_years_str(x):
+    """Kinda to last years, keep small numbers the same."""
+    if x < 10000000:
+        return str(x)
+
+    ly = x / 9460730472580.8
+    ly = round(ly, 6) if ly < 1 else round(ly, 2)
+    return f'{ly} light years'
+
+
+def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
+    error = ''
+    if len(text) < command_args.min_string_length:
+        error = f'{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters.'
+    if len(text) > command_args.max_string_length:
+        error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
+
+    command_args.errors.append(error)
+    command_args.string = text
+    return command_args

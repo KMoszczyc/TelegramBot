@@ -105,7 +105,8 @@ class ArgType(Enum):
     REGEX = 'regex'
     NUMBER = 'number'
     STRING = 'string'
-
+    POSITIVE_INT = 'positive_int'
+    NONE = 'none'
 
 class MessageType(Enum):
     """Enum for message types"""
@@ -115,3 +116,9 @@ class MessageType(Enum):
     VIDEO_NOTE = 'video_note'
     IMAGE = 'image'
     AUDIO = 'audio'
+
+class NamedArgType(Enum):
+    SHORT = 'short'
+    NORMAL = 'normal'
+    NONE = 'none'
+

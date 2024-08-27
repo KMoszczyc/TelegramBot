@@ -187,7 +187,7 @@ class ChatCommands:
 
     async def last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last n messages from chat history"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.NUMBER], number_limit=100)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.POSITIVE_INT], number_limit=100)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         chat_df = chat_df.sort_values(by='timestamp', ascending=False)
         if command_args.error != '':
