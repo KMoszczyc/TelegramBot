@@ -62,6 +62,7 @@ POLISH_STOPWORDS_PATH = os.path.join(DATA_DIR, 'misc/polish.stopwords.txt')
 BARTOSIAK_PATH = os.path.join(DATA_DIR, 'misc/bartosiak.txt')
 COMMANDS_PATH = os.path.join(DATA_DIR, 'misc/commands.txt')
 BIBLE_PATH = os.path.join(DATA_DIR, 'misc/bible.parquet')
+SHOPPING_SUNDAYS_PATH = os.path.join(DATA_DIR, 'misc/niedziele.txt')
 
 # Load text files with funny phrases
 tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
@@ -70,6 +71,7 @@ ozjasz_phrases = read_str_file(OZJASZ_PHRASES_PATH)
 bartosiak_phrases = read_str_file(BARTOSIAK_PATH)
 commands = read_str_file(COMMANDS_PATH)
 bible_df = pd.read_parquet(BIBLE_PATH)
+shopping_sundays = read_str_file(SHOPPING_SUNDAYS_PATH)
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:

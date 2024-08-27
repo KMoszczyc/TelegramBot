@@ -1,4 +1,5 @@
 import copy
+import locale
 import os
 import logging
 import random
@@ -10,7 +11,10 @@ from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 MAX_INT = 24 * 365 * 20
-
+locale.setlocale(
+    category=locale.LC_ALL,
+    locale="Polish"
+)
 
 def read_str_file(path):
     with open(path, 'r') as f:
@@ -282,3 +286,15 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     command_args.errors.append(error)
     command_args.string = text
     return command_args
+
+def display_shopping_sunday(dt):
+    return dt.strftime('%d %B')
+
+def display_bible_df(df, filter_phrase):
+    response = f'All bible verses that contain "{filter_phrase}":\n\n'
+    for i, row in df.sample(frac=1).iterrows():
+        verse = f"[{row['abbreviation']} {row['chapter']}, {row['verse']}] {row['text']}"
+        if len(response + verse) > 4096:
+            break
+        response += f"[{row['abbreviation']} {row['chapter']}, {row['verse']}] {row['text']}\n\n"
+    return response

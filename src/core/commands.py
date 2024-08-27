@@ -1,10 +1,11 @@
 import logging
+from datetime import datetime
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from src.models.command_args import CommandArgs
-from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType
+from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays
 import src.core.utils as core_utils
 
 log = logging.getLogger(__name__)
@@ -97,9 +98,9 @@ async def bible(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = 'Nie ma takiego cytatu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
     elif 'num' in command_args.named_args:
         filtered_df = filtered_df.head(command_args.named_args['num'])
-        response = display_bible_df(filtered_df, filter_phrase)
+        response = core_utils.display_bible_df(filtered_df, filter_phrase)
     elif 'all' in command_args.named_args:
-        response = display_bible_df(filtered_df, filter_phrase)
+        response = core_utils.display_bible_df(filtered_df, filter_phrase)
     else:
         random_row = filtered_df.iloc[0]
         response = f"[{random_row['abbreviation']} {random_row['chapter']}, {random_row['verse']}] {random_row['text']}"
@@ -107,11 +108,21 @@ async def bible(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 
-def display_bible_df(df, filter_phrase):
-    response = f'All bible verses that contain "{filter_phrase}":\n\n'
-    for i, row in df.sample(frac=1).iterrows():
-        verse = f"[{row['abbreviation']} {row['chapter']}, {row['verse']}] {row['text']}"
-        if len(response + verse) > 4096:
-            break
-        response += f"[{row['abbreviation']} {row['chapter']}, {row['verse']}] {row['text']}\n\n"
-    return response
+async def show_shopping_sundays(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    command_args = CommandArgs(args=context.args, available_named_args={'all': ArgType.NONE})
+    command_args = core_utils.parse_args(command_args)
+    if command_args.error != '':
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+        return
+
+    dt_now = datetime.now()
+    sundays_dt = [datetime.strptime(date, '%d-%m-%Y') for date in shopping_sundays]
+    filtered_sundays = [sunday for sunday in sundays_dt if sunday >= dt_now]
+    if 'all' in command_args.named_args:
+        response = f'Wszystkie niehandlowe niedziele w {dt_now.year}:\n - ' + '\n - '.join([core_utils.display_shopping_sunday(sunday) for sunday in sundays_dt])
+    elif filtered_sundays:
+        response = f'Kolejna handlowa niedziela to: {core_utils.display_shopping_sunday(filtered_sundays[0])}'
+    else:
+        response = 'Nie ma już handlowych niedzieli w tym roku :(('
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
