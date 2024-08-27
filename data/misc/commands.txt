@@ -1,9 +1,10 @@
 addnickname - (new_nickname) add a new nickname, so it's easier for you and others to use filtering
 bartosiak - text_filter or [regex] - Best of our favourite geopolitician Jacek Bartosiak
-bible - (text_filter) - Just a whole focking bible
+bible - (text_filter, --all, --num[int]) - just a whole focking bible
 displayusers - just display all existing users on the chat and their nicknames
 fun - (period[optional]) fun metric for all users
 funchart - (username[optional], period[optional]) fun metric chart
+handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 lastmessages - (username, number[optional]) display last x messages from chat history
 likechart - (username[optional], period[optional]) display number of reactions received per day per user
