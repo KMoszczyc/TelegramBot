@@ -119,9 +119,9 @@ async def show_shopping_sundays(update: Update, context: ContextTypes.DEFAULT_TY
     sundays_dt = [datetime.strptime(date, '%d-%m-%Y') for date in shopping_sundays]
     filtered_sundays = [sunday for sunday in sundays_dt if sunday >= dt_now]
     if 'all' in command_args.named_args:
-        response = f'Wszystkie niehandlowe niedziele w {dt_now.year}:\n - ' + '\n - '.join([core_utils.display_shopping_sunday(sunday) for sunday in sundays_dt])
+        response = f'Wszystkie handlowe niedziele w {dt_now.year}:\n - ' + '\n - '.join([core_utils.display_shopping_sunday(sunday) for sunday in sundays_dt])
     elif filtered_sundays:
-        response = f'Kolejna handlowa niedziela to: {core_utils.display_shopping_sunday(filtered_sundays[0])}'
+        response = f'Kolejna handlowa niedziela jest: {core_utils.display_shopping_sunday(filtered_sundays[0])}'
     else:
         response = 'Nie ma już handlowych niedzieli w tym roku :(('
 
