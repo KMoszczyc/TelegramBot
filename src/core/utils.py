@@ -4,6 +4,7 @@ import os
 import logging
 import random
 import re
+import sys
 from datetime import datetime
 
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
@@ -11,10 +12,11 @@ from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 MAX_INT = 24 * 365 * 20
-locale.setlocale(
-    category=locale.LC_ALL,
-    locale="Polish"
-)
+if sys.platform == 'win32':
+    locale.setlocale(locale.LC_ALL, 'Polish_Poland')
+else:
+    locale.setlocale(locale.LC_ALL, 'pl_PL.UTF-8')
+
 
 def read_str_file(path):
     with open(path, 'r') as f:
@@ -287,8 +289,10 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
     command_args.string = text
     return command_args
 
+
 def display_shopping_sunday(dt):
     return dt.strftime('%d %B')
+
 
 def display_bible_df(df, filter_phrase):
     response = f'All bible verses that contain "{filter_phrase}":\n\n'
