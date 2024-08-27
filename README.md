@@ -1,7 +1,7 @@
 # Telegram Bot - Chat Statistics and More
 
 ## Overview
-This Telegram bot provides detailed chat statistics, including message counts, reactions, and other metrics. Additionally, it offers extra functionalities such as generating top user lists, tracking specific keywords, and providing fun facts about the chat activity.
+This Telegram bot provides detailed chat statistics, including top messages, memes, videos, charts and other metrics. Additionally, it offers extra functionalities such as random quotes by Janusz Korwin-Mikke, TVP headlines and the entire Bible, all fully searchable by keywords and regex.
 
 ## Features
 - **Chat Statistics**: Pull all the historical chat messages and media and update it every 5 minutes (or less if you change it in `docker/cron_etl`).
