@@ -4,6 +4,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays
 import src.core.utils as core_utils
@@ -82,7 +83,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 
-async def bible(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def bible(update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
     command_args = CommandArgs(args=context.args, available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT})
     command_args = core_utils.parse_args(command_args)
     if command_args.error != '':
@@ -93,16 +94,26 @@ async def bible(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filtered_df = bible_df[bible_df['text'].str.lower().str.contains(filter_phrase)]
     filtered_df = filtered_df.sample(frac=1)
 
-    print(f'_{filter_phrase}_')
     if filtered_df.empty:
         response = 'Nie ma takiego cytatu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
     elif 'num' in command_args.named_args:
         filtered_df = filtered_df.head(command_args.named_args['num'])
-        response = core_utils.display_bible_df(filtered_df, filter_phrase)
+        response = core_utils.display_bible_df(filtered_df, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
     elif 'all' in command_args.named_args:
-        response = core_utils.display_bible_df(filtered_df, filter_phrase)
+        response = core_utils.display_bible_df(filtered_df, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
+    elif 'prev' in command_args.named_args and bot_state.last_bible_verse_id != -1:
+        start_index = max(0, bot_state.last_bible_verse_id - command_args.named_args['prev'])
+        filtered_df = bible_df.iloc[start_index:bot_state.last_bible_verse_id]
+        label = f'{command_args.named_args['prev']} bible verses before {core_utils.get_full_siglum(bible_df.iloc[bot_state.last_bible_verse_id])}'
+        response = core_utils.display_bible_df(filtered_df, label=label, show_siglum=False)
+    elif 'next' in command_args.named_args and bot_state.last_bible_verse_id != -1:
+        end_index = min(len(bible_df), bot_state.last_bible_verse_id + command_args.named_args['next'] + 1)
+        filtered_df = bible_df.iloc[bot_state.last_bible_verse_id + 1:end_index]
+        label = f'{command_args.named_args['next']} bible verses after {core_utils.get_full_siglum(bible_df.iloc[bot_state.last_bible_verse_id])}'
+        response = core_utils.display_bible_df(filtered_df, label=label, show_siglum=False)
     else:
         random_row = filtered_df.iloc[0]
+        bot_state.last_bible_verse_id = random_row.name
         response = f"[{random_row['abbreviation']} {random_row['chapter']}, {random_row['verse']}] {random_row['text']}"
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)

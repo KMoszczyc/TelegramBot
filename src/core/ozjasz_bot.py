@@ -4,6 +4,7 @@ import logging
 from telegram.ext import ApplicationBuilder, CommandHandler
 
 import src.core.commands as commands
+from src.models.bot_state import BotState
 from src.stats.chat_commands import ChatCommands
 from definitions import EmojiType, MessageType
 
@@ -15,6 +16,8 @@ log = logging.getLogger(__name__)
 class OzjaszBot:
     def __init__(self):
         log.info('Starting Ozjasz bot...')
+
+        self.bot_state = BotState()
         self.chat_commands = ChatCommands()
         self.application = ApplicationBuilder().token(TOKEN).build()
         self.add_commands()
@@ -28,7 +31,7 @@ class OzjaszBot:
                             CommandHandler('tusk', commands.tusk),
                             CommandHandler('starababa', commands.are_you_lucky_today),
                             CommandHandler('help', commands.help),
-                            CommandHandler('bible', commands.bible),
+                            CommandHandler('bible', lambda update, context: commands.bible(update, context, self.bot_state)),
                             CommandHandler('handlowa', commands.show_shopping_sundays),
                             CommandHandler('summary', self.chat_commands.summary),
                             CommandHandler('topmessages', lambda update, context: self.chat_commands.messages_by_reactions(update, context, EmojiType.ALL)),

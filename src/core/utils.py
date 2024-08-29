@@ -294,11 +294,19 @@ def display_shopping_sunday(dt):
     return dt.strftime('%d %B')
 
 
-def display_bible_df(df, filter_phrase):
-    response = f'All bible verses that contain "{filter_phrase}":\n\n'
-    for i, row in df.sample(frac=1).iterrows():
-        verse = f"[{row['abbreviation']} {row['chapter']}, {row['verse']}] {row['text']}"
+def display_bible_df(df, label='Filtered bible verses', show_siglum=True):
+    response = f'{label}:\n\n'
+    for i, row in df.iterrows():
+        verse = f"[{get_siglum(row)}] {row['text']}\n\n" if show_siglum else f"{row['verse']}. {row['text']}\n"
         if len(response + verse) > 4096:
             break
-        response += f"[{row['abbreviation']} {row['chapter']}, {row['verse']}] {row['text']}\n\n"
+        response += verse
     return response
+
+
+def get_siglum(row):
+    return f"{row['abbreviation']} {row['chapter']}, {row['verse']}"
+
+
+def get_full_siglum(row):
+    return f"{row['book']} {row['chapter']}, {row['verse']}"
