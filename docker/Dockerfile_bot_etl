@@ -4,6 +4,9 @@ RUN apt-get update && apt-get install -y cron dos2unix
 WORKDIR /app
 ENV TZ="Europe/Warsaw"
 ENV PYTHONPATH=/app
+ENV LANG pl_PL.UTF-8
+ENV LANGUAGE pl_PL:pl
+ENV LC_ALL pl_PL.UTF-8
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
