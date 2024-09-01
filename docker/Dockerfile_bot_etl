@@ -4,6 +4,9 @@ RUN apt-get update && apt-get install -y cron dos2unix
 WORKDIR /app
 ENV TZ="Europe/Warsaw"
 ENV PYTHONPATH=/app
+
+RUN sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
 ENV LANG pl_PL.UTF-8
 ENV LANGUAGE pl_PL:pl
 ENV LC_ALL pl_PL.UTF-8
