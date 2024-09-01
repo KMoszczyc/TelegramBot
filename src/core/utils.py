@@ -6,6 +6,9 @@ import random
 import re
 import sys
 from datetime import datetime
+from functools import wraps
+
+import pandas as pd
 
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
 from src.models.command_args import CommandArgs
@@ -310,3 +313,19 @@ def get_siglum(row):
 
 def get_full_siglum(row):
     return f"{row['book']} {row['chapter']}, {row['verse']}"
+
+def count_command(bot_state, command_name):
+    """Decorator to count command executions and log timestamps."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(update, context, *args, **kwargs):
+            timestamp = datetime.now()
+            new_entry = {'timestamp': timestamp,'command_name': command_name}
+            bot_state.command_data = pd.concat([bot_state.command_data, pd.DataFrame([new_entry])], ignore_index=True)
+
+            return func(update, context, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
