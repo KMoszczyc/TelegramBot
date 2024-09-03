@@ -378,10 +378,10 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        text = self.generate_response_headline(command_args, label='``` Command usage')
         command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
         command_counts_df = command_usage_df.groupby('command_name').size().reset_index(name='count').sort_values('count', ascending=False)
 
+        text = self.generate_response_headline(command_args, label='``` Command usage')
         for index, row in command_counts_df.iterrows():
             text += f"\n {row['command_name']}:".ljust(20) + f"{row['count']}"
 

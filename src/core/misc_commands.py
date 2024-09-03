@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -9,6 +10,7 @@ from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays
 import src.core.utils as core_utils
+import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
 
@@ -122,6 +124,23 @@ class Commands:
             response = f"[{random_row['abbreviation']} {random_row['chapter']}, {random_row['verse']}] {random_row['text']}"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+    @staticmethod
+    async def cmd_bible_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        bible_stats_df = bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
+        bible_stats_df['chapter_count'] = bible_df.drop_duplicates(['abbreviation', 'chapter'])[['abbreviation', 'chapter']].set_index('abbreviation').groupby('abbreviation').size()
+        bible_stats_df['verse_count'] = bible_df.groupby(['abbreviation']).size()
+
+        bible_stats_df = bible_stats_df.sort_values(by='verse_count', ascending=False)
+
+        text = "``` Bible stats:\n"
+        text += "Book".ljust(35) + "Chapters".ljust(10) + "Verses"
+        for index, row in bible_stats_df.iterrows():
+            text += f"\n[{index}]".ljust(9) + f"{row['book']}:".ljust(32) + f"{row['chapter_count']}".ljust(5) + f"{row['verse_count']}".ljust(5)
+
+        text += "```"
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     @staticmethod
     async def cmd_show_shopping_sundays(update: Update, context: ContextTypes.DEFAULT_TYPE):
