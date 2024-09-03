@@ -45,7 +45,7 @@ class OzjaszBot:
             'bible': lambda update, context: self.core_commands.cmd_bible(update, context, self.bot_state),
             'handlowa': self.core_commands.cmd_show_shopping_sundays,
             'biblestats': self.core_commands.cmd_bible_stats,
-            'commands': self.core_commands.cmd_bible_stats,
+            'commands': self.chat_commands.cmd_command_usage,
             'summary': self.chat_commands.cmd_summary,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),

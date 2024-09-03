@@ -14,6 +14,7 @@ import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
 
+
 class Commands:
     def __init__(self, command_logger: CommandLogger):
         self.command_logger = command_logger
@@ -161,4 +162,3 @@ class Commands:
             response = 'Nie ma już handlowych niedzieli w tym roku :(('
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-
