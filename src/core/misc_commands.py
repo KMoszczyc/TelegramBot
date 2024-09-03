@@ -4,7 +4,6 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from src.core import command_logger
 from src.core.command_logger import CommandLogger
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
@@ -16,18 +15,7 @@ log = logging.getLogger(__name__)
 class Commands:
     def __init__(self, command_logger: CommandLogger):
         self.command_logger = command_logger
-        self._decorate_commands()
-
-    def _decorate_commands(self):
-        """Dynamically apply the command logger to command methods based on naming convention."""
-        for attr_name in dir(self):
-            if attr_name.startswith('cmd_'):  # Use naming convention to identify command methods
-                attr = getattr(self, attr_name)
-                if callable(attr):
-                    command_name = attr_name[4:]  # Strip 'cmd_' prefix to get the command name
-                    print(f'Command: {command_name}', attr)
-                    decorated = self.command_logger.count_command(command_name)(attr)
-                    setattr(self, attr_name, decorated)
+        # CommandLogger.decorate_commands(self, command_logger)
 
     @staticmethod
     async def cmd_ozjasz(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,7 +85,6 @@ class Commands:
     @staticmethod
     async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = "Existing commands:\n- /" + '\n- /'.join(commands)
-        print(len(response), response)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     @staticmethod
@@ -156,9 +143,3 @@ class Commands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    async def cmd_command_counts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        df = self.command_logger.get_command_summary()
-
-        print(df.head(20))
-        response = df.head(20).to_string(index=False)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)

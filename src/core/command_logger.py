@@ -1,38 +1,53 @@
+import time
 from datetime import datetime
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from src.core.utils import datetime_to_ms, read_df, save_df
+from src.models.command_args import CommandArgs
+from src.stats.utils import filter_by_time_df, username_to_user_id
+from definitions import COMMANDS_USAGE_PATH
+
 
 class CommandLogger:
     def __init__(self, bot_state):
         self.bot_state = bot_state
-        self.command_data = pd.DataFrame(columns=['timestamp','command_name'])
+        self.command_usage_df = self.load_data()
 
     def count_command(self, command_name):
-        """Decorator to count command executions and log timestamps."""
+        """Decorator to log command executions and timestamps."""
+
         def decorator(func):
             @wraps(func)
             async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-                # Log the command usage with timestamp
-                timestamp = datetime.now()
-                new_entry = {'timestamp': timestamp, 'command_name': command_name}
-                self.command_data = pd.concat([self.command_data, pd.DataFrame([new_entry])], ignore_index=True)
+                result = await func(update, context, *args, **kwargs)
 
-                return await func(update, context, *args, **kwargs)
+                user_id = update.effective_user.id
+                timestamp = datetime.now().replace(tzinfo=ZoneInfo('Europe/Warsaw'))
+                new_entry = pd.DataFrame([{'timestamp': timestamp, 'user_id': user_id, 'command_name': command_name}])
+                self.command_usage_df = pd.concat([self.command_usage_df, new_entry], ignore_index=True)
+                save_df(self.command_usage_df, COMMANDS_USAGE_PATH)
+
+                return result
+
             return wrapper
+
         return decorator
 
-    def get_command_usage(self):
-        """Return the current command usage statistics as a DataFrame."""
-        return self.command_data
+    def load_data(self):
+        command_df = read_df(COMMANDS_USAGE_PATH)
+        if command_df is None:
+            command_df = pd.DataFrame(columns=['timestamp', 'user_id', 'command_name'])
+        return command_df
 
-    def get_command_summary(self):
-        """Return a summary of command usage with counts and latest timestamp."""
-        summary = self.command_data.groupby('command_name').agg({
-            'timestamp': ['count', 'max']
-        }).reset_index()
-        summary.columns = ['command_name', 'count', 'last_used']
-        return summary
+    def preprocess_data(self, users_df, command_args: CommandArgs):
+        filtered_df = filter_by_time_df(self.command_usage_df, command_args)
+        filtered_df['username'] = filtered_df.merge(users_df[['final_username']], on='user_id', how='left')['final_username']
+
+        if command_args.user is not None:
+            filtered_df = filtered_df[filtered_df['username'] == command_args.user]
+        return filtered_df

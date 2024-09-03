@@ -6,7 +6,6 @@ import random
 import re
 import sys
 from datetime import datetime
-from functools import wraps
 
 import pandas as pd
 
@@ -33,6 +32,16 @@ def create_dir(path):
 
     os.makedirs(path)
     log.info(f'Created directory in path: {path}')
+
+
+def read_df(path):
+    return pd.read_parquet(path) if os.path.exists(path) else None
+
+
+def save_df(df, path):
+    dir_path = os.path.split(path)[0]
+    create_dir(dir_path)
+    df.to_parquet(path)
 
 
 def preprocess_input(command_args: CommandArgs):
@@ -314,18 +323,8 @@ def get_siglum(row):
 def get_full_siglum(row):
     return f"{row['book']} {row['chapter']}, {row['verse']}"
 
-def count_command(bot_state, command_name):
-    """Decorator to count command executions and log timestamps."""
 
-    def decorator(func):
-        @wraps(func)
-        def wrapper(update, context, *args, **kwargs):
-            timestamp = datetime.now()
-            new_entry = {'timestamp': timestamp,'command_name': command_name}
-            bot_state.command_data = pd.concat([bot_state.command_data, pd.DataFrame([new_entry])], ignore_index=True)
 
-            return func(update, context, *args, **kwargs)
+def datetime_to_ms(dt):
+    return int(dt.timestamp() * 1000)
 
-        return wrapper
-
-    return decorator

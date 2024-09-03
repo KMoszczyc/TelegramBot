@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR
 import src.stats.utils as stats_utils
+import src.core.utils as core_utils
 
 load_dotenv()
 BOT_ID = os.getenv('BOT_ID')
@@ -76,12 +77,11 @@ class ChatETL:
                                    message_type.value]
             data.append(single_message_data)
 
-        old_chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
+        old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
 
         log.info(f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo('Europe/Warsaw')) - timedelta(days=days)} with {malformed_count} malformed records.')
         if old_chat_df is not None and not latest_chat_df.empty:
-            # merged_chat_df = pd.concat([old_chat_df, latest_chat_df]).drop_duplicates(subset='message_id').reset_index(drop=True)
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
         elif old_chat_df is not None:
             merged_chat_df = old_chat_df
@@ -107,12 +107,11 @@ class ChatETL:
 
         stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
         stats_utils.save_metadata(self.metadata)
-        stats_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
+        core_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
 
     def parse_reactions(self, msg, message_reactions, malformed_count, success):
         reaction_emojis, reaction_user_ids = [], []
 
-        # print(message_reactions)
         for reaction in message_reactions:
             try:
                 reaction_emojis.append(reaction.reaction.emoticon)
@@ -122,11 +121,6 @@ class ChatETL:
                 malformed_count += 1
                 log.error(f'Issue with reading message reaction emojis/user_id: {msg}.')
 
-        # for reaction_count in message.reactions.results:
-        #     count = reaction_count.count
-        #     emoji = reaction_count.reaction.emoticon
-        #     all_emojis.extend([emoji] * count)
-
         return reaction_emojis, reaction_user_ids, malformed_count, success
 
     def count_reactions(self, message):
@@ -135,7 +129,7 @@ class ChatETL:
     def clean_chat_history(self):
         log.info('Cleaning chat history...')
 
-        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
+        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         users_df = stats_utils.read_users()
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
@@ -145,7 +139,7 @@ class ChatETL:
         cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
 
         log.info(f'Cleaned chat history df, from: {len(chat_df)} to: {len(cleaned_df)}')
-        stats_utils.save_df(cleaned_df, CLEANED_CHAT_HISTORY_PATH)
+        core_utils.save_df(cleaned_df, CLEANED_CHAT_HISTORY_PATH)
 
     def extract_users(self):
         """Extract users from the chat history"""
@@ -155,7 +149,7 @@ class ChatETL:
             return
         log.info('Extracting users...')
 
-        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
+        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         unique_chat_df = chat_df.drop_duplicates('user_id')
         users_df = unique_chat_df[['user_id', 'first_name', 'last_name', 'username']]
         filtered_users_df = users_df[~users_df['user_id'].isin(excluded_user_ids)]
@@ -163,7 +157,7 @@ class ChatETL:
         filtered_users_df['nicknames'] = [[] for _ in range(len(filtered_users_df))]
         filtered_users_df = filtered_users_df.set_index('user_id')
 
-        stats_utils.save_df(filtered_users_df, USERS_PATH)
+        core_utils.save_df(filtered_users_df, USERS_PATH)
 
     def create_final_username(self, row):
         final_username = row['username']
@@ -175,8 +169,8 @@ class ChatETL:
         """Include all reactions and fill the missing user_ids with None"""
         log.info('Generating reactions df...')
 
-        chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        users_df = stats_utils.read_df(USERS_PATH)
+        chat_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        users_df = core_utils.read_df(USERS_PATH)
 
         chat_df['len_reactions'] = chat_df['reaction_emojis'].apply(lambda x: len(x))
         chat_df['len_reaction_users'] = chat_df['reaction_user_ids'].apply(lambda x: len(x))
@@ -187,11 +181,11 @@ class ChatETL:
         reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
 
-        stats_utils.save_df(reactions_df, REACTIONS_PATH)
+        core_utils.save_df(reactions_df, REACTIONS_PATH)
 
     def delete_bot_messages(self):
         """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
-        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
+        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         if chat_df is None:
             log.info('No chat history, no bot messages to delete.')
             return

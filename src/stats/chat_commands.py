@@ -8,8 +8,9 @@ import telegram
 import pandas as pd
 
 from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR
-import src.stats.utils as utils
+import src.stats.utils as stats_utils
 import src.core.utils as core_utils
+from src.core.command_logger import CommandLogger
 from src.models.command_args import CommandArgs
 
 pd.options.mode.chained_assignment = None
@@ -24,10 +25,13 @@ MAX_NICKNAMES_NUM = 5
 
 
 class ChatCommands:
-    def __init__(self):
-        self.users_df = utils.read_df(USERS_PATH)
-        self.chat_df = utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        self.reactions_df = utils.read_df(REACTIONS_PATH)
+    def __init__(self, command_logger: CommandLogger):
+        self.users_df = stats_utils.read_df(USERS_PATH)
+        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
+        self.command_logger = command_logger
+
+        # CommandLogger.decorate_commands(self, command_logger)
 
     def update(self):
         """If chat data was updated recentely, reload it."""
@@ -36,23 +40,23 @@ class ChatCommands:
             return
 
         log.info('Reloading chat data due to the recent update.')
-        self.chat_df = utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        self.reactions_df = utils.read_df(REACTIONS_PATH)
-        self.users_df = utils.read_df(USERS_PATH)
+        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
+        self.users_df = stats_utils.read_df(USERS_PATH)
 
-        utils.remove_file(UPDATE_REQUIRED_PATH)
+        stats_utils.remove_file(UPDATE_REQUIRED_PATH)
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
         self.update()
 
-        command_args = utils.parse_args(self.users_df, command_args)
+        command_args = stats_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             return self.chat_df, self.reactions_df, command_args
 
-        filtered_chat_df = utils.filter_by_time_df(self.chat_df, command_args)
-        filtered_reactions_df = utils.filter_by_time_df(self.reactions_df, command_args)
+        filtered_chat_df = stats_utils.filter_by_time_df(self.chat_df, command_args)
+        filtered_reactions_df = stats_utils.filter_by_time_df(self.reactions_df, command_args)
 
-        filtered_chat_df = utils.filter_emojis_by_emoji_type(filtered_chat_df, emoji_type, 'reaction_emojis')
+        filtered_chat_df = stats_utils.filter_emojis_by_emoji_type(filtered_chat_df, emoji_type, 'reaction_emojis')
 
         filtered_chat_df['reactions_num'] = filtered_chat_df['reaction_emojis'].apply(lambda x: len(x))
         filtered_chat_df = filtered_chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
@@ -66,17 +70,17 @@ class ChatCommands:
 
         return filtered_chat_df, filtered_reactions_df, command_args
 
-    async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
 
-        shifted_chat_df = utils.filter_by_shifted_time_df(self.chat_df, command_args)
-        shifted_reactions_df = utils.filter_by_shifted_time_df(self.reactions_df, command_args)
+        shifted_chat_df = stats_utils.filter_by_shifted_time_df(self.chat_df, command_args)
+        shifted_reactions_df = stats_utils.filter_by_shifted_time_df(self.reactions_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        sad_reactions_df = utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
+        sad_reactions_df = stats_utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
 
         # Calculate message and reaction count
@@ -113,13 +117,13 @@ class ChatCommands:
         text += "\n- *Most disliking*: " + ", ".join(
             [f"{row['reacting_username']}: *{row['count']}*" for _, row in sad_reactions_given_counts.head(3).iterrows()])
         text += "\n- *Top message*: " + ", ".join(
-            [f"{row['final_username']} [{utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in
+            [f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in
              text_only_chat_df.head(1).iterrows()])
 
-        text = utils.escape_special_characters(text)
+        text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    async def messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
+    async def cmd_messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
@@ -128,19 +132,19 @@ class ChatCommands:
             return
 
         chat_df = chat_df[chat_df['text'] != '']
-        label = utils.emoji_sentiment_to_label(emoji_type)
+        label = stats_utils.emoji_sentiment_to_label(emoji_type)
         text = self.generate_response_headline(command_args, label=f"{label} Cinco messages")
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             if row['reactions_num'] == 0:
                 break
             text += f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
-            text += f" [{utils.dt_to_str(row['timestamp'])}]:"
+            text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-    async def media_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL):
+    async def cmd_media_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL):
         """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
@@ -148,7 +152,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        label = utils.emoji_sentiment_to_label(emoji_type)
+        label = stats_utils.emoji_sentiment_to_label(emoji_type)
         text = self.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
@@ -163,7 +167,7 @@ class ChatCommands:
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             text = f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
-            text += f" [{utils.dt_to_str(row['timestamp'])}]:"
+            text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
             current_message_type = MessageType(row['message_type'])
@@ -185,7 +189,7 @@ class ChatCommands:
             case MessageType.AUDIO:
                 await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text)
 
-    async def last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last n messages from chat history"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.POSITIVE_INT], number_limit=100)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
@@ -199,7 +203,7 @@ class ChatCommands:
 
         for i, (index, row) in enumerate(chat_df.head(command_args.number).iterrows()):
             text += f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
-            text += f" [{utils.dt_to_str(row['timestamp'])}]:"
+            text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
         if len(text) > 4096:
@@ -207,7 +211,7 @@ class ChatCommands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-    async def display_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_display_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display all users in chat"""
 
         text = "All ye who dost partake in this discourse:"
@@ -215,13 +219,13 @@ class ChatCommands:
             nicknames = ', '.join(row['nicknames'])
             text += f"\n- *{row['final_username']}*: [{nicknames}]"
 
-        text = utils.escape_special_characters(text)
+        text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    async def add_nickname(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_add_nickname(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Nickname')
-        command_args = utils.parse_args(self.users_df, command_args)
+        command_args = stats_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -233,22 +237,22 @@ class ChatCommands:
 
         if len(current_nicknames) >= MAX_NICKNAMES_NUM:
             error = f'Nickname *{new_nickname}* not added for *{current_username}*. Nicknames limit is {MAX_NICKNAMES_NUM}.'
-            error = utils.escape_special_characters(error)
+            error = stats_utils.escape_special_characters(error)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
             return
 
         self.users_df.at[user_id, 'nicknames'] = [new_nickname] if len(current_nicknames) == 0 else current_nicknames + [new_nickname]
-        utils.save_df(self.users_df, USERS_PATH)
+        core_utils.save_df(self.users_df, USERS_PATH)
 
         current_nicknames = self.users_df.at[user_id, 'nicknames']
         text = f'Nickname *{new_nickname}* added for *{current_username}*. Resulting in the following nicknames: *{", ".join(current_nicknames)}*. It will get updated in a few minutes.'
-        text = utils.escape_special_characters(text)
+        text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    async def set_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_set_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=MAX_USERNAME_LENGTH, label='Username')
-        command_args = utils.parse_args(self.users_df, command_args)
+        command_args = stats_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -256,66 +260,63 @@ class ChatCommands:
         user_id = update.effective_user.id
         current_username = self.users_df.at[user_id, 'final_username']
         new_username = command_args.string
-        is_valid, error = utils.check_new_username(self.users_df, new_username)
+        is_valid, error = stats_utils.check_new_username(self.users_df, new_username)
 
         if not is_valid:
-            error = utils.escape_special_characters(error)
+            error = stats_utils.escape_special_characters(error)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
             return
 
         self.users_df.at[user_id, 'final_username'] = new_username
-        utils.save_df(self.users_df, USERS_PATH)
+        core_utils.save_df(self.users_df, USERS_PATH)
         text = f'Username changed from: *{current_username}* to *{new_username}*. It will get updated in a few minutes.'
-        text = utils.escape_special_characters(text)
+        text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    async def fun(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_fun(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
-        command_args = utils.parse_args(self.users_df, command_args)
+        command_args = stats_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
         fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
-
-        text = "``` Funmeter"
-        text += f" for {command_args.user}" if command_args.user is not None else " "
-        text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+        text = self.generate_response_headline(command_args, label='Funmeter')
 
         for i, (index, row) in enumerate(fun_ratios.iterrows()):
             text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
 
         text += "```"
-        text = utils.escape_special_characters(text)
+        text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    async def wholesome(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_wholesome(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
-        command_args = utils.parse_args(self.users_df, command_args)
+        command_args = stats_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
         wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
-        text = self.generate_response_headline(command_args, label='Wholesome meter')
+        text = self.generate_response_headline(command_args, label='``` Wholesome meter')
 
         for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
             text += f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
 
         text += "```"
-        text = utils.escape_special_characters(text)
+        text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    async def funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        text = self.generate_response_headline(command_args, label='Funmeter')
+        text = self.generate_response_headline(command_args, label='``` Funmeter')
 
         users = [command_args.user]
         if command_args.user is None:
@@ -327,7 +328,7 @@ class ChatCommands:
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
 
-    async def spamchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_spamchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
@@ -347,8 +348,9 @@ class ChatCommands:
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
 
-    async def likechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_likechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -366,6 +368,27 @@ class ChatCommands:
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
+
+
+    async def cmd_command_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = stats_utils.parse_args(self.users_df, command_args)
+
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        text = self.generate_response_headline(command_args, label='``` Command usage')
+        command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
+        command_counts_df = command_usage_df.groupby('command_name').size().reset_index(name='count').sort_values('count', ascending=False)
+
+        for index, row in command_counts_df.iterrows():
+            text += f"\n {row['command_name']}:".ljust(20) + f"{row['count']}"
+
+        text += "```"
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
 
     def generate_response_headline(self, command_args, label):
         text = label
@@ -428,8 +451,8 @@ class ChatCommands:
         plt.tight_layout()
         plt.legend(loc='best')
 
-        path = os.path.abspath(os.path.join(TEMP_DIR, utils.generate_random_filename('jpg')))
-        utils.create_dir(TEMP_DIR)
+        path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
+        stats_utils.create_dir(TEMP_DIR)
         plt.savefig(path, bbox_inches='tight')
 
         return path

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType
-from src.core.utils import create_dir, parse_string, parse_number, parse_int
+from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -56,20 +56,11 @@ def save_metadata(metadata):
         pickle.dump(metadata, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def save_df(df, path):
-    dir_path = os.path.split(path)[0]
-    create_dir(dir_path)
-    df.to_parquet(path)
-
 
 def read_chat_history():
     df = pd.read_parquet(CLEANED_CHAT_HISTORY_PATH).sort_values(by='timestamp').reset_index(drop=True)
     print(df.tail(10))
     return df
-
-
-def read_df(path):
-    return pd.read_parquet(path) if os.path.exists(path) else None
 
 
 def read_users():
@@ -389,3 +380,6 @@ def generate_random_file_id():
 
 def generate_random_filename(extension):
     return f"{generate_random_file_id()}.{extension}"
+
+def username_to_user_id(users_df, username):
+    return users_df[users_df['final_username'] == username].iloc[0]['user_id']
