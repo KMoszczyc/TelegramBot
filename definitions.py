@@ -49,10 +49,10 @@ CHAT_GIFS_DIR_PATH = os.path.join(DATA_DIR, 'chat/gifs')
 CHAT_VIDEOS_DIR_PATH = os.path.join(DATA_DIR, 'chat/videos')
 CHAT_AUDIO_DIR_PATH = os.path.join(DATA_DIR, 'chat/audio')
 
-# CHAT_HISTORY_PATH = os.path.join(ROOT_DIR, 'data/chat/test_chat_history.parquet')
 CLEANED_CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/cleaned_chat_history.parquet')
 REACTIONS_PATH = os.path.join(DATA_DIR, 'chat/reactions.parquet')
 USERS_PATH = os.path.join(DATA_DIR, 'chat/users.parquet')
+COMMANDS_USAGE_PATH = os.path.join(DATA_DIR, 'chat/commands_usage.parquet')
 
 # Miscalenous
 TVP_HEADLINES_PATH = os.path.join(DATA_DIR, 'misc/paski-tvp.txt')

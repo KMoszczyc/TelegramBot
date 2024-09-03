@@ -7,6 +7,8 @@ import re
 import sys
 from datetime import datetime
 
+import pandas as pd
+
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
 from src.models.command_args import CommandArgs
 
@@ -30,6 +32,16 @@ def create_dir(path):
 
     os.makedirs(path)
     log.info(f'Created directory in path: {path}')
+
+
+def read_df(path):
+    return pd.read_parquet(path) if os.path.exists(path) else None
+
+
+def save_df(df, path):
+    dir_path = os.path.split(path)[0]
+    create_dir(dir_path)
+    df.to_parquet(path)
 
 
 def preprocess_input(command_args: CommandArgs):
@@ -310,3 +322,9 @@ def get_siglum(row):
 
 def get_full_siglum(row):
     return f"{row['book']} {row['chapter']}, {row['verse']}"
+
+
+
+def datetime_to_ms(dt):
+    return int(dt.timestamp() * 1000)
+
