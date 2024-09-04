@@ -135,9 +135,9 @@ class Commands:
         bible_stats_df = bible_stats_df.sort_values(by='verse_count', ascending=False)
 
         text = "``` Bible stats:\n"
-        text += "Book".ljust(35) + "Chapters".ljust(10) + "Verses"
+        text += "Book".ljust(28) + "Chapters Verses"
         for index, row in bible_stats_df.iterrows():
-            text += f"\n[{index}]".ljust(9) + f"{row['book']}:".ljust(32) + f"{row['chapter_count']}".ljust(5) + f"{row['verse_count']}".ljust(5)
+            text += f"\n[{index}] {row['book']}:".ljust(36) + f"{row['chapter_count']}".ljust(4) + f"{row['verse_count']}"
 
         text += "```"
         text = stats_utils.escape_special_characters(text)
