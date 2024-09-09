@@ -6,6 +6,7 @@ import random
 import re
 import sys
 from datetime import datetime
+from typing import Tuple, Any
 
 import pandas as pd
 
@@ -181,17 +182,18 @@ async def download_media(message, message_type):
         await message.download_media(file=path)
 
 
-def parse_arg(command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
+def parse_arg(command_args_ref, arg_str, arg_type: ArgType) -> tuple[str | int, CommandArgs]:
     command_args = copy.deepcopy(command_args_ref)
+    value = None
     match arg_type:
         case ArgType.POSITIVE_INT:
-            command_args = parse_number(command_args, arg_str, positive_only=True)
+            value, command_args = parse_number(command_args, arg_str, positive_only=True)
         case ArgType.STRING:
-            command_args = parse_string(command_args, arg_str)
+            value, command_args = parse_string(command_args, arg_str)
         case _:
             command_args = command_args
 
-    return command_args
+    return value, command_args
 
 
 def parse_named_args(command_args_ref: CommandArgs):
@@ -207,10 +209,10 @@ def parse_named_args(command_args_ref: CommandArgs):
             command_args.named_args[named_arg] = None
         elif i + 1 < len(args) and not is_named_arg(args[i + 1], shortened_available_named_args, command_args.available_named_args):  # this arg has a value
             arg_type = command_args.available_named_args[named_arg]
-            command_args = parse_arg(command_args, args[i + 1], arg_type)
+            value, command_args = parse_arg(command_args, args[i + 1], arg_type)
             command_args.args.remove(args[i + 1])
             if get_error(command_args) == '':
-                command_args.named_args[named_arg] = command_args.number
+                command_args.named_args[named_arg] = value
         else:
             command_args.errors.append(f'Argument {named_arg} requires a value')
         command_args.args.remove(arg)
@@ -237,7 +239,7 @@ def is_named_arg(arg, shortened_available_named_args, available_named_args):
     return is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args)
 
 
-def parse_number(command_args, arg_str, positive_only=False) -> CommandArgs:
+def parse_number(command_args, arg_str, positive_only=False) -> tuple[int, CommandArgs]:
     if arg_str == '':
         return command_args
 
@@ -254,7 +256,7 @@ def parse_number(command_args, arg_str, positive_only=False) -> CommandArgs:
 
     command_args.number = number
     command_args.errors.append('')
-    return command_args
+    return number, command_args
 
 
 def get_error(command_args: CommandArgs) -> str:
@@ -290,7 +292,7 @@ def x_to_light_years_str(x):
     return f'{ly} light years'
 
 
-def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
+def parse_string(command_args: CommandArgs, text: str) -> tuple[str, CommandArgs]:
     error = ''
     if len(text) < command_args.min_string_length:
         error = f'{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters.'
@@ -299,20 +301,22 @@ def parse_string(command_args: CommandArgs, text: str) -> CommandArgs:
 
     command_args.errors.append(error)
     command_args.string = text
-    return command_args
+    return text, command_args
 
 
 def display_shopping_sunday(dt):
     return dt.strftime('%d %B')
 
 
-def display_bible_df(df, label='Filtered bible verses', show_siglum=True):
+def display_bible_df(df, bot_state, label='Filtered bible verses', show_siglum=True):
     response = f'{label}:\n\n'
     for i, row in df.iterrows():
         verse = f"[{get_siglum(row)}] {row['text']}\n\n" if show_siglum else f"{row['verse']}. {row['text']}\n"
         if len(response + verse) > 4096:
             break
         response += verse
+        bot_state.last_bible_verse_id = row.name
+
     return response
 
 
@@ -324,7 +328,17 @@ def get_full_siglum(row):
     return f"{row['book']} {row['chapter']}, {row['verse']}"
 
 
+def get_bible_map(bible_df):
+    return bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
+
 
 def datetime_to_ms(dt):
     return int(dt.timestamp() * 1000)
 
+
+def match_substr_to_list_of_texts(substr: str, texts: list, lower_case: bool = True) -> str:
+    if lower_case:
+        matched_texts = [text for text in texts if substr.lower() in text.lower()]
+    else:
+        matched_texts = [text for text in texts if substr in text]
+    return matched_texts[0] if matched_texts else None

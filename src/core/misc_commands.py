@@ -92,7 +92,7 @@ class Commands:
 
     @staticmethod
     async def cmd_bible(update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
-        command_args = CommandArgs(args=context.args, available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT})
+        command_args = CommandArgs(args=context.args, available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE, 'book': ArgType.STRING, 'chapter': ArgType.POSITIVE_INT,})
         command_args = core_utils.parse_args(command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -100,25 +100,57 @@ class Commands:
 
         filter_phrase = command_args.joined_args_lower
         filtered_df = bible_df[bible_df['text'].str.lower().str.contains(filter_phrase)]
-        filtered_df = filtered_df.sample(frac=1)
+
+        response = ''
+        if 'book' in command_args.named_args:
+            abbrevarions = bible_df['abbreviation'].unique()
+            books = bible_df['book'].unique()
+            matched_abbreviation = core_utils.match_substr_to_list_of_texts(command_args.named_args['book'], abbrevarions)
+            matched_book_name = core_utils.match_substr_to_list_of_texts(command_args.named_args['book'], books)
+
+            if matched_abbreviation is not None:
+                filtered_df = filtered_df[filtered_df['abbreviation'] == matched_abbreviation]
+
+            if matched_book_name is not None:
+                filtered_df = filtered_df[filtered_df['book'] == matched_book_name]
+
+            if matched_book_name is None or matched_abbreviation is None:
+                response += f'[{filtered_df.iloc[0]['abbreviation']}] {filtered_df.iloc[0]['book']}, '
+
+
+        if 'chapter' in command_args.named_args: # in chapter mode we read a random chapter from the bible
+            random_row = filtered_df.sample(frac=1).iloc[0]
+            book = random_row['book']
+            chapter = random_row['chapter']
+            filtered_df = bible_df[(bible_df['book'] == book) & (bible_df['chapter'] == chapter)].head(command_args.named_args['chapter'])
+            response += core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} verses from chapter {chapter}', show_siglum=False)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+            return
+        else:
+            filtered_df = filtered_df.sample(frac=1)
 
         if filtered_df.empty:
             response = 'Nie ma takiego cytatu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
         elif 'num' in command_args.named_args:
             filtered_df = filtered_df.head(command_args.named_args['num'])
-            response = core_utils.display_bible_df(filtered_df, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
+            response = core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
         elif 'all' in command_args.named_args:
-            response = core_utils.display_bible_df(filtered_df, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
+            response = core_utils.display_bible_df(filtered_df, bot_state,label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
         elif 'prev' in command_args.named_args and bot_state.last_bible_verse_id != -1:
             start_index = max(0, bot_state.last_bible_verse_id - command_args.named_args['prev'])
             filtered_df = bible_df.iloc[start_index:bot_state.last_bible_verse_id]
             label = f'{command_args.named_args['prev']} bible verses before {core_utils.get_full_siglum(bible_df.iloc[bot_state.last_bible_verse_id])}'
-            response = core_utils.display_bible_df(filtered_df, label=label, show_siglum=False)
+            response = core_utils.display_bible_df(filtered_df, bot_state, label=label, show_siglum=False)
         elif 'next' in command_args.named_args and bot_state.last_bible_verse_id != -1:
             end_index = min(len(bible_df), bot_state.last_bible_verse_id + command_args.named_args['next'] + 1)
             filtered_df = bible_df.iloc[bot_state.last_bible_verse_id + 1:end_index]
             label = f'{command_args.named_args['next']} bible verses after {core_utils.get_full_siglum(bible_df.iloc[bot_state.last_bible_verse_id])}'
-            response = core_utils.display_bible_df(filtered_df, label=label, show_siglum=False)
+            response = core_utils.display_bible_df(filtered_df, bot_state, label=label, show_siglum=False)
+        elif 'count' in command_args.named_args:
+            random_row = filtered_df.iloc[0]
+            bot_state.last_bible_verse_id = random_row.name
+            response = f'{len(filtered_df)} bible verses with "{filter_phrase}": \n\n'
+            response += f'[{core_utils.get_siglum(random_row)}] {random_row["text"]}'
         else:
             random_row = filtered_df.iloc[0]
             bot_state.last_bible_verse_id = random_row.name
