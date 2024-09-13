@@ -342,3 +342,10 @@ def match_substr_to_list_of_texts(substr: str, texts: list, lower_case: bool = T
     else:
         matched_texts = [text for text in texts if substr in text]
     return matched_texts[0] if matched_texts else None
+
+
+def get_username(first_name, last_name):
+    username = first_name if first_name is not None else ''
+    if last_name is not None:
+        username += f' {last_name}'
+    return username.strip()

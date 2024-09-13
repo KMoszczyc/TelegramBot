@@ -1,16 +1,24 @@
 import os
+from functools import wraps
+
 from dotenv import load_dotenv
 import logging
-from telegram.ext import ApplicationBuilder, CommandHandler
+
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import src.core.misc_commands as commands
 from src.core.command_logger import CommandLogger
 from src.models.bot_state import BotState
 from src.stats.chat_commands import ChatCommands
 from definitions import EmojiType, MessageType
+import src.core.utils as core_utils
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
+CHAT_ID = int(os.getenv('CHAT_ID'))
+TEST_CHAT_ID = int(os.getenv('TEST_CHAT_ID'))
+
 log = logging.getLogger(__name__)
 
 
@@ -29,8 +37,10 @@ class OzjaszBot:
 
     def add_commands(self):
         commands_map = self.get_commands_map()
-        decorated_commands_map = {command_name: self.command_logger.count_command(command_name)(func) for command_name, func in commands_map.items()}  # Apply the command counter decorator
-        command_handlers = [CommandHandler(command_name, func) for command_name, func in decorated_commands_map.items()]
+        validated_commands_map = {command_name: self.validate_command()(func) for command_name, func in commands_map.items()}  # Validate chat_id via decorator
+        counted_commands_map = {command_name: self.command_logger.count_command(command_name)(func) for command_name, func in validated_commands_map.items()}  # Apply the command counter decorator
+
+        command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
 
     def get_commands_map(self):
@@ -64,3 +74,29 @@ class OzjaszBot:
             'spamchart': self.chat_commands.cmd_spamchart,
             'likechart': self.chat_commands.cmd_likechart,
         }
+
+    def validate_command(self):
+        """Decorator to log command executions and timestamps."""
+
+        def decorator(func):
+            @wraps(func)
+            async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+                src_chat_id = update.message.chat_id
+                first_name = update.message.from_user.first_name
+                last_name = update.message.from_user.last_name
+                user_id = update.message.from_user.id
+                user_name = core_utils.get_username(first_name, last_name)
+
+                if src_chat_id not in [CHAT_ID, TEST_CHAT_ID]:
+                    error = 'You cannot use this bot in your channel, sorry! :('
+                    log.info(f'Attempted bot usage from chat: [{src_chat_id}] by user: {user_name} ({user_id}). Access denied.')
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+                    return
+
+                log.info(f'Attempted bot usage from chat: [{src_chat_id}] by user: {user_name} ({user_id}). Access approved.')
+
+                return await func(update, context, *args, **kwargs)
+
+            return wrapper
+
+        return decorator
