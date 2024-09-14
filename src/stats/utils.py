@@ -121,6 +121,7 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
         arg_type = command_args.handled_expected_args[i]
         command_args = parse_arg(users_df, command_args, arg, arg_type)
 
+    print(command_args)
     command_args.error = '\n'.join(command_args.errors).strip()
     return command_args
 
@@ -165,9 +166,9 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> Command
         case ArgType.PERIOD:
             command_args = parse_period(command_args, arg_str)
         case ArgType.POSITIVE_INT:
-            command_args = parse_number(command_args, arg_str, positive_only=True)
+            _, command_args = parse_number(command_args, arg_str, positive_only=True)
         case ArgType.STRING:
-            command_args = parse_string(command_args, arg_str)
+            _, command_args = parse_string(command_args, arg_str)
         case _:
             command_args = command_args
 

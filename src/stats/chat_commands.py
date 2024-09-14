@@ -316,14 +316,14 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        text = self.generate_response_headline(command_args, label='``` Funmeter')
+        text = self.generate_response_headline(command_args, label='Funmeter chart')
 
         users = [command_args.user]
         if command_args.user is None:
             users = self.users_df['final_username'].unique()
 
         fun_ratios = self.calculate_fun_metric_periodized(chat_df, reactions_df, frequency='D')
-        path = self.generate_plot(users, fun_ratios, 'final_username', 'period', 'ratio', text, x_label='time', y_label='funratio daily')
+        path = self.generate_plot(fun_ratios, users, 'final_username', 'period', 'ratio', text, x_label='time', y_label='funratio daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -343,7 +343,7 @@ class ChatCommands:
 
         chat_df['period'] = chat_df['timestamp'].dt.to_period('D')
         message_counts = chat_df.groupby(['period', 'final_username']).size().unstack(fill_value=0).stack().reset_index(name='message_count')
-        path = self.generate_plot(users, message_counts, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages daily')
+        path = self.generate_plot(message_counts, users, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -364,11 +364,10 @@ class ChatCommands:
 
         reactions_df['period'] = reactions_df['timestamp'].dt.to_period('D')
         reaction_counts = reactions_df.groupby(['period', 'reacted_to_username']).size().unstack(fill_value=0).stack().reset_index(name='reaction_count')
-        path = self.generate_plot(users, reaction_counts, 'reacted_to_username', 'period', 'reaction_count', text, x_label='time', y_label='likes received daily')
+        path = self.generate_plot(reaction_counts, users, 'reacted_to_username', 'period', 'reaction_count', text, x_label='time', y_label='likes received daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
-
 
     async def cmd_command_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
@@ -389,6 +388,24 @@ class ChatCommands:
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
+    async def cmd_command_usage_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], optional=[True])
+        command_args = stats_utils.parse_args(self.users_df, command_args)
+
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        text = self.generate_response_headline(command_args, label='Command usage chart')
+        command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
+
+        commands = command_usage_df['command_name'].unique() if command_args.string == '' else [command_args.string]
+        command_usage_df['period'] = command_usage_df['timestamp'].dt.to_period('D')
+        command_usage_counts = command_usage_df.groupby(['period', 'command_name']).size().unstack(fill_value=0).stack().reset_index(name='command_count')
+        path = self.generate_plot(command_usage_counts, commands, 'command_name', 'period', 'command_count', text, x_label='time', y_label='command usage daily')
+
+        current_message_type = MessageType.IMAGE
+        await self.send_message(update, context, current_message_type, path, text)
 
     def generate_response_headline(self, command_args, label):
         text = label
@@ -435,15 +452,18 @@ class ChatCommands:
 
         return result_df
 
-    def generate_plot(self, users, df, user_col, x_col, y_col, title, x_label='time', y_label='value'):
-        filtered_df = df[df[user_col].isin(users)]
+    def preprocess_df_for_ploting(self, df, grouping_col: str, selected_for_grouping: list, x_col: str):
+        filtered_df = df[df[grouping_col].isin(selected_for_grouping)]
         filtered_df.set_index(x_col, inplace=True)
         filtered_df.index = filtered_df.index.to_timestamp()
+        return filtered_df
 
-        if len(users) == 1:
-            self.generate_plot_for_single_user(filtered_df, y_col)
+    def generate_plot(self, df, selected_for_grouping: list, grouping_col: str, x_col: str, y_col: str, title: str, x_label='time', y_label='value'):
+        preprocessed_df = self.preprocess_df_for_ploting(df, grouping_col, selected_for_grouping, x_col)
+        if len(selected_for_grouping) == 1:
+            self.generate_mean_plot(preprocessed_df, y_col)
         else:
-            self.generate_plot_for_multiple_users(filtered_df, x_col, y_col, user_col)
+            self.generate_grouped_plot(preprocessed_df, x_col, y_col, grouping_col)
 
         plt.title(title)
         plt.xlabel(x_label)
@@ -457,7 +477,7 @@ class ChatCommands:
 
         return path
 
-    def generate_plot_for_single_user(self, df, y_col):
+    def generate_mean_plot(self, df, y_col):
         cmap = plt.get_cmap("tab10")
         df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
 
@@ -471,16 +491,16 @@ class ChatCommands:
         monthly_data.index = monthly_data.index - pd.offsets.Day(15)
         monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
 
-    def generate_plot_for_multiple_users(self, df, x_col, y_col, user_col):
+    def generate_grouped_plot(self, df, x_col, y_col, grouping_col):
         cmap = plt.get_cmap("tab20")
         days_diff = (max(df.index) - min(df.index)).days
         if days_diff > 90:  # line chart
             fig, ax = plt.subplots()
-            for i, (key, grp) in enumerate(df.groupby([user_col])):
+            for i, (key, grp) in enumerate(df.groupby([grouping_col])):
                 grp = grp[y_col].resample('W').mean() if days_diff > 180 else grp[y_col]
                 ax = grp.plot(ax=ax, kind='line', figsize=(10, 5), label=key[0], color=cmap(i))
         else:  # stacked bar chart
-            pivot_df = df.pivot_table(index=x_col, columns=user_col, values=y_col, fill_value=0)
+            pivot_df = df.pivot_table(index=x_col, columns=grouping_col, values=y_col, fill_value=0)
             pivot_df.index = pivot_df.index.strftime('%Y-%m-%d')
             pivot_df.plot(kind='bar', stacked=True, figsize=(10, 7), cmap=cmap)
             plt.xticks(rotation=70, ha='right', fontsize=6)

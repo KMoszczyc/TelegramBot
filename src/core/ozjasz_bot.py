@@ -73,6 +73,7 @@ class OzjaszBot:
             'funchart': self.chat_commands.cmd_funchart,
             'spamchart': self.chat_commands.cmd_spamchart,
             'likechart': self.chat_commands.cmd_likechart,
+            'commandschart': self.chat_commands.cmd_command_usage_chart
         }
 
     def validate_command(self):
