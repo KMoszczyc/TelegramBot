@@ -389,8 +389,11 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_command_usage_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], optional=[True])
+        command_args = CommandArgs(args=context.args, available_named_args={'user': ArgType.USER, 'period': ArgType.PERIOD, 'command': ArgType.STRING})
         command_args = stats_utils.parse_args(self.users_df, command_args)
+
+        if 'command' in command_args.named_args and command_args.named_args['command'] not in self.command_logger.get_commands():
+            command_args.error += f'Command "{command_args.named_args["command"]}" does not exist.'
 
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -409,6 +412,7 @@ class ChatCommands:
 
     def generate_response_headline(self, command_args, label):
         text = label
+        text += f' of "{command_args.string}"' if command_args.string != '' else ''
         text += f" for {command_args.user}" if command_args.user is not None else " "
         text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
         return text
@@ -469,7 +473,8 @@ class ChatCommands:
         plt.xlabel(x_label)
         plt.ylabel(y_label)
         plt.tight_layout()
-        plt.legend(loc='best')
+        # plt.legend(loc='best')
+        plt.legend(loc="upper left", ncol=5)
 
         path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
         stats_utils.create_dir(TEMP_DIR)

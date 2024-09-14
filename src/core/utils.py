@@ -10,7 +10,7 @@ from typing import Tuple, Any
 
 import pandas as pd
 
-from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
+from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -45,14 +45,14 @@ def save_df(df, path):
     df.to_parquet(path)
 
 
-def preprocess_input(command_args: CommandArgs):
-    command_args = parse_args(command_args)
+def preprocess_input(users_df: pd.DataFrame, command_args: CommandArgs):
+    command_args = parse_args(users_df, command_args)
     filtered_phrases = filter_phrases(command_args)
     return filtered_phrases
 
 
-def parse_args(command_args: CommandArgs) -> CommandArgs:
-    command_args = parse_named_args(command_args)
+def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs:
+    command_args = parse_named_args(users_df, command_args)
     command_args.joined_args = ' '.join(command_args.args)
     command_args.joined_args_lower = ' '.join(command_args.args).lower()
     command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
@@ -182,10 +182,14 @@ async def download_media(message, message_type):
         await message.download_media(file=path)
 
 
-def parse_arg(command_args_ref, arg_str, arg_type: ArgType) -> tuple[str | int, CommandArgs]:
+def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> tuple[str | int, CommandArgs]:
     command_args = copy.deepcopy(command_args_ref)
     value = None
     match arg_type:
+        case ArgType.USER:
+            command_args = parse_user(users_df, command_args, arg_str)
+        case ArgType.PERIOD:
+            command_args = parse_period(command_args, arg_str)
         case ArgType.POSITIVE_INT:
             value, command_args = parse_number(command_args, arg_str, positive_only=True)
         case ArgType.STRING:
@@ -196,8 +200,7 @@ def parse_arg(command_args_ref, arg_str, arg_type: ArgType) -> tuple[str | int, 
     return value, command_args
 
 
-def parse_named_args(command_args_ref: CommandArgs):
-    # TODO: Just do it
+def parse_named_args(users_df, command_args_ref: CommandArgs):
     command_args = copy.deepcopy(command_args_ref)
     shortened_available_named_args = [arg[0] for arg in command_args.available_named_args]
     args = copy.deepcopy(command_args.args)
@@ -209,7 +212,7 @@ def parse_named_args(command_args_ref: CommandArgs):
             command_args.named_args[named_arg] = None
         elif i + 1 < len(args) and not is_named_arg(args[i + 1], shortened_available_named_args, command_args.available_named_args):  # this arg has a value
             arg_type = command_args.available_named_args[named_arg]
-            value, command_args = parse_arg(command_args, args[i + 1], arg_type)
+            value, command_args = parse_arg(users_df, command_args, args[i + 1], arg_type)
             command_args.args.remove(args[i + 1])
             if get_error(command_args) == '':
                 command_args.named_args[named_arg] = value
@@ -238,6 +241,59 @@ def is_normal_named_arg(arg, available_named_args):
 def is_named_arg(arg, shortened_available_named_args, available_named_args):
     return is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args)
 
+
+
+def parse_period(command_args, arg_str) -> CommandArgs:
+    if arg_str == '':
+        error = "Period cannot be empty."
+        command_args.errors.append(error)
+        log.error(error)
+        return command_args
+
+    period_mode_str = arg_str
+    try:
+        if 'h' in arg_str and has_numbers(arg_str):
+            command_args.period_time, command_args.parse_error = parse_int(arg_str.replace('h', ''), positive_only=True)
+            period_mode_str = 'hour'
+        if command_args.parse_error == '':
+            command_args.period_mode = PeriodFilterMode(period_mode_str)
+    except ValueError:
+        error = f"There is no such time period as {arg_str}."
+        command_args.errors.append(error)
+        log.error(error)
+
+    if command_args.parse_error != '':
+        command_args.errors.append(command_args.parse_error)
+        command_args.period_mode = PeriodFilterMode.ERROR
+    else:
+        command_args.errors.append('')
+    return command_args
+
+
+def parse_user(users_df, command_args, arg_str) -> CommandArgs:
+    if arg_str == '':
+        error = "User cannot be empty."
+        command_args.errors.append(error)
+        log.error(command_args.error)
+        return command_args
+
+    user_str = arg_str.replace('@', '')
+
+    exact_matching_users = users_df[users_df['final_username'].str.lower() == user_str.lower()]
+    partially_matching_users = users_df[users_df['final_username'].str.contains(user_str, case=False)]
+
+    if not exact_matching_users.empty:
+        command_args.user = exact_matching_users.iloc[0]['final_username']
+    elif len(user_str) >= 3 and not partially_matching_users.empty:
+        command_args.user = partially_matching_users.iloc[0]['final_username']
+    else:
+        error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
+        command_args.errors.append(error)
+        log.error(command_args.error)
+        return command_args
+
+    command_args.errors.append('')
+    return command_args
 
 def parse_number(command_args, arg_str, positive_only=False) -> tuple[int, CommandArgs]:
     if arg_str == '':
@@ -349,3 +405,6 @@ def get_username(first_name, last_name):
     if last_name is not None:
         username += f' {last_name}'
     return username.strip()
+
+def has_numbers(num_str):
+    return any(char.isdigit() for char in num_str)

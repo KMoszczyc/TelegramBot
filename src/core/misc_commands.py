@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from src.core.command_logger import CommandLogger
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
-from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays
+from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -18,12 +18,13 @@ log = logging.getLogger(__name__)
 class Commands:
     def __init__(self, command_logger: CommandLogger):
         self.command_logger = command_logger
+        self.users_df = stats_utils.read_df(USERS_PATH)
         # CommandLogger.decorate_commands(self, command_logger)
 
-    @staticmethod
-    async def cmd_ozjasz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    async def cmd_ozjasz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases)
-        filtered_phrases, command_args = core_utils.preprocess_input(command_args)
+        filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -31,10 +32,9 @@ class Commands:
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiej wypowiedzi :(')
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_bartosiak(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_bartosiak(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=bartosiak_phrases)
-        filtered_phrases, command_args = core_utils.preprocess_input(command_args)
+        filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -42,11 +42,10 @@ class Commands:
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiej wypowiedzi :(')
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_tvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_tvp(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         merged_headlines = tvp_latest_headlines + tvp_headlines
         command_args = CommandArgs(args=context.args, phrases=merged_headlines)
-        filtered_phrases, command_args = core_utils.preprocess_input(command_args)
+        filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -55,10 +54,9 @@ class Commands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_tvp_latest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_tvp_latest(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=tvp_latest_headlines)
-        filtered_phrases, command_args = core_utils.preprocess_input(command_args)
+        filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -66,11 +64,10 @@ class Commands:
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego nagłówka :(')
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_tusk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_tusk(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         tusk_headlines = [headline for headline in tvp_headlines if 'tusk' in headline.lower()]
         command_args = CommandArgs(args=context.args, phrases=tusk_headlines)
-        filtered_phrases, command_args = core_utils.preprocess_input(command_args)
+        filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -78,22 +75,19 @@ class Commands:
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego nagłówka :(')
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_are_you_lucky_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_are_you_lucky_today(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
 
         response = core_utils.are_you_lucky(user_id)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = "Existing commands:\n- /" + '\n- /'.join(commands)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_bible(update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
+    async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE, 'book': ArgType.STRING, 'chapter': ArgType.POSITIVE_INT,})
-        command_args = core_utils.parse_args(command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -158,8 +152,7 @@ class Commands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
-    @staticmethod
-    async def cmd_bible_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         bible_stats_df = bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
         bible_stats_df['chapter_count'] = bible_df.drop_duplicates(['abbreviation', 'chapter'])[['abbreviation', 'chapter']].set_index('abbreviation').groupby('abbreviation').size()
         bible_stats_df['verse_count'] = bible_df.groupby(['abbreviation']).size()
@@ -175,10 +168,9 @@ class Commands:
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-    @staticmethod
-    async def cmd_show_shopping_sundays(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def cmd_show_shopping_sundays(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, available_named_args={'all': ArgType.NONE})
-        command_args = core_utils.parse_args(command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return

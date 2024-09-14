@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType
-from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df
+from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -99,6 +99,7 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     Returns:
         command_args: Dataclass with the command arguments related data
     """
+    command_args = parse_named_args(users_df, command_args)
     args_num = len(command_args.args)
     expected_args_num = len(command_args.expected_args)
 
@@ -121,7 +122,6 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
         arg_type = command_args.handled_expected_args[i]
         command_args = parse_arg(users_df, command_args, arg, arg_type)
 
-    print(command_args)
     command_args.error = '\n'.join(command_args.errors).strip()
     return command_args
 
@@ -174,59 +174,6 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> Command
 
     return command_args
 
-
-
-def parse_period(command_args, arg_str) -> CommandArgs:
-    if arg_str == '':
-        error = "Period cannot be empty."
-        command_args.errors.append(error)
-        log.error(error)
-        return command_args
-
-    period_mode_str = arg_str
-    try:
-        if 'h' in arg_str and has_numbers(arg_str):
-            command_args.period_time, command_args.parse_error = parse_int(arg_str.replace('h', ''), positive_only=True)
-            period_mode_str = 'hour'
-        if command_args.parse_error == '':
-            command_args.period_mode = PeriodFilterMode(period_mode_str)
-    except ValueError:
-        error = f"There is no such time period as {arg_str}."
-        command_args.errors.append(error)
-        log.error(error)
-
-    if command_args.parse_error != '':
-        command_args.errors.append(command_args.parse_error)
-        command_args.period_mode = PeriodFilterMode.ERROR
-    else:
-        command_args.errors.append('')
-    return command_args
-
-
-def parse_user(users_df, command_args, arg_str) -> CommandArgs:
-    if arg_str == '':
-        error = "User cannot be empty."
-        command_args.errors.append(error)
-        log.error(command_args.error)
-        return command_args
-
-    user_str = arg_str.replace('@', '')
-
-    exact_matching_users = users_df[users_df['final_username'].str.lower() == user_str.lower()]
-    partially_matching_users = users_df[users_df['final_username'].str.contains(user_str, case=False)]
-
-    if not exact_matching_users.empty:
-        command_args.user = exact_matching_users.iloc[0]['final_username']
-    elif len(user_str) >= 3 and not partially_matching_users.empty:
-        command_args.user = partially_matching_users.iloc[0]['final_username']
-    else:
-        error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
-        command_args.errors.append(error)
-        log.error(command_args.error)
-        return command_args
-
-    command_args.errors.append('')
-    return command_args
 
 
 def get_today_midnight_dt():
@@ -305,11 +252,6 @@ def filter_emoji_by_emoji_type(df, emoji_type, col='emoji'):
         df = df[df[col].isin(negative_emojis)]
         # df = df[df[col] is not None]
     return df
-
-
-
-def has_numbers(num_str):
-    return any(char.isdigit() for char in num_str)
 
 
 
