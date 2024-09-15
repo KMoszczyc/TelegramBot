@@ -45,6 +45,7 @@ class OzjaszBot:
 
     def get_commands_map(self):
         return {
+            'all': self.core_commands.cmd_all,
             'ozjasz': self.core_commands.cmd_ozjasz,
             'bartosiak': self.core_commands.cmd_bartosiak,
             'tvp': self.core_commands.cmd_tvp,

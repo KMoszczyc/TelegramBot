@@ -19,8 +19,16 @@ class Commands:
     def __init__(self, command_logger: CommandLogger):
         self.command_logger = command_logger
         self.users_df = stats_utils.read_df(USERS_PATH)
-        # CommandLogger.decorate_commands(self, command_logger)
 
+    async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        usernames = self.users_df['final_username'].tolist()
+        user_ids = self.users_df.index.tolist()
+
+        text = ''
+        for username, user_id in zip(usernames, user_ids):
+            text += f"[{username}](tg://user?id={user_id}) "
+
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="Markdown")
 
     async def cmd_ozjasz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases)
@@ -86,7 +94,9 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
-        command_args = CommandArgs(args=context.args, available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE, 'book': ArgType.STRING, 'chapter': ArgType.POSITIVE_INT,})
+        command_args = CommandArgs(args=context.args,
+                                   available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
+                                                         'book': ArgType.STRING, 'chapter': ArgType.POSITIVE_INT, })
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -111,8 +121,7 @@ class Commands:
             if matched_book_name is None or matched_abbreviation is None:
                 response += f'[{filtered_df.iloc[0]['abbreviation']}] {filtered_df.iloc[0]['book']}, '
 
-
-        if 'chapter' in command_args.named_args: # in chapter mode we read a random chapter from the bible
+        if 'chapter' in command_args.named_args:  # in chapter mode we read a random chapter from the bible
             random_row = filtered_df.sample(frac=1).iloc[0]
             book = random_row['book']
             chapter = random_row['chapter']
@@ -129,7 +138,7 @@ class Commands:
             filtered_df = filtered_df.head(command_args.named_args['num'])
             response = core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
         elif 'all' in command_args.named_args:
-            response = core_utils.display_bible_df(filtered_df, bot_state,label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
+            response = core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
         elif 'prev' in command_args.named_args and bot_state.last_bible_verse_id != -1:
             start_index = max(0, bot_state.last_bible_verse_id - command_args.named_args['prev'])
             filtered_df = bible_df.iloc[start_index:bot_state.last_bible_verse_id]
