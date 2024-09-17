@@ -5,3 +5,5 @@ pandas
 pyarrow
 matplotlib
 pillow
+pytest
+pytest-mock
