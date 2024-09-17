@@ -27,9 +27,9 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y cron locales
         sudo sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && sudo locale-gen
-        export LANG pl_PL.UTF-8
-        export LANGUAGE pl_PL:pl
-        export LC_ALL pl_PL.UTF-8
+        export LANG=pl_PL.UTF-8
+        export LANGUAGE=pl_PL:pl
+        export LC_ALL=pl_PL.UTF-8
         export PYTHONPATH=$PYTHONPATH:./src
     - name: Install dependencies
       run: |
