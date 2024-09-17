@@ -26,12 +26,11 @@ jobs:
     - name: Set up the environment
       run: |
         sudo apt-get update && sudo apt-get install -y cron locales
+        sudo sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && sudo locale-gen
+        export LANG pl_PL.UTF-8
+        export LANGUAGE pl_PL:pl
+        export LC_ALL pl_PL.UTF-8
         export PYTHONPATH=$PYTHONPATH:./src
-        sudo sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && \
-        locale-gen
-        LANG pl_PL.UTF-8
-        LANGUAGE pl_PL:pl
-        LC_ALL pl_PL.UTF-8
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
