@@ -25,9 +25,9 @@ jobs:
         python-version: "3.12"
     - name: Set up the environment
       run: |
-        apt-get update && apt-get install -y cron locales
+        sudo apt-get update && apt-get install -y cron locales
         export PYTHONPATH=$PYTHONPATH:./src
-        sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && \
+        sudo sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && \
         locale-gen
         LANG pl_PL.UTF-8
         LANGUAGE pl_PL:pl
