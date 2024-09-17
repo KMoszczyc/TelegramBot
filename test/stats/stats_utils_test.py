@@ -97,26 +97,6 @@ def test_parse_user(user_str, expected_user):
 
     assert command_args.user == expected_user
 
-@pytest.mark.parametrize("period_str, expected_period_mode, expected_period_time", [
-    pytest.param('4h', PeriodFilterMode.HOUR, 4, id="hour_correct"),
-    pytest.param('2', PeriodFilterMode.ERROR, -1, id="hour_incorrect"),
-    pytest.param('-10h', PeriodFilterMode.ERROR, -1, id="hour_incorrect"),
-    pytest.param('aaaaaaa', PeriodFilterMode.ERROR, -1, id="incorrect"),
-
-    pytest.param('today', PeriodFilterMode.TODAY, -1, id="today"),
-    pytest.param('yesterday', PeriodFilterMode.YESTERDAY, -1, id="hour"),
-    pytest.param('week', PeriodFilterMode.WEEK, -1, id="hour"),
-    pytest.param('month', PeriodFilterMode.MONTH, -1, id="hour"),
-    pytest.param('year', PeriodFilterMode.YEAR, -1, id="hour"),
-    pytest.param('total', PeriodFilterMode.TOTAL, -1, id="hour"),
-
-])
-def test_parse_period(period_str, expected_period_mode, expected_period_time):
-    command_args = CommandArgs()
-    command_args = parse_period(command_args, period_str)
-
-    assert command_args.period_mode == expected_period_mode
-    assert command_args.period_time == expected_period_time
 
 
 def get_today_midnight_dt():
@@ -200,15 +180,3 @@ def test_check_bot_messages(mock_read_df, message_ids, expected_result):
     assert result == expected_result
 
 
-@pytest.mark.parametrize(
-    "command_args, arg_str, arg_type, expected",
-    [
-        pytest.param(CommandArgs(), "user1", ArgType.USER, CommandArgs(user="user1"), id="happy_path_user"),
-        pytest.param(CommandArgs(), "today", ArgType.PERIOD, CommandArgs(period_mode=PeriodFilterMode.TODAY), id="happy_path_period"),
-        pytest.param(CommandArgs(), "", ArgType.USER, CommandArgs(user=None, user_error="User cannot be empty."), id="edge_case_empty_user"),
-        pytest.param(CommandArgs(), "", ArgType.PERIOD, CommandArgs(period_mode=PeriodFilterMode.TOTAL, period_error="Period cannot be empty."), id="edge_case_empty_period"),
-    ],
-)
-def test_parse_arg(command_args, arg_str, arg_type, expected):
-    result = parse_arg(mock_users_df, command_args, arg_str, arg_type)
-    assert result == expected

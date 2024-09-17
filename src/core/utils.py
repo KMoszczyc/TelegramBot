@@ -258,9 +258,9 @@ def parse_period(command_args, arg_str) -> CommandArgs:
         if command_args.parse_error == '':
             command_args.period_mode = PeriodFilterMode(period_mode_str)
     except ValueError:
-        error = f"There is no such time period as {arg_str}."
-        command_args.errors.append(error)
-        log.error(error)
+        command_args.parse_error = f"There is no such time period as {arg_str}."
+        command_args.errors.append(command_args.parse_error)
+        log.error(command_args.parse_error)
 
     if command_args.parse_error != '':
         command_args.errors.append(command_args.parse_error)
