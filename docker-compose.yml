@@ -2,6 +2,7 @@ version: '3'
 
 services:
   bot:
+    restart: always
     build:
       context: .
       dockerfile: docker/Dockerfile_bot
@@ -12,6 +13,7 @@ services:
       - ./data:/data
       - .:/app
   etl:
+    restart: always
     build:
       context: .
       dockerfile: docker/Dockerfile_bot_etl
