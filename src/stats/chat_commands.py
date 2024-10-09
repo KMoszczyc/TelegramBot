@@ -125,13 +125,18 @@ class ChatCommands:
 
     async def cmd_messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'text': ArgType.STRING})
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        chat_df = chat_df[chat_df['text'] != '']
+        chat_df = chat_df[(chat_df['text'] != '') & (chat_df['text'].notna())]
+
+        if 'text' in command_args.named_args:
+            filter_phrase = command_args.named_args['text'].lower()
+            chat_df = chat_df[chat_df['text'].str.lower().str.contains(filter_phrase)]
+
         label = stats_utils.emoji_sentiment_to_label(emoji_type)
         text = self.generate_response_headline(command_args, label=f"{label} Cinco messages")
 

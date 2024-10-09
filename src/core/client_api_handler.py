@@ -12,7 +12,6 @@ import src.stats.utils as stats_utils
 
 load_dotenv()
 log = logging.getLogger(__name__)
-log.info(os.environ)
 
 API_ID = int(os.getenv('API_ID'))
 API_HASH = os.getenv('API_HASH')

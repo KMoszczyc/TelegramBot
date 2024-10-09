@@ -56,7 +56,6 @@ def save_metadata(metadata):
         pickle.dump(metadata, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-
 def read_chat_history():
     df = pd.read_parquet(CLEANED_CHAT_HISTORY_PATH).sort_values(by='timestamp').reset_index(drop=True)
     print(df.tail(10))
@@ -100,9 +99,9 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
         command_args: Dataclass with the command arguments related data
     """
     command_args = parse_named_args(users_df, command_args)
+
     args_num = len(command_args.args)
     expected_args_num = len(command_args.expected_args)
-
     command_args.joined_args = ' '.join(command_args.args)
     if command_args.args_with_spaces:
         command_args.args = command_args.joined_args.split('|')
@@ -142,7 +141,8 @@ def handle_optional_args(users_df, command_args_ref: CommandArgs):
 
         for arg in command_args.args:
             command_args = parse_arg(users_df, command_args, arg, arg_type)
-            if command_args.errors[i] != '':
+
+            if command_args.errors[-1] != '':
                 handled_expected_args.remove(arg_type)
                 successes.append(False)
             else:
@@ -155,7 +155,6 @@ def handle_optional_args(users_df, command_args_ref: CommandArgs):
 
     log.info("None of the optional args were parsed successfully, despite there being an argument send by user.")
     return command_args, False
-
 
 
 def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
@@ -173,7 +172,6 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> Command
             command_args = command_args
 
     return command_args
-
 
 
 def get_today_midnight_dt():
@@ -196,7 +194,6 @@ def filter_df_in_range(df: pd.DataFrame, start_dt: datetime, end_dt: datetime) -
 def filter_by_time_df(df, command_args):
     today_dt = get_today_midnight_dt()
     period_mode, period_time = command_args.period_mode, command_args.period_time
-    log.info(f"Filter by period_mode: {period_mode}, period_time: {period_time}, midnight today: {today_dt}")
 
     match period_mode:
         case PeriodFilterMode.HOUR:
@@ -252,7 +249,6 @@ def filter_emoji_by_emoji_type(df, emoji_type, col='emoji'):
         df = df[df[col].isin(negative_emojis)]
         # df = df[df[col] is not None]
     return df
-
 
 
 def emoji_sentiment_to_label(emoji_type: EmojiType):
@@ -317,12 +313,15 @@ def enum_to_list(enum):
 def get_forbidden_usernames():
     return enum_to_list(PeriodFilterMode)
 
+
 def generate_random_file_id():
     # return f"{datetime.datetime.now()}_{random.randint(1000, 9999)}"
     return f"{random.randint(10000000000, 100000000000)}"
 
+
 def generate_random_filename(extension):
     return f"{generate_random_file_id()}.{extension}"
+
 
 def username_to_user_id(users_df, username):
     return users_df[users_df['final_username'] == username].iloc[0]['user_id']
