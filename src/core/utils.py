@@ -232,6 +232,7 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> tuple[s
 
 def parse_named_args(users_df, command_args_ref: CommandArgs):
     command_args = copy.deepcopy(command_args_ref)
+    command_args.args = [arg.replace('—', '--') for arg in command_args.args]
     shortened_available_named_args = [arg[0] for arg in command_args.available_named_args]
     args = copy.deepcopy(command_args.args)
     for i, arg in enumerate(args):
