@@ -1,7 +1,7 @@
 addnickname - (new_nickname) add a new nickname, so it's easier for you and others to use filtering
 all - ping all users
 bartosiak - text_filter or [regex] - Best of our favourite geopolitician Jacek Bartosiak
-bible - (text_filter, --all, --num[int]) - just a whole focking bible
+bible - (text_filter, --all, --num[int], --count[int]) - just a whole focking bible
 biblestats - show bible data
 commands - username[optional], period[optional]) - display OzjaszBot's command usage
 commandschart - (--command, --period, --user) - display OzjaszBot's command usage chart
@@ -22,7 +22,7 @@ summary - (username[optional], period[optional]) summary of chat stats
 topaudio - (username[optional], period[optional]) top audio (and voice messages) sorted by a number of reactions
 topgifs - (username[optional], period[optional]) top gifs sorted by a number of reactions
 topmemes - (username[optional], period[optional]) top memes (images) sorted by a number of reactions
-topmessages - (username[optional], period[optional]) top messages sorted by a number of reactions
+topmessages - (username[optional], period[optional], --text[string]) top messages sorted by a number of reactions
 topvideos - (username[optional], period[optional]) top videos (and video notes) sorted by a number of reactions
 tvp - text_filter or [regex] - all TVP headlines, from the past few years
 tvp_latest - text_filter or [regex] - latest TVP headlines

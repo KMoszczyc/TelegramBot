@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType
-from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args
+from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args, merge_spaced_args
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -98,6 +98,7 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     Returns:
         command_args: Dataclass with the command arguments related data
     """
+    command_args = merge_spaced_args(command_args)
     command_args = parse_named_args(users_df, command_args)
 
     args_num = len(command_args.args)

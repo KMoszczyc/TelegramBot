@@ -52,6 +52,7 @@ def preprocess_input(users_df: pd.DataFrame, command_args: CommandArgs):
 
 
 def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs:
+    command_args = merge_spaced_args(command_args)
     command_args = parse_named_args(users_df, command_args)
     command_args.joined_args = ' '.join(command_args.args)
     command_args.joined_args_lower = ' '.join(command_args.args).lower()
@@ -59,6 +60,31 @@ def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs
 
     return command_args
 
+
+def merge_spaced_args(command_args: CommandArgs):
+    joined_args = ' '.join(command_args.args)
+    # spaced_args = re.findall(r'"(.*?)"', joined_args)
+    # print(spaced_args)
+    new_args = []
+    quotation_opened = False
+    current_spaced_args = []
+    for arg in command_args.args:
+        if "\"" in arg and not quotation_opened:
+            quotation_opened = True
+            current_spaced_args.append(arg.replace('"', ''))
+        elif "\"" in arg and quotation_opened:
+            current_spaced_args.append(arg.replace('"', ''))
+            new_args.append(' '.join(current_spaced_args))
+            quotation_opened = False
+            current_spaced_args = []
+        elif quotation_opened:
+            current_spaced_args.append(arg)
+        else:
+            new_args.append(arg)
+
+    command_args.args = new_args
+
+    return command_args
 
 def filter_phrases(command_args: CommandArgs):
     log.info(f'Command received: {command_args.arg_type} - {command_args.joined_args}')
@@ -68,6 +94,10 @@ def filter_phrases(command_args: CommandArgs):
         case ArgType.REGEX:
             return regex_filter(command_args)
 
+
+def is_word_in_list_of_multiple_words(word, list_of_multiple_words):
+    word_lower = word.lower()
+    return any(word_lower for words in list_of_multiple_words if word_lower in words.lower())
 
 def text_filter(command_args):
     return [phrase for phrase in command_args.phrases if command_args.joined_args_lower in phrase.lower()], command_args
