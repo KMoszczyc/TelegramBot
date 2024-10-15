@@ -196,6 +196,7 @@ def filter_by_time_df(df, command_args):
     today_dt = get_today_midnight_dt()
     period_mode, period_time = command_args.period_mode, command_args.period_time
 
+    print(command_args.dt, command_args.start_dt, command_args.end_dt, command_args.parse_error)
     match period_mode:
         case PeriodFilterMode.HOUR:
             log.info(f"UTC dt {period_time} hours ago: {get_past_hr_dt(period_time)}")
@@ -212,7 +213,10 @@ def filter_by_time_df(df, command_args):
             return df[df['timestamp'] >= today_dt - timedelta(days=365)]
         case PeriodFilterMode.TOTAL:
             return df.copy(deep=True)
-
+        case PeriodFilterMode.DATE:
+            return df[df['timestamp'].dt.date == command_args.dt.date()]
+        case PeriodFilterMode.DATE_RANGE:
+            return df[(df['timestamp'] >= command_args.start_dt) & (df['timestamp'] < command_args.end_dt)]
 
 def filter_by_shifted_time_df(df, command_args):
     period_mode, period_time = command_args.period_mode, command_args.period_time

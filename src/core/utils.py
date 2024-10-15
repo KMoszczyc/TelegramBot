@@ -7,6 +7,7 @@ import re
 import sys
 from datetime import datetime
 from typing import Tuple, Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -86,6 +87,7 @@ def merge_spaced_args(command_args: CommandArgs):
 
     return command_args
 
+
 def filter_phrases(command_args: CommandArgs):
     log.info(f'Command received: {command_args.arg_type} - {command_args.joined_args}')
     match command_args.arg_type:
@@ -98,6 +100,7 @@ def filter_phrases(command_args: CommandArgs):
 def is_word_in_list_of_multiple_words(word, list_of_multiple_words):
     word_lower = word.lower()
     return any(word_lower for words in list_of_multiple_words if word_lower in words.lower())
+
 
 def text_filter(command_args):
     return [phrase for phrase in command_args.phrases if command_args.joined_args_lower in phrase.lower()], command_args
@@ -273,8 +276,8 @@ def is_named_arg(arg, shortened_available_named_args, available_named_args):
     return is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args)
 
 
-
 def parse_period(command_args, arg_str) -> CommandArgs:
+    error = ''
     if arg_str == '':
         error = "Period cannot be empty."
         command_args.errors.append(error)
@@ -284,10 +287,20 @@ def parse_period(command_args, arg_str) -> CommandArgs:
     period_mode_str = arg_str
     try:
         if 'h' in arg_str and has_numbers(arg_str):
-            command_args.period_time, command_args.parse_error = parse_int(arg_str.replace('h', ''), positive_only=True)
+            command_args.period_time, error = parse_int(arg_str.replace('h', ''), positive_only=True)
             period_mode_str = 'hour'
-        if command_args.parse_error == '':
+        if error == '':
             command_args.period_mode = PeriodFilterMode(period_mode_str)
+
+        if command_args.period_mode == PeriodFilterMode.ERROR and ';' in arg_str:
+            command_args.start_dt, command_args.end_dt, error = parse_date_range(arg_str)
+            command_args.period_mode = PeriodFilterMode.DATE_RANGE
+        elif command_args.period_mode == PeriodFilterMode.ERROR:
+            command_args.dt, error = parse_date(arg_str)
+            command_args.period_mode = PeriodFilterMode.DATE
+
+        command_args.parse_error = error
+
     except ValueError:
         command_args.parse_error = f"There is no such time period as {arg_str}."
         command_args.errors.append(command_args.parse_error)
@@ -299,6 +312,37 @@ def parse_period(command_args, arg_str) -> CommandArgs:
     else:
         command_args.errors.append('')
     return command_args
+
+
+def parse_date(date_str: str) -> tuple[datetime, str] | tuple[None, str]:
+    dt_formats = [
+        "%d-%m-%Y",
+        "%d-%m-%Y:%H",
+        "%d-%m-%Y:%H:%M",
+        "%d-%m-%Y:%H:%M:%S"
+    ]
+
+    for dt_format in dt_formats:
+        try:
+            return datetime.strptime(date_str, dt_format).replace(tzinfo=ZoneInfo('Europe/Warsaw')), ''
+        except ValueError:
+            pass
+    return None, f"Could not parse date: {date_str}"
+
+
+def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, str]:
+    date_range_split = date_range_str.split(';')
+    if len(date_range_split) != 2:
+        error = f"Could not parse date range: {date_range_str}"
+        return None, None, error
+    start_date, start_date_error = parse_date(date_range_split[0])
+    end_date, end_date_error = parse_date(date_range_split[1])
+    error = start_date_error + end_date_error
+
+    if error == '' and start_date > end_date:
+        error = 'The start date cannot be after the end date of the range u dummy!'
+
+    return start_date, end_date, error
 
 
 def parse_user(users_df, command_args, arg_str) -> CommandArgs:
@@ -325,6 +369,7 @@ def parse_user(users_df, command_args, arg_str) -> CommandArgs:
 
     command_args.errors.append('')
     return command_args
+
 
 def parse_number(command_args, arg_str, positive_only=False) -> tuple[int, CommandArgs]:
     if arg_str == '':
@@ -436,6 +481,7 @@ def get_username(first_name, last_name):
     if last_name is not None:
         username += f' {last_name}'
     return username.strip()
+
 
 def has_numbers(num_str):
     return any(char.isdigit() for char in num_str)

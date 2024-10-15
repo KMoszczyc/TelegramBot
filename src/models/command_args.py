@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from definitions import PeriodFilterMode, ArgType
 
@@ -19,6 +20,9 @@ class CommandArgs:
     period_mode: PeriodFilterMode = PeriodFilterMode.TOTAL
     period_time: int = -1
     user: str = None
+    start_dt: datetime = None
+    end_dt: datetime = None
+    dt: datetime = None
     number: int = 5
     string: str = ''
     min_string_length: int = 0

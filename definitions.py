@@ -89,7 +89,13 @@ class PeriodFilterMode(Enum):
     MONTH = 'month'
     YEAR = 'year'
     TOTAL = 'total'
+    DATE = 'date'
+    DATE_RANGE = 'date_range'
     ERROR = 'error'
+
+    @classmethod
+    def _missing_(cls, value):
+        return PeriodFilterMode.ERROR
 
 
 class EmojiType(Enum):
