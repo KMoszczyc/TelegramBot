@@ -34,15 +34,15 @@ class ChatETL:
     def update(self, days: int):
         log.info(f"Running chat ETL for the past: {days} days")
 
-        # Cleanup
-        self.delete_bot_messages()
-        self.cleanup_temp_dir()
-
         # ETL
         self.download_chat_history(days)
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
+
+        # Cleanup
+        self.delete_bot_messages()
+        self.cleanup_temp_dir()
 
     def download_chat_history(self, days):
         self.metadata = stats_utils.load_metadata()
