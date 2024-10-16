@@ -100,13 +100,12 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     """
     command_args = merge_spaced_args(command_args)
     command_args = parse_named_args(users_df, command_args)
+    command_args.joined_args = ' '.join(command_args.args)
+    if command_args.args_with_spaces:
+        command_args.args = [command_args.joined_args]
 
     args_num = len(command_args.args)
     expected_args_num = len(command_args.expected_args)
-    command_args.joined_args = ' '.join(command_args.args)
-    if command_args.args_with_spaces:
-        command_args.args = command_args.joined_args.split('|')
-
     if args_num > expected_args_num:
         command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
         return command_args
@@ -218,6 +217,7 @@ def filter_by_time_df(df, command_args):
         case PeriodFilterMode.DATE_RANGE:
             return df[(df['timestamp'] >= command_args.start_dt) & (df['timestamp'] < command_args.end_dt)]
 
+
 def filter_by_shifted_time_df(df, command_args):
     period_mode, period_time = command_args.period_mode, command_args.period_time
 
@@ -281,6 +281,8 @@ def check_bot_messages(message_ids: list, bot_id: int) -> bool:
 
 def check_new_username(users_df, new_username):
     """Check during setting new username whether the new username is valid."""
+    allowed_characters = "aąbcćdeęfghijklłmnńoóprsśtuwyzźż0123456789_ "
+
     error = ''
     forbidden_usernames = get_forbidden_usernames()
     new_username_lower = new_username.lower()
@@ -294,8 +296,8 @@ def check_new_username(users_df, new_username):
     if matching_usernames:
         error = f"Users with similar names, like: *{'*, *'.join(matching_usernames)}* - already exist! First {MATCHING_USERNAME_THRESHOLD} letters should be unique."
 
-    if is_alpha_numeric(new_username) or not new_username.isascii():
-        error = "Username can only contain ASCII letters and numbers."
+    if not are_text_characters_allowed(new_username_lower, allowed_characters):
+        error = "Username can only contain ASCII letters, numbers, '_' and ' '."
 
     if new_username_lower in forbidden_usernames:
         error = "This username is forbidden. Please choose a different one."
@@ -306,6 +308,8 @@ def check_new_username(users_df, new_username):
 
     return True, ''
 
+def are_text_characters_allowed(text, characters_filter):
+    return all(c in characters_filter for c in text)
 
 def is_alpha_numeric(text):
     return any(not c.isalnum() for c in text)
