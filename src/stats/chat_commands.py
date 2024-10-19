@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 import telegram
 import pandas as pd
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.core.command_logger import CommandLogger
@@ -60,7 +60,7 @@ class ChatCommands:
 
         filtered_chat_df['reactions_num'] = filtered_chat_df['reaction_emojis'].apply(lambda x: len(x))
         filtered_chat_df = filtered_chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
-        filtered_chat_df['timestamp'] = filtered_chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
+        filtered_chat_df['timestamp'] = filtered_chat_df['timestamp'].dt.tz_convert(TIMEZONE)
 
         if command_args.user is not None:
             filtered_chat_df = filtered_chat_df[filtered_chat_df['final_username'] == command_args.user]

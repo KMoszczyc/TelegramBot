@@ -7,9 +7,10 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
+from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema
 
 load_dotenv()
 BOT_ID = os.getenv('BOT_ID')
@@ -39,6 +40,9 @@ class ChatETL:
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
+
+        # Validate
+        # self.validate_data()
 
         # Cleanup
         self.delete_bot_messages()
@@ -80,7 +84,7 @@ class ChatETL:
         old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
 
-        log.info(f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo('Europe/Warsaw')) - timedelta(days=days)} with {malformed_count} malformed records.')
+        log.info(f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)} with {malformed_count} malformed records.')
         if old_chat_df is not None and not latest_chat_df.empty:
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
         elif old_chat_df is not None:
@@ -92,7 +96,7 @@ class ChatETL:
             return
 
         new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df is not None else len(merged_chat_df)
-        log.info(f'New {new_msg_count} messages since {self.metadata['last_message_dt'].tz_convert('Europe/Warsaw')} with {malformed_count} malformed records.')
+        log.info(f'New {new_msg_count} messages since {self.metadata['last_message_dt'].tz_convert(TIMEZONE)} with {malformed_count} malformed records.')
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
 
         print(merged_chat_df.tail(1))
@@ -135,7 +139,7 @@ class ChatETL:
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
         cleaned_df = cleaned_df.merge(users_df, on='user_id')
         cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'reaction_emojis', 'reaction_user_ids', 'message_type']]
-        cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert('Europe/Warsaw')
+        cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert(TIMEZONE)
         cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
 
         log.info(f'Cleaned chat history df, from: {len(chat_df)} to: {len(cleaned_df)}')
@@ -207,3 +211,49 @@ class ChatETL:
         if os.path.exists(TEMP_DIR):
             log.info(f'Removing {files_num} files from temp dir...')
             shutil.rmtree(TEMP_DIR)
+
+    def validate_data(self):
+        chat_history_df = core_utils.read_df(CHAT_HISTORY_PATH)
+        cleaned_chat_history_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        reactions_df = core_utils.read_df(REACTIONS_PATH)
+        users_df = core_utils.read_df(USERS_PATH)
+        commands_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)
+
+        self.validate_df(chat_history_df, chat_history_schema)
+        self.validate_df(cleaned_chat_history_df, cleaned_chat_history_schema)
+        self.validate_df(reactions_df, reactions_schema)
+        self.validate_df(users_df, users_schema)
+        self.validate_df(commands_usage_df, commands_usage_schema)
+
+    def validate_df(self, df, schema):
+
+        # Check if columns in DataFrame match schema columns
+        missing_columns = [col for col in schema.keys() if col not in df.columns]
+        extra_columns = [col for col in df.columns if col not in schema.keys()]
+
+        error = ''
+        if missing_columns:
+            error += f"Missing columns in DataFrame: {missing_columns}. "
+        if extra_columns:
+            error += f"Extra columns in DataFrame: {extra_columns}. "
+
+        # Check if data types match schema
+        type_mismatches = {}
+        for column, dtype in schema.items():
+            if column not in df.columns:
+                continue
+
+            if dtype == "string" and not stats_utils.is_string_column(df[column]):
+                type_mismatches[column] = ("not string", dtype)
+            elif dtype == "list" and not stats_utils.is_list_column(df[column]):
+                type_mismatches[column] = ("not list", dtype)
+            elif df[column].dtype != dtype:
+                type_mismatches[column] = (df[column].dtype, dtype)
+
+        if type_mismatches:
+            for col, (actual_type, expected_type) in type_mismatches.items():
+                print(f"Type mismatch in column '{col}': expected {expected_type}, got {actual_type}")
+
+        print(error)
+
+

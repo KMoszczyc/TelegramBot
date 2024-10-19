@@ -1,6 +1,6 @@
 # def generate_chat_plots(self):
 #     chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-#     chat_df['timestamp'] = chat_df['timestamp'].dt.tz_convert('Europe/Warsaw')
+#     chat_df['timestamp'] = chat_df['timestamp'].dt.tz_convert(TIMEZONE)
 #     chat_df['date'] = chat_df['timestamp'].dt.date
 #     chat_df['year'] = chat_df['timestamp'].dt.year
 #     chat_df['month'] = chat_df['timestamp'].dt.month_name()

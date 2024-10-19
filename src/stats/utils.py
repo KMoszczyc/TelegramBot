@@ -11,7 +11,7 @@ from datetime import timezone, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE
 from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args, merge_spaced_args
 from src.models.command_args import CommandArgs
 
@@ -175,7 +175,7 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> Command
 
 
 def get_today_midnight_dt():
-    return datetime.datetime.now().replace(tzinfo=ZoneInfo('Europe/Warsaw')).replace(hour=0, minute=0, second=0, microsecond=0)
+    return datetime.datetime.now().replace(tzinfo=ZoneInfo(TIMEZONE)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def get_past_hr_dt(hours):
@@ -334,3 +334,9 @@ def generate_random_filename(extension):
 
 def username_to_user_id(users_df, username):
     return users_df[users_df['final_username'] == username].iloc[0]['user_id']
+
+def is_list_column(series):
+    return series.apply(lambda x: isinstance(x, list)).all()
+
+def is_string_column(series):
+    return series.apply(lambda x: isinstance(x, str)).all()

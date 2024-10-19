@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode
+from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -324,7 +324,7 @@ def parse_date(date_str: str) -> tuple[datetime, str] | tuple[None, str]:
 
     for dt_format in dt_formats:
         try:
-            return datetime.strptime(date_str, dt_format).replace(tzinfo=ZoneInfo('Europe/Warsaw')), ''
+            return datetime.strptime(date_str, dt_format).replace(tzinfo=ZoneInfo(TIMEZONE)), ''
         except ValueError:
             pass
     return None, f"Could not parse date: {date_str}"
