@@ -9,3 +9,4 @@ pytest
 pytest-mock
 pytesseract
 opencv-python
+pandera
