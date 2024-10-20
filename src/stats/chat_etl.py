@@ -7,10 +7,11 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE, MessageType
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema
+from src.stats.ocr import OCR
 
 load_dotenv()
 BOT_ID = os.getenv('BOT_ID')
@@ -30,7 +31,6 @@ class ChatETL:
 
     def __init__(self, client_api_handler):
         self.client_api_handler = client_api_handler
-        self.metadata = stats_utils.load_metadata()
 
     def update(self, days: int):
         log.info(f"Running chat ETL for the past: {days} days")
@@ -42,20 +42,21 @@ class ChatETL:
         self.generate_reactions_df()
 
         # Validate
-        # self.validate_data()
+        self.validate_data()
 
         # Cleanup
         self.delete_bot_messages()
         self.cleanup_temp_dir()
 
     def download_chat_history(self, days):
-        self.metadata = stats_utils.load_metadata()
+        old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         latest_messages, message_types = self.client_api_handler.get_chat_history(days)
 
-        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'reaction_emojis', 'reaction_user_ids', 'message_type']
+        columns = ['message_id', 'timestamp', 'user_id', 'first_name', 'last_name', 'username', 'text', 'image_text', 'reaction_emojis', 'reaction_user_ids', 'message_type']
         data = []
 
         malformed_count = 0
+        ocr_count = 0
         message_ids_for_reaction_api_update = [message.id for message in latest_messages if self.count_reactions(message) > 3]
         message_reactions = self.client_api_handler.get_reactions(message_ids_for_reaction_api_update) if message_ids_for_reaction_api_update else []
         log.info(f'Additional {len(message_ids_for_reaction_api_update)} messages pulled with more detailed reactions.')
@@ -74,17 +75,33 @@ class ChatETL:
 
             if not success:
                 continue
-            single_message_data = [message.id, message.date, message.sender_id, message.sender.first_name, message.sender.last_name, message.sender.username,
+
+            image_text = ''
+            if message_type == MessageType.IMAGE and (
+                    old_chat_df is None
+                    or old_chat_df[old_chat_df['message_id'] == message.id].empty
+            ):
+                path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
+                image_text = OCR.extract_text_from_image(path)
+                ocr_count += 1
+
+            single_message_data = [int(message.id),
+                                   message.date,
+                                   int(message.sender_id),
+                                   message.sender.first_name,
+                                   message.sender.last_name,
+                                   message.sender.username,
                                    message.text,
+                                   image_text,
                                    reaction_emojis,
                                    reaction_user_ids,
                                    message_type.value]
             data.append(single_message_data)
 
-        old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         latest_chat_df = pd.DataFrame(data, columns=columns)
-
-        log.info(f'{len(latest_chat_df)} messages pulled since {datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)} with {malformed_count} malformed records.')
+        latest_chat_df['timestamp'] = pd.to_datetime(latest_chat_df['timestamp']).dt.tz_convert(TIMEZONE)
+        data_pull_start_dt = (datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+        log.info(f'Since {data_pull_start_dt}: {len(latest_chat_df)} messages were pulled with {malformed_count} malformed records and {ocr_count} ocr performed on images.')
         if old_chat_df is not None and not latest_chat_df.empty:
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
         elif old_chat_df is not None:
@@ -95,22 +112,13 @@ class ChatETL:
             log.info('Failed to update the chat history.')
             return
 
+        last_message_dt = old_chat_df['timestamp'].iloc[-1] if old_chat_df is not None else datetime.now(tz=ZoneInfo(TIMEZONE))
         new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df is not None else len(merged_chat_df)
-        log.info(f'New {new_msg_count} messages since {self.metadata['last_message_dt'].tz_convert(TIMEZONE)} with {malformed_count} malformed records.')
+        log.info(f'New {new_msg_count} messages since {last_message_dt} got merged.')
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
-
-        print(merged_chat_df.tail(1))
-        self.metadata['last_message_id'] = merged_chat_df['message_id'].iloc[-1]
-        self.metadata['last_message_utc_timestamp'] = int(merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp())
-        self.metadata['1_day_offset_utc_timestamp'] = int(
-            (merged_chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None) - timedelta(days=1)).timestamp())
-        self.metadata['last_message_dt'] = merged_chat_df['timestamp'].iloc[-1]
-        self.metadata['last_update'] = datetime.now(tz=timezone.utc)
-        self.metadata['message_count'] = len(merged_chat_df)
-        self.metadata['new_latest_data'] = True
+        self.validate_schema(merged_chat_df, chat_history_schema)
 
         stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
-        stats_utils.save_metadata(self.metadata)
         core_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
 
     def parse_reactions(self, msg, message_reactions, malformed_count, success):
@@ -138,9 +146,10 @@ class ChatETL:
         filtered_df = chat_df[~chat_df['user_id'].isin(excluded_user_ids)]
         cleaned_df = filtered_df.drop(['first_name', 'last_name', 'username'], axis=1)
         cleaned_df = cleaned_df.merge(users_df, on='user_id')
-        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'reaction_emojis', 'reaction_user_ids', 'message_type']]
+        cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'image_text', 'reaction_emojis', 'reaction_user_ids', 'message_type']]
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert(TIMEZONE)
         cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
+        self.validate_schema(cleaned_df, cleaned_chat_history_schema)
 
         log.info(f'Cleaned chat history df, from: {len(chat_df)} to: {len(cleaned_df)}')
         core_utils.save_df(cleaned_df, CLEANED_CHAT_HISTORY_PATH)
@@ -161,6 +170,7 @@ class ChatETL:
         filtered_users_df['nicknames'] = [[] for _ in range(len(filtered_users_df))]
         filtered_users_df = filtered_users_df.set_index('user_id')
 
+        self.validate_schema(users_df, users_schema)
         core_utils.save_df(filtered_users_df, USERS_PATH)
 
     def create_final_username(self, row):
@@ -185,6 +195,7 @@ class ChatETL:
         reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
 
+        self.validate_schema(reactions_df, reactions_schema)
         core_utils.save_df(reactions_df, REACTIONS_PATH)
 
     def delete_bot_messages(self):
@@ -213,47 +224,10 @@ class ChatETL:
             shutil.rmtree(TEMP_DIR)
 
     def validate_data(self):
-        chat_history_df = core_utils.read_df(CHAT_HISTORY_PATH)
-        cleaned_chat_history_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        reactions_df = core_utils.read_df(REACTIONS_PATH)
-        users_df = core_utils.read_df(USERS_PATH)
+        # TODO: convert all empty '' to None so it's more clear there is no value
         commands_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)
+        self.validate_schema(commands_usage_df, commands_usage_schema)
 
-        self.validate_df(chat_history_df, chat_history_schema)
-        self.validate_df(cleaned_chat_history_df, cleaned_chat_history_schema)
-        self.validate_df(reactions_df, reactions_schema)
-        self.validate_df(users_df, users_schema)
-        self.validate_df(commands_usage_df, commands_usage_schema)
-
-    def validate_df(self, df, schema):
-
-        # Check if columns in DataFrame match schema columns
-        missing_columns = [col for col in schema.keys() if col not in df.columns]
-        extra_columns = [col for col in df.columns if col not in schema.keys()]
-
-        error = ''
-        if missing_columns:
-            error += f"Missing columns in DataFrame: {missing_columns}. "
-        if extra_columns:
-            error += f"Extra columns in DataFrame: {extra_columns}. "
-
-        # Check if data types match schema
-        type_mismatches = {}
-        for column, dtype in schema.items():
-            if column not in df.columns:
-                continue
-
-            if dtype == "string" and not stats_utils.is_string_column(df[column]):
-                type_mismatches[column] = ("not string", dtype)
-            elif dtype == "list" and not stats_utils.is_list_column(df[column]):
-                type_mismatches[column] = ("not list", dtype)
-            elif df[column].dtype != dtype:
-                type_mismatches[column] = (df[column].dtype, dtype)
-
-        if type_mismatches:
-            for col, (actual_type, expected_type) in type_mismatches.items():
-                print(f"Type mismatch in column '{col}': expected {expected_type}, got {actual_type}")
-
-        print(error)
-
-
+    def validate_schema(self, df, schema):
+        if df is not None and not df.empty:
+            schema(df)

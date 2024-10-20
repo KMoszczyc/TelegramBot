@@ -7,3 +7,5 @@ matplotlib
 pillow
 pytest
 pytest-mock
+pytesseract
+opencv-python

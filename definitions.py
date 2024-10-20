@@ -28,7 +28,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 log = logging.getLogger(__name__)
-log.info(f'Are we running in docker? {is_docker()}')
+RUNTIME_ENV = 'docker' if is_docker() else 'windows'
+log.info(f'Runtime: {RUNTIME_ENV}')
 
 # Constants
 MAX_USERNAME_LENGTH = 20
@@ -36,7 +37,7 @@ MAX_NICKNAMES_NUM = 5
 TIMEZONE = 'Europe/Warsaw'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = "/data" if is_docker() else os.path.join(ROOT_DIR, 'data')
+DATA_DIR = "/data" if RUNTIME_ENV == 'docker' else os.path.join(ROOT_DIR, 'data')
 TEMP_DIR = os.path.join(DATA_DIR, 'temp')
 
 

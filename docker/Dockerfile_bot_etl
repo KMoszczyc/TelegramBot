@@ -1,7 +1,9 @@
 FROM python:3.12.2-slim
-
-RUN apt-get update && apt-get install -y cron dos2unix locales
 WORKDIR /app
+
+ENV PYHTONUNBUFFERED=1
+RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6
+
 ENV TZ="Europe/Warsaw"
 ENV PYTHONPATH=/app
 
