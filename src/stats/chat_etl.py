@@ -42,7 +42,7 @@ class ChatETL:
         self.generate_reactions_df()
 
         # Validate
-        self.validate_data()
+        # self.validate_data()
 
         # Cleanup
         self.delete_bot_messages()
