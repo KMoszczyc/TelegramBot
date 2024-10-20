@@ -151,7 +151,7 @@ class ChatCommands:
 
     async def cmd_media_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL):
         """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'text': ArgType.STRING}, max_string_length=50)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -162,11 +162,14 @@ class ChatCommands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
-        # merging video and video notes as one
         if message_type == MessageType.VIDEO:
             chat_df = chat_df[chat_df['message_type'].isin([MessageType.VIDEO.value, MessageType.VIDEO_NOTE.value])]
         else:
             chat_df = chat_df[chat_df['message_type'] == message_type.value]
+
+        if 'text' in command_args.named_args:
+            filter_text_lower = command_args.named_args['text'].lower()
+            chat_df = chat_df[chat_df['image_text'].str.lower().str.contains(filter_text_lower)] if message_type == MessageType.IMAGE else chat_df
 
         chat_df = chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
 
