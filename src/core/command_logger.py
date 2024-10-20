@@ -29,7 +29,7 @@ class CommandLogger:
                 user_id = update.effective_user.id
                 timestamp = datetime.now()
                 new_entry = pd.DataFrame([{'timestamp': timestamp, 'user_id': user_id, 'command_name': command_name}])
-                new_entry['timestamp'] = pd.to_datetime(new_entry['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
+                new_entry['timestamp'] = pd.to_datetime(new_entry['timestamp'], utc=True).astype('datetime64[ns]').dt.tz_convert(TIMEZONE)
 
                 self.command_usage_df = pd.concat([self.command_usage_df, new_entry], ignore_index=True)
                 save_df(self.command_usage_df, COMMANDS_USAGE_PATH)
@@ -45,13 +45,13 @@ class CommandLogger:
         if command_df is None:
             command_df = pd.DataFrame(columns=['timestamp', 'user_id', 'command_name'])
 
-        command_df['timestamp'] = pd.to_datetime(command_df['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
+        command_df['timestamp'] = pd.to_datetime(command_df['timestamp'], utc=True).astype('datetime64[ns]').dt.tz_convert(TIMEZONE)
         return command_df
 
     def preprocess_data(self, users_df, command_args: CommandArgs):
         filtered_df = filter_by_time_df(self.command_usage_df, command_args)
         filtered_df['username'] = filtered_df.merge(users_df[['final_username']], on='user_id', how='left')['final_username']
-        filtered_df['timestamp'] = pd.to_datetime(filtered_df['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
+        filtered_df['timestamp'] = pd.to_datetime(filtered_df['timestamp'], utc=True).astype('datetime64[ns]').dt.tz_convert(TIMEZONE)
 
         if command_args.user is not None:
             filtered_df = filtered_df[filtered_df['username'] == command_args.user]
