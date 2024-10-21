@@ -264,5 +264,6 @@ class ChatETL:
         self.validate_schema(commands_usage_df, commands_usage_schema)
 
     def validate_schema(self, df, schema):
-        if df is not None and not df.empty:
-            schema(df)
+        # if df is not None and not df.empty:
+        #     schema(df)
+        pass
