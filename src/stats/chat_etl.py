@@ -1,5 +1,6 @@
 import logging
 import shutil
+import time
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import os
@@ -32,8 +33,11 @@ class ChatETL:
     def __init__(self, client_api_handler):
         self.client_api_handler = client_api_handler
 
-    def update(self, days: int):
+    def update(self, days: int, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
+
+        if bulk_ocr:
+            self.perform_bulk_ocr()
 
         # ETL
         self.download_chat_history(days)
@@ -103,7 +107,6 @@ class ChatETL:
         data_pull_start_dt = (datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
         log.info(f'Since {data_pull_start_dt}: {len(latest_chat_df)} messages were pulled with {malformed_count} malformed records and {ocr_count} ocr performed on images.')
         if old_chat_df is not None and not latest_chat_df.empty:
-
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
             merged_chat_df['image_text'] = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='first').reset_index(drop=True)['image_text']
 
@@ -123,6 +126,35 @@ class ChatETL:
 
         stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
         core_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
+
+    def perform_bulk_ocr(self):
+        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
+        if chat_df.empty or chat_df is None:
+            log.info('No chat history df, no ocr performed.')
+            return
+
+        image_chat_df = chat_df[chat_df['message_type'] == MessageType.IMAGE.value]
+        if image_chat_df.empty:
+            log.info('No images in the chat history, no ocr performed.')
+
+        ocr_count = 0
+        missing_images = 0
+        log.info(f'Performing bulk ocr on {len(image_chat_df)} images out of {len(chat_df)} messages total.')
+        start_time = time.time()
+        for i, row in image_chat_df.iterrows():
+            path = core_utils.message_id_to_path(row.message_id, MessageType.IMAGE)
+            if not os.path.exists(path):
+                missing_images += 1
+                chat_df.at[i, 'image_text'] = ''
+                continue
+            image_text = OCR.extract_text_from_image(path)
+            chat_df.at[i, 'image_text'] = image_text
+            ocr_count += 1
+        end_time = time.time()
+
+        ocr_text_detected_df = image_chat_df[image_chat_df['image_text'] != '']
+        log.info(f'OCR detected text in {len(ocr_text_detected_df)} images out of {ocr_count} images total, {missing_images} images were missing. It took {round(end_time - start_time, 2)} seconds.')
+        core_utils.save_df(chat_df, CHAT_HISTORY_PATH)
 
     def parse_reactions(self, msg, message_reactions, malformed_count, success):
         reaction_emojis, reaction_user_ids = [], []
