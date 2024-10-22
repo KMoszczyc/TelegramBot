@@ -167,9 +167,9 @@ class ChatCommands:
         else:
             chat_df = chat_df[chat_df['message_type'] == message_type.value]
 
-        if 'text' in command_args.named_args:
+        if 'text' in command_args.named_args and message_type == MessageType.IMAGE:
             filter_text_lower = command_args.named_args['text'].lower()
-            chat_df = chat_df[chat_df['image_text'].str.lower().str.contains(filter_text_lower)] if message_type == MessageType.IMAGE else chat_df
+            chat_df = chat_df[chat_df['image_text'].str.lower().str.contains(filter_text_lower)]
 
         chat_df = chat_df.sort_values(['reactions_num', 'timestamp'], ascending=[False, True])
 

@@ -109,7 +109,7 @@ class ChatETL:
         if old_chat_df is not None and not latest_chat_df.empty:
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
             merged_chat_df['image_text'] = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='first').reset_index(drop=True)['image_text']
-
+            merged_chat_df['image_text'] = merged_chat_df['image_text'].fillna('')
         elif old_chat_df is not None:
             merged_chat_df = old_chat_df
         elif not latest_chat_df.empty:
