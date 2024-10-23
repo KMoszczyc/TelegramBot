@@ -486,5 +486,11 @@ def get_username(first_name, last_name):
 def has_numbers(num_str):
     return any(char.isdigit() for char in num_str)
 
+
 def file_exists(path):
     return os.path.exists(path)
+
+
+def text_to_number(text):
+    numbers = [ord(character) for character in text]
+    return sum(numbers)
