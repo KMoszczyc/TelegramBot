@@ -87,11 +87,12 @@ class Commands:
         command_args = CommandArgs(args=context.args)
         command_args = core_utils.parse_args(self.users_df, command_args)
 
+        args_provided = command_args.joined_args != ''
         lucky_text_number = core_utils.text_to_number(command_args.joined_args) if command_args.joined_args != '' else 0
         user_id = update.effective_user.id
         lucky_input = user_id + lucky_text_number
 
-        response = core_utils.are_you_lucky(lucky_input)
+        response = core_utils.are_you_lucky(lucky_input, args_provided)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
