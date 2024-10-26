@@ -140,7 +140,7 @@ def are_you_lucky(user_id, with_args=False):
     rand_value = random.random()
 
     if rand_value < 0.1:
-        message = 'Na pewno tak się nie stanie.' if with_args else "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
+        message = 'Nie. 🗿' if with_args else "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
     elif rand_value < 0.3:
         message = 'Raczej nie.' if with_args else "Dzisiaj masz lekkiego pecha. Zachowaj ostrożność."
     elif rand_value < 0.7:
