@@ -8,7 +8,7 @@ chat_history_schema = pa.DataFrameSchema({
     "message_id": pa.Column(int),  # int64
     "timestamp": pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),
     "user_id": pa.Column(int),  # object (string)
-    "first_name": pa.Column(str),  # string
+    "first_name": pa.Column(str, nullable=True),  # string
     "last_name": pa.Column(str, nullable=True),  # string
     "username": pa.Column(str, nullable=True),  # string
     "text": pa.Column(str, nullable=True),  # string
