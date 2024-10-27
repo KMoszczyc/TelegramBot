@@ -50,7 +50,7 @@ reactions_schema = pa.DataFrameSchema({
 
 # 4. Users Schema
 users_schema = pa.DataFrameSchema({
-    'first_name': pa.Column(str),  # string
+    'first_name': pa.Column(str, nullable=True),  # string
     'last_name': pa.Column(str, nullable=True),  # string
     'username': pa.Column(str, nullable=True),  # string
     'final_username': pa.Column(str),  # string
