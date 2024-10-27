@@ -340,3 +340,8 @@ def is_list_column(series):
 
 def is_string_column(series):
     return series.apply(lambda x: isinstance(x, str)).all()
+
+def validate_schema(df, schema):
+    log.info(f'Validating schema: {schema.name}')
+    if df is not None and not df.empty:
+        schema(df)

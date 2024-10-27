@@ -1,11 +1,12 @@
 import pandas as pd
 import pandera as pa
+from pandera.engines import pandas_engine
 
 from definitions import TIMEZONE
 
 chat_history_schema = pa.DataFrameSchema({
     "message_id": pa.Column(int),  # int64
-    "timestamp": pa.Column(pd.DatetimeTZDtype(tz=TIMEZONE)),
+    "timestamp": pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),
     "user_id": pa.Column(int),  # object (string)
     "first_name": pa.Column(str),  # string
     "last_name": pa.Column(str, nullable=True),  # string
@@ -15,12 +16,12 @@ chat_history_schema = pa.DataFrameSchema({
     "reaction_emojis": pa.Column(object, nullable=True),  # list (nullable)
     "reaction_user_ids": pa.Column(object, nullable=True),  # list (nullable)
     "message_type": pa.Column(str)  # string
-})
+}, name="chat_history")
 
 # 1. Cleaned Chat History Schema
 cleaned_chat_history_schema = pa.DataFrameSchema({
     'message_id': pa.Column(int),  # int64
-    'timestamp': pa.Column(pd.DatetimeTZDtype(tz=TIMEZONE)),  # datetime64[ns]
+    'timestamp': pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),  # datetime64[ns]
     'user_id': pa.Column(int),  # string
     'final_username': pa.Column(str),  # string
     'text': pa.Column(str, nullable=True),  # string
@@ -28,24 +29,24 @@ cleaned_chat_history_schema = pa.DataFrameSchema({
     'reaction_emojis': pa.Column(object, nullable=True),  # list (nullable)
     'reaction_user_ids': pa.Column(object, nullable=True),  # list (nullable)
     'message_type': pa.Column(str)  # string
-})
+}, name="cleaned_chat_history")
 
 # 2. Commands Usage Schema
 commands_usage_schema = pa.DataFrameSchema({
-    'timestamp': pa.Column(pd.DatetimeTZDtype(tz=TIMEZONE)),  # datetime64[ns]
+    'timestamp': pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),  # datetime64[ns]
     'user_id': pa.Column(int),  # string
     'command_name': pa.Column(str)  # string
-})
+}, name="commands_usage")
 
 # 3. Reactions Schema
 reactions_schema = pa.DataFrameSchema({
     'message_id': pa.Column(int),  # string
-    'timestamp': pa.Column(pd.DatetimeTZDtype(tz=TIMEZONE)),  # datetime64[ns]
+    'timestamp': pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),  # datetime64[ns]
     'reacted_to_username': pa.Column(str),  # string
     'reacting_username': pa.Column(str),  # string
     'text': pa.Column(str, nullable=True),  # string
     'emoji': pa.Column(str)  # string
-})
+}, name="reactions")
 
 # 4. Users Schema
 users_schema = pa.DataFrameSchema({
@@ -54,7 +55,7 @@ users_schema = pa.DataFrameSchema({
     'username': pa.Column(str, nullable=True),  # string
     'final_username': pa.Column(str),  # string
     'nicknames': pa.Column(object, nullable=True)  # list (nullable)
-}, index=pa.Index(int, name="user_id"))
+}, index=pa.Index(int, name="user_id"), name="users")
 
 #
 # chat_history_schema = {

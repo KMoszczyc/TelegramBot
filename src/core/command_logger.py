@@ -9,7 +9,8 @@ from telegram.ext import ContextTypes
 
 from src.core.utils import read_df, save_df
 from src.models.command_args import CommandArgs
-from src.stats.utils import filter_by_time_df
+from src.models.schemas import commands_usage_schema
+from src.stats.utils import filter_by_time_df, validate_schema
 from definitions import COMMANDS_USAGE_PATH, TIMEZONE
 
 
@@ -32,6 +33,8 @@ class CommandLogger:
                 new_entry['timestamp'] = pd.to_datetime(new_entry['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
 
                 self.command_usage_df = pd.concat([self.command_usage_df, new_entry], ignore_index=True)
+
+                validate_schema(self.command_usage_df, commands_usage_schema)
                 save_df(self.command_usage_df, COMMANDS_USAGE_PATH)
 
                 return result

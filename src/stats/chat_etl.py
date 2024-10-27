@@ -259,11 +259,5 @@ class ChatETL:
             shutil.rmtree(TEMP_DIR)
 
     def validate_data(self):
-        # TODO: convert all empty '' to None so it's more clear there is no value
         commands_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)
-        self.validate_schema(commands_usage_df, commands_usage_schema)
-
-    def validate_schema(self, df, schema):
-        # if df is not None and not df.empty:
-        #     schema(df)
-        pass
+        stats_utils.validate_schema(commands_usage_df, commands_usage_schema)
