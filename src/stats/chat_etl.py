@@ -229,6 +229,7 @@ class ChatETL:
         reactions_df = reactions_df.merge(users_df, left_on='reaction_user_ids', right_on='user_id', how='left')
         reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
+        reactions_df = reactions_df.dropna(subset=['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'emoji'])
 
         stats_utils.validate_schema(reactions_df, reactions_schema)
         core_utils.save_df(reactions_df, REACTIONS_PATH)
