@@ -33,8 +33,6 @@ class CommandLogger:
                 new_entry['timestamp'] = pd.to_datetime(new_entry['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
 
                 self.command_usage_df = pd.concat([self.command_usage_df, new_entry], ignore_index=True)
-
-                validate_schema(self.command_usage_df, commands_usage_schema)
                 save_df(self.command_usage_df, COMMANDS_USAGE_PATH)
 
                 return result

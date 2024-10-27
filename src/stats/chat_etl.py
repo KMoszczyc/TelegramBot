@@ -46,7 +46,7 @@ class ChatETL:
         self.generate_reactions_df()
 
         # Validate
-        # self.validate_data()
+        self.validate_data()
 
         # Cleanup
         self.delete_bot_messages()
@@ -122,7 +122,7 @@ class ChatETL:
         new_msg_count = len(merged_chat_df) - len(old_chat_df) if old_chat_df is not None else len(merged_chat_df)
         log.info(f'New {new_msg_count} messages since {last_message_dt} got merged.')
         merged_chat_df = merged_chat_df.sort_values(by='timestamp').reset_index(drop=True)
-        self.validate_schema(merged_chat_df, chat_history_schema)
+        stats_utils.validate_schema(merged_chat_df, chat_history_schema)
 
         stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
         core_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
@@ -184,7 +184,7 @@ class ChatETL:
         cleaned_df = cleaned_df[['message_id', 'timestamp', 'user_id', 'final_username', 'text', 'image_text', 'reaction_emojis', 'reaction_user_ids', 'message_type']]
         cleaned_df['timestamp'] = cleaned_df['timestamp'].dt.tz_convert(TIMEZONE)
         cleaned_df['reaction_user_ids'] = cleaned_df['reaction_user_ids'].tolist()
-        self.validate_schema(cleaned_df, cleaned_chat_history_schema)
+        stats_utils.validate_schema(cleaned_df, cleaned_chat_history_schema)
 
         log.info(f'Cleaned chat history df, from: {len(chat_df)} to: {len(cleaned_df)}')
         core_utils.save_df(cleaned_df, CLEANED_CHAT_HISTORY_PATH)
@@ -205,7 +205,7 @@ class ChatETL:
         filtered_users_df['nicknames'] = [[] for _ in range(len(filtered_users_df))]
         filtered_users_df = filtered_users_df.set_index('user_id')
 
-        self.validate_schema(users_df, users_schema)
+        stats_utils.validate_schema(users_df, users_schema)
         core_utils.save_df(filtered_users_df, USERS_PATH)
 
     def create_final_username(self, row):
@@ -230,7 +230,7 @@ class ChatETL:
         reactions_df = reactions_df[['message_id', 'timestamp', 'final_username_x', 'final_username_y', 'text', 'reaction_emojis']]
         reactions_df.columns = ['message_id', 'timestamp', 'reacted_to_username', 'reacting_username', 'text', 'emoji']
 
-        self.validate_schema(reactions_df, reactions_schema)
+        stats_utils.validate_schema(reactions_df, reactions_schema)
         core_utils.save_df(reactions_df, REACTIONS_PATH)
 
     def delete_bot_messages(self):
