@@ -103,14 +103,13 @@ class ChatETL:
             data.append(single_message_data)
 
         latest_chat_df = pd.DataFrame(data, columns=columns)
-        latest_chat_df['timestamp'] = pd.to_datetime(latest_chat_df['timestamp']).dt.tz_convert(TIMEZONE)
         data_pull_start_dt = (datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
         log.info(f'Since {data_pull_start_dt}: {len(latest_chat_df)} messages were pulled with {malformed_count} malformed records and {ocr_count} ocr performed on images.')
         if old_chat_df is not None and not latest_chat_df.empty:
             merged_chat_df = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='last').reset_index(drop=True)
             merged_chat_df['image_text'] = pd.concat([old_chat_df, latest_chat_df], ignore_index=True).drop_duplicates(subset='message_id', keep='first').reset_index(drop=True)['image_text']
             merged_chat_df['image_text'] = merged_chat_df['image_text'].fillna('')
-            merged_chat_df['timestamp'] = pd.to_datetime(merged_chat_df['timestamp']).dt.tz_convert(TIMEZONE)
+            merged_chat_df['timestamp'] = pd.to_datetime(merged_chat_df['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
         elif old_chat_df is not None:
             merged_chat_df = old_chat_df
         elif not latest_chat_df.empty:
