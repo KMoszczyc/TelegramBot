@@ -236,15 +236,18 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> tuple[s
 def parse_named_args(users_df, command_args_ref: CommandArgs):
     command_args = copy.deepcopy(command_args_ref)
     command_args.args = [arg.replace('—', '--') for arg in command_args.args]
-    shortened_available_named_args = [arg[0] for arg in command_args.available_named_args]
+    if not command_args.available_named_args_aliases:
+        command_args.available_named_args_aliases = {arg[0]:arg for arg in command_args.available_named_args}
+    print(command_args.available_named_args)
+    print(command_args.available_named_args_aliases)
     args = copy.deepcopy(command_args.args)
     for i, arg in enumerate(args):
-        named_arg = parse_named_arg(arg, shortened_available_named_args, command_args.available_named_args)
+        named_arg = parse_named_arg(arg, command_args)
         if named_arg is None:
             continue
         if command_args.available_named_args[named_arg] == ArgType.NONE:
             command_args.named_args[named_arg] = None
-        elif i + 1 < len(args) and not is_named_arg(args[i + 1], shortened_available_named_args, command_args.available_named_args):  # this arg has a value
+        elif i + 1 < len(args) and not is_named_arg(args[i + 1], command_args):  # this arg has a value
             arg_type = command_args.available_named_args[named_arg]
             value, command_args = parse_arg(users_df, command_args, args[i + 1], arg_type)
             command_args.args.remove(args[i + 1])
@@ -258,22 +261,25 @@ def parse_named_args(users_df, command_args_ref: CommandArgs):
     return command_args
 
 
-def parse_named_arg(arg, shortened_available_named_args, available_named_args):
-    if is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args):
+def parse_named_arg(arg, command_args):
+    if is_normal_named_arg(arg, command_args.available_named_args):
         return arg.replace('-', '')
+    elif is_aliased_named_arg(arg, command_args.available_named_args_aliases):
+        alias = arg.replace('-', '')
+        return command_args.available_named_args_aliases[alias]
     return None
 
 
-def is_shortened_named_arg(arg, shortened_available_named_args):
-    return (arg.startswith('-') and arg[1:] in shortened_available_named_args)
+def is_aliased_named_arg(arg, shortened_available_named_args):
+    return arg.startswith('-') and arg[1:] in shortened_available_named_args
 
 
 def is_normal_named_arg(arg, available_named_args):
     return arg.startswith('--') and arg[2:] in available_named_args
 
 
-def is_named_arg(arg, shortened_available_named_args, available_named_args):
-    return is_shortened_named_arg(arg, shortened_available_named_args) or is_normal_named_arg(arg, available_named_args)
+def is_named_arg(arg, commands_args):
+    return is_aliased_named_arg(arg, commands_args.available_named_args_aliases) or is_normal_named_arg(arg, commands_args.available_named_args)
 
 
 def parse_period(command_args, arg_str) -> CommandArgs:
