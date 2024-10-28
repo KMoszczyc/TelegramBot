@@ -64,8 +64,6 @@ def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs
 
 def merge_spaced_args(command_args: CommandArgs):
     joined_args = ' '.join(command_args.args)
-    # spaced_args = re.findall(r'"(.*?)"', joined_args)
-    # print(spaced_args)
     new_args = []
     quotation_opened = False
     current_spaced_args = []
@@ -238,8 +236,6 @@ def parse_named_args(users_df, command_args_ref: CommandArgs):
     command_args.args = [arg.replace('—', '--') for arg in command_args.args]
     if not command_args.available_named_args_aliases:
         command_args.available_named_args_aliases = {arg[0]:arg for arg in command_args.available_named_args}
-    print(command_args.available_named_args)
-    print(command_args.available_named_args_aliases)
     args = copy.deepcopy(command_args.args)
     for i, arg in enumerate(args):
         named_arg = parse_named_arg(arg, command_args)
