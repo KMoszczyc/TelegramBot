@@ -99,7 +99,7 @@ class ChatCommands:
         # Ratios
         fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
         wholesome_metric = self.calculate_wholesome_metric(reactions_df)
-        user_stats['monologue_ratio'] = (user_stats['word_count']/user_stats['message_count']).round(2)
+        user_stats['monologue_ratio'] = (user_stats['word_count'] / user_stats['message_count']).round(2)
 
         # Calculate message and reaction count changes
         message_count_change = 0 if shifted_chat_df.empty else round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1)
@@ -116,17 +116,12 @@ class ChatCommands:
         text += "\n- *Monologue index*: " + ", ".join([f"{row['final_username']}: *{row['monologue_ratio']}*" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()])
         text += "\n- *Fun meter*: " + ", ".join([f"{row['final_username']}: *{row['ratio']}*" for _, row in fun_metric.head(3).iterrows()])
         text += "\n- *Wholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.head(3).iterrows()])
-        text += "\n- *Unwholesome meter*: " + ", ".join(
-            [f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()])
+        text += "\n- *Unwholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()])
         text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
         text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
-        text += "\n- *Most disliked*: " + ", ".join(
-            [f"{row['reacted_to_username']}: *{row['count']}*" for _, row in sad_reactions_received_counts.head(3).iterrows()])
-        text += "\n- *Most disliking*: " + ", ".join(
-            [f"{row['reacting_username']}: *{row['count']}*" for _, row in sad_reactions_given_counts.head(3).iterrows()])
-        text += "\n- *Top message*: " + ", ".join(
-            [f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in
-             text_only_chat_df.head(1).iterrows()])
+        text += "\n- *Most disliked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in sad_reactions_received_counts.head(3).iterrows()])
+        text += "\n- *Most disliking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in sad_reactions_given_counts.head(3).iterrows()])
+        text += "\n- *Top message*: " + ", ".join( [f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in text_only_chat_df.head(1).iterrows()])
 
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
@@ -272,6 +267,9 @@ class ChatCommands:
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
+
+        text = "Due to missuse of set_username command through various means, it has been indefinitely disabled, until decided otherwise by the Ozjasz team. You can unlock this feature after subscribing to Ozjasz premium, for 5$ monthly. Regards, Ozjasz team."
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
         user_id = update.effective_user.id
         current_username = self.users_df.at[user_id, 'final_username']
