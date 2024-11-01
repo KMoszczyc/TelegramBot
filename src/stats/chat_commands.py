@@ -268,7 +268,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        text = "Due to missuse of *set_username* command through various means, it has been *indefinitely disabled*, until decided otherwise by the Ozjasz Team. You can unlock this feature after subscribing to Ozjasz premium, for *5$ monthly*. \nRegards, *Ozjasz Team*."
+        text = "Due to missuse of *set_username* command through various means, it has been *indefinitely disabled*, until decided otherwise by the Ozjasz Team. You can unlock this feature after subscribing to Ozjasz premium, for *5$ monthly*. \n\nRegards, *Ozjasz Team*."
         escaped_text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=escaped_text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
         return
