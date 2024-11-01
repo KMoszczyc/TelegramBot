@@ -89,11 +89,17 @@ class ChatCommands:
         reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_received_counts = sad_reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
         sad_reactions_given_counts = sad_reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
-        message_counts = chat_df.groupby('final_username').size().reset_index(name='count').sort_values('count', ascending=False)
+
+        chat_df['word_count'] = chat_df['text'].apply(lambda x: len(str(x).split()))
+        user_stats = chat_df.groupby('final_username').agg(
+            word_count=('word_count', 'sum'),
+            message_count=('text', 'size')
+        ).reset_index()
 
         # Ratios
         fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
         wholesome_metric = self.calculate_wholesome_metric(reactions_df)
+        user_stats['monologue_ratio'] = (user_stats['word_count']/user_stats['message_count']).round(2)
 
         # Calculate message and reaction count changes
         message_count_change = 0 if shifted_chat_df.empty else round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1)
@@ -105,7 +111,9 @@ class ChatCommands:
         text = "*Chat summary*"
         text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
         text += f"\n- *Total*: *{len(chat_df)} ({message_count_change_text})* messages, *{len(reactions_df)} ({reaction_count_change_text})* reactions and *{images_num}* images"
-        text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['count']}*" for _, row in message_counts.head(3).iterrows()])
+        text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['message_count']}*" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()])
+        text += "\n- *Word count*: " + ", ".join([f"{row['final_username']}: *{row['word_count']}*" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()])
+        text += "\n- *Monologue index*: " + ", ".join([f"{row['final_username']}: *{row['monologue_ratio']}*" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()])
         text += "\n- *Fun meter*: " + ", ".join([f"{row['final_username']}: *{row['ratio']}*" for _, row in fun_metric.head(3).iterrows()])
         text += "\n- *Wholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.head(3).iterrows()])
         text += "\n- *Unwholesome meter*: " + ", ".join(
