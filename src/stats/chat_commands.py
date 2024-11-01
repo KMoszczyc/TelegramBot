@@ -270,22 +270,23 @@ class ChatCommands:
 
         text = "Due to missuse of set_username command through various means, it has been indefinitely disabled, until decided otherwise by the Ozjasz team. You can unlock this feature after subscribing to Ozjasz premium, for 5$ monthly. Regards, Ozjasz team."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+        return
 
-        user_id = update.effective_user.id
-        current_username = self.users_df.at[user_id, 'final_username']
-        new_username = command_args.string
-        is_valid, error = stats_utils.check_new_username(self.users_df, new_username)
-
-        if not is_valid:
-            error = stats_utils.escape_special_characters(error)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-            return
-
-        self.users_df.at[user_id, 'final_username'] = new_username
-        core_utils.save_df(self.users_df, USERS_PATH)
-        text = f'Username changed from: *{current_username}* to *{new_username}*. It will get updated in a few minutes.'
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        # user_id = update.effective_user.id
+        # current_username = self.users_df.at[user_id, 'final_username']
+        # new_username = command_args.string
+        # is_valid, error = stats_utils.check_new_username(self.users_df, new_username)
+        #
+        # if not is_valid:
+        #     error = stats_utils.escape_special_characters(error)
+        #     await context.bot.send_message(chat_id=update.effective_chat.id, text=error, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        #     return
+        #
+        # self.users_df.at[user_id, 'final_username'] = new_username
+        # core_utils.save_df(self.users_df, USERS_PATH)
+        # text = f'Username changed from: *{current_username}* to *{new_username}*. It will get updated in a few minutes.'
+        # text = stats_utils.escape_special_characters(text)
+        # await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_fun(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
