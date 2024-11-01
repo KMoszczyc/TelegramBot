@@ -194,7 +194,10 @@ class ChatETL:
 
         if os.path.exists(USERS_PATH):
             log.info(f'Users already extracted, {USERS_PATH} exists.')
+            users_df = core_utils.read_df(USERS_PATH)
+            stats_utils.validate_schema(users_df, users_schema)
             return
+
         log.info('Extracting users...')
 
         chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
@@ -205,7 +208,7 @@ class ChatETL:
         filtered_users_df['nicknames'] = [[] for _ in range(len(filtered_users_df))]
         filtered_users_df = filtered_users_df.set_index('user_id')
 
-        stats_utils.validate_schema(users_df, users_schema)
+        stats_utils.validate_schema(filtered_users_df, users_schema)
         core_utils.save_df(filtered_users_df, USERS_PATH)
 
     def create_final_username(self, row):
