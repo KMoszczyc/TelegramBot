@@ -10,3 +10,4 @@ pytest-mock
 pytesseract
 opencv-python
 pandera
+great-tables
