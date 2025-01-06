@@ -2,7 +2,7 @@ FROM python:3.12.2-slim
 WORKDIR /app
 
 ENV PYHTONUNBUFFERED=1
-RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6
+RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6 wget zip
 
 # Get great-tables working that utilizes Selenium
 # install google chrome
