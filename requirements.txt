@@ -11,3 +11,4 @@ pytesseract
 opencv-python
 pandera
 great-tables
+selenium
