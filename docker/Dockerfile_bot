@@ -4,21 +4,35 @@ WORKDIR /app
 ENV PYHTONUNBUFFERED=1
 RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6 wget zip unzip gnupg2
 
-# Get great-tables working that utilizes Selenium
-### install chrome
-ENV CHROMEDRIVER_VERSION=131.0.6778.204
-RUN apt-get update && apt-get install -y wget && apt-get install -y zip
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-RUN apt-get install -y ./google-chrome-stable_current_amd64.deb
+# Install necessary packages
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    unzip \
+    xvfb \
+    libxi6 \
+    libgconf-2-4 \
+    libxrender1 \
+    libxtst6 \
+    libnss3 \
+    libasound2 \
+    fonts-liberation \
+    libappindicator3-1 \
+    xdg-utils
 
-### install chromedriver
-#RUN wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip \
-#  && unzip chromedriver-linux64.zip && rm -dfr chromedriver_linux64.zip \
-#  && mv /chromedriver-linux64/chromedriver /usr/bin/chromedriver \
-#  && chmod +x /usr/bin/chromedriver
+# Install Chrome
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm ./google-chrome-stable_current_amd64.deb
 
-# set display port to avoid crash
-ENV DISPLAY=:99
+# Install ChromeDriver
+RUN CHROME_DRIVER_VERSION=`curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE` && \
+    wget -q https://chromedriver.storage.googleapis.com/$CHROME_DRIVER_VERSION/chromedriver_linux64.zip && \
+    unzip chromedriver_linux64.zip -d /usr/bin/ && \
+    rm chromedriver_linux64.zip
+
+# Set ChromeDriver path
+ENV PATH="/usr/bin:$PATH"
 
 
 COPY requirements.txt .
