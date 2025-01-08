@@ -130,27 +130,28 @@ class ChatCommands:
 
         text = "Chat summary"
         text += f" ({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
-        columns = ['metric', 'TOP1', 'TOP2', 'TOP3']
+        columns = ['<b>metric</b>', '<b>TOP1</b>', '<b>TOP2</b>', '<b>TOP3</b>']
         rows = [
-            ['Top spammer', *[f"{row['final_username']}: **{row['message_count']}**" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()]],
-            ['Word count', *[f"{row['final_username']}: **{row['word_count']}**" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()]],
-            ['Monologue index', *[f"{row['final_username']}: **{row['monologue_ratio']}**" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()]],
-            ['Fun meter', *[f"{row['final_username']}: **{row['ratio']}**" for _, row in fun_metric.head(3).iterrows()]],
-            ['Wholesome meter', *[f"{row['reacting_username']}: **{row['ratio']}**" for _, row in wholesome_metric.head(3).iterrows()]],
-            ['Unwholesome meter', *[f"{row['reacting_username']}: **{row['ratio']}**" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()]],
-            ['Most liked', *[f"{row['reacted_to_username']}: **{row['count']}**" for _, row in reactions_received_counts.head(3).iterrows()]],
-            ['Most liking', *[f"{row['reacting_username']}: **{row['count']}**" for _, row in reactions_given_counts.head(3).iterrows()]],
-            ['Most disliked', *[f"{row['reacted_to_username']}: **{row['count']}**" for _, row in sad_reactions_received_counts.head(3).iterrows()]],
-            ['Most disliking', *[f"{row['reacting_username']}: **{row['count']}**" for _, row in sad_reactions_given_counts.head(3).iterrows()]],
+            ['<b>Top spammer</b>', *[f"{row['final_username']}: <b>{row['message_count']}</b>" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()]],
+            ['<b>Word count</b>', *[f"{row['final_username']}: <b>{row['word_count']}</b>" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()]],
+            ['<b>Monologue index</b>', *[f"{row['final_username']}: <b>{row['monologue_ratio']}</b>" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()]],
+            ['<b>Fun meter</b>', *[f"{row['final_username']}: <b>{row['ratio']}</b>" for _, row in fun_metric.head(3).iterrows()]],
+            ['<b>Wholesome meter</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.head(3).iterrows()]],
+            ['<b>Unwholesome meter</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()]],
+            ['<b>Most liked</b>', *[f"{row['reacted_to_username']}: <b>{row['count']}</b>" for _, row in reactions_received_counts.head(3).iterrows()]],
+            ['<b>Most liking</b>', *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in reactions_given_counts.head(3).iterrows()]],
+            ['<b>Most disliked</b>', *[f"{row['reacted_to_username']}: <b>{row['count']}</b>" for _, row in sad_reactions_received_counts.head(3).iterrows()]],
+            ['<b>Most disliking</b>', *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in sad_reactions_given_counts.head(3).iterrows()]],
         ]
-        source_notes = [
-            f"**Total**: **{len(chat_df)} ({message_count_change_text})** messages, **{len(reactions_df)} ({reaction_count_change_text})** reactions and **{images_num}** images",
+        footnotes = [
+            f"Total: {len(chat_df)} ({message_count_change_text}) messages, {len(reactions_df)} ({reaction_count_change_text}) reactions and {images_num} images",
+            "Top message: " + ", ".join(
+                [f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in text_only_chat_df.head(1).iterrows()])
         ]
 
-        send_msg = "Top message: " + ", ".join([f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in text_only_chat_df.head(1).iterrows()])
-
+        send_msg = '\n'.join(footnotes)
         summary_df = pd.DataFrame(rows, columns=columns)
-        path = charts.create_table(summary_df, title=text, columns=columns, source_notes=source_notes)
+        path = charts.create_table_plotly(summary_df, title=text, columns=columns)
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text=send_msg)
@@ -354,19 +355,15 @@ class ChatCommands:
             return
 
         wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
-        path = charts.create_table(wholesome_ratios, 'Wholesome ratios', ['user', 'ratio'])
 
-        # text = self.generate_response_headline(command_args, label='``` Wholesome meter')
-        #
-        # for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
-        #     text += f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
-        #
-        # text += "```"
-        # text = stats_utils.escape_special_characters(text)
-        # await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        text = self.generate_response_headline(command_args, label='``` Wholesome meter')
 
-        current_message_type = MessageType.IMAGE
-        await self.send_message(update, context, current_message_type, path, '')
+        for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
+            text += f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
+
+        text += "```"
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
 
     async def cmd_funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
