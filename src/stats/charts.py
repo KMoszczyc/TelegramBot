@@ -1,16 +1,11 @@
-import kaleido #required
 import cv2
-import pandas as pd
 from great_tables import GT, md
 import matplotlib.pyplot as plt
 import os
-import plotly
 import plotly.graph_objects as go
 
 from definitions import TEMP_DIR
 import src.stats.utils as stats_utils
-
-print(kaleido.__version__ , plotly.__version__)
 
 def create_table_plt(df, title, columns):
     fig, ax = plt.subplots()
@@ -38,7 +33,6 @@ def create_table_plt(df, title, columns):
     return path
 
 def create_table_plotly(df, title, columns):
-    print('halo1')
     HEADER_CELL_HEIGHT = 35
     CELL_HEIGHT = 35
     layout = go.Layout(
@@ -64,10 +58,8 @@ def create_table_plotly(df, title, columns):
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
     stats_utils.create_dir(TEMP_DIR)
-    print('halo2')
 
     fig.write_image(path, engine='kaleido')
-    # cut_excess_white_space_from_image(path)
 
     return path
 
