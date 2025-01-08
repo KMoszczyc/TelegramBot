@@ -1,41 +1,9 @@
 FROM python:3.12.2-slim
-FROM selenium/node-chrome
 
 WORKDIR /app
 
 ENV PYHTONUNBUFFERED=1
-RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6 wget zip unzip gnupg2
-
-## Install necessary packages
-#RUN apt-get update && apt-get install -y \
-#    wget \
-#    curl \
-#    unzip \
-#    xvfb \
-#    libxi6 \
-#    libgconf-2-4 \
-#    libxrender1 \
-#    libxtst6 \
-#    libnss3 \
-#    libasound2 \
-#    fonts-liberation \
-#    libappindicator3-1 \
-#    xdg-utils
-#
-## Install Chrome
-#RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-#    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
-#    && rm ./google-chrome-stable_current_amd64.deb
-#
-## Install ChromeDriver
-#RUN CHROME_DRIVER_VERSION=`curl -sS https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE` && \
-#    wget -q https://chromedriver.storage.googleapis.com/CHROME_DRIVER_VERSION/chromedriver_linux64.zip && \
-#    unzip chromedriver_linux64.zip -d /usr/bin/ && \
-#    rm chromedriver_linux64.zip
-#
-## Set ChromeDriver path
-#ENV PATH="/usr/bin:$PATH"
-
+RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6 wget zip unzip
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
