@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffm
 
 #Install Roboto font for the jpg tables
 RUN fc-cache -f -v
-RUN fc-list | grep -i roboto
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
