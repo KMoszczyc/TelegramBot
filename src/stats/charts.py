@@ -49,7 +49,7 @@ def create_table_plotly(df, title, columns):
                     height=HEADER_CELL_HEIGHT),
         cells=dict(values=[df[col] for col in df.columns],
                    fill_color=['#2E3A46'] + ['#1B1F24'] * (len(columns) - 1),
-                   font=dict(color='#E0E0E0', family='Roboto', size=16),
+                   font=dict(color='#E0E0E0', family='Roboto Thin', size=16),
                    line_color='#4A525A',
                    align='left',
                    height=CELL_HEIGHT))

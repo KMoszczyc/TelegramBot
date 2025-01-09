@@ -6,6 +6,7 @@ ENV PYHTONUNBUFFERED=1
 RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6 zip unzip fontconfig
 
 #Install Roboto font for the jpg tables
+RUN cp -r data/misc/fonts /usr/share/fonts/truetype
 RUN fc-cache -f -v
 
 COPY requirements.txt .
