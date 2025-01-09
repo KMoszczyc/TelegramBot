@@ -37,19 +37,19 @@ def create_table_plotly(df, title, columns):
     CELL_HEIGHT = 35
     layout = go.Layout(
         autosize=True,
-        margin={'l': 0, 'r': 0, 't': 0, 'b': 0},
+        margin={'l': 0, 'r': 1, 't': 0, 'b': 0},
         height=CELL_HEIGHT * len(df) + HEADER_CELL_HEIGHT + 1)
 
     fig = go.Figure(data=[go.Table(
         header=dict(values=list(columns),
                     fill_color='#2E3A46',
-                    font=dict(color='#FFFFFF'),
+                    font=dict(color='#FFFFFF', family='Roboto', size=16),
                     line_color='#4A525A',
                     align='center',
                     height=HEADER_CELL_HEIGHT),
         cells=dict(values=[df[col] for col in df.columns],
                    fill_color=['#2E3A46'] + ['#1B1F24'] * (len(columns) - 1),
-                   font=dict(color='#E0E0E0'),
+                   font=dict(color='#E0E0E0', family='Roboto', size=16),
                    line_color='#4A525A',
                    align='left',
                    height=CELL_HEIGHT))

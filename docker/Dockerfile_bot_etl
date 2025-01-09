@@ -4,6 +4,14 @@ WORKDIR /app
 ENV PYHTONUNBUFFERED=1
 RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6
 
+
+#Install Roboto font for the jpg tables
+RUN apt-get update && apt-get install -y fontconfig wget && rm -rf /var/lib/apt/lists/*
+RUN wget -q https://github.com/google/fonts/raw/main/apache/roboto/Roboto%5Bwdth%2Cwght%5D.ttf -O /usr/share/fonts/truetype/roboto.ttf
+RUN fc-cache -f -v
+RUN fc-list | grep -i roboto
+
+
 ENV TZ="Europe/Warsaw"
 ENV PYTHONPATH=/app
 
