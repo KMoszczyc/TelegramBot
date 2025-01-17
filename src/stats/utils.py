@@ -215,7 +215,7 @@ def filter_by_time_df(df, command_args):
         case PeriodFilterMode.DATE:
             return df[df['timestamp'].dt.date == command_args.dt.date()]
         case PeriodFilterMode.DATE_RANGE:
-            return df[(df['timestamp'] >= command_args.start_dt) & (df['timestamp'] < command_args.end_dt)]
+            return df[(df['timestamp'] >= command_args.start_dt) & (df['timestamp'] <= command_args.end_dt)]
 
 
 def filter_by_shifted_time_df(df, command_args):
