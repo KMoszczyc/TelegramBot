@@ -40,7 +40,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "/data" if RUNTIME_ENV == 'docker' else os.path.join(ROOT_DIR, 'data')
 TEMP_DIR = os.path.join(DATA_DIR, 'temp')
 
-
 # Chat data
 METADATA_PATH = os.path.join(DATA_DIR, 'chat/metadata.pickle')
 UPDATE_REQUIRED_PATH = os.path.join(DATA_DIR, 'chat/update_required.lock')
@@ -76,6 +75,7 @@ arguments_help = read_str_file(ARGUMENTS_HELP_PATH)
 bible_df = pd.read_parquet(BIBLE_PATH)
 shopping_sundays = read_str_file(SHOPPING_SUNDAYS_PATH)
 
+
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:
       - today (since midnight)
@@ -101,6 +101,14 @@ class PeriodFilterMode(Enum):
         return PeriodFilterMode.ERROR
 
 
+class DatetimeFormat(Enum):
+    """Enum for different datetime granularities."""
+    DATE = "%d-%m-%Y"
+    HOUR = "%d-%m-%Y:%H"
+    MINUTE = "%d-%m-%Y:%H:%M"
+    SECOND = "%d-%m-%Y:%H:%M:%S"
+
+
 class EmojiType(Enum):
     """Enum for different reaction emoji types"""
     ALL = 'all'
@@ -119,6 +127,7 @@ class ArgType(Enum):
     POSITIVE_INT = 'positive_int'
     NONE = 'none'
 
+
 class MessageType(Enum):
     """Enum for message types"""
     TEXT = 'text'
@@ -128,8 +137,8 @@ class MessageType(Enum):
     IMAGE = 'image'
     AUDIO = 'audio'
 
+
 class NamedArgType(Enum):
     SHORT = 'short'
     NORMAL = 'normal'
     NONE = 'none'
-

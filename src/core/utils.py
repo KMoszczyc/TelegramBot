@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE
+from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -295,10 +295,10 @@ def parse_period(command_args, arg_str) -> CommandArgs:
             command_args.period_mode = PeriodFilterMode(period_mode_str)
 
         if command_args.period_mode == PeriodFilterMode.ERROR and ';' in arg_str:
-            command_args.start_dt, command_args.end_dt, error = parse_date_range(arg_str)
+            command_args.start_dt, command_args.end_dt, command_args.dt_format, error = parse_date_range(arg_str)
             command_args.period_mode = PeriodFilterMode.DATE_RANGE
         elif command_args.period_mode == PeriodFilterMode.ERROR:
-            command_args.dt, error = parse_date(arg_str)
+            command_args.dt, command_args.dt_format, error = parse_date(arg_str)
             command_args.period_mode = PeriodFilterMode.DATE
 
         command_args.parse_error = error
@@ -316,35 +316,35 @@ def parse_period(command_args, arg_str) -> CommandArgs:
     return command_args
 
 
-def parse_date(date_str: str) -> tuple[datetime, str] | tuple[None, str]:
+def parse_date(date_str: str) -> tuple[datetime, DatetimeFormat, str] | tuple[None, None, str]:
     dt_formats = [
-        "%d-%m-%Y",
-        "%d-%m-%Y:%H",
-        "%d-%m-%Y:%H:%M",
-        "%d-%m-%Y:%H:%M:%S"
+        DatetimeFormat.DATE,
+        DatetimeFormat.HOUR,
+        DatetimeFormat.MINUTE,
+        DatetimeFormat.SECOND,
     ]
 
     for dt_format in dt_formats:
         try:
-            return datetime.strptime(date_str, dt_format).replace(tzinfo=ZoneInfo(TIMEZONE)), ''
+            return datetime.strptime(date_str, dt_format.value).replace(tzinfo=ZoneInfo(TIMEZONE)), dt_format, ''
         except ValueError:
             pass
-    return None, f"Could not parse date: {date_str}"
+    return None, None, f"Could not parse date: {date_str}"
 
 
-def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, str]:
+def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, DatetimeFormat, str] | tuple[None, None, None, str]:
     date_range_split = date_range_str.split(';')
     if len(date_range_split) != 2:
         error = f"Could not parse date range: {date_range_str}"
-        return None, None, error
-    start_date, start_date_error = parse_date(date_range_split[0])
-    end_date, end_date_error = parse_date(date_range_split[1])
+        return None, None, None, error
+    start_date, dt_format, start_date_error = parse_date(date_range_split[0])
+    end_date, dt_format, end_date_error = parse_date(date_range_split[1])
     error = start_date_error + end_date_error
 
     if error == '' and start_date > end_date:
         error = 'The start date cannot be after the end date of the range u dummy!'
 
-    return start_date, end_date, error
+    return start_date, end_date, dt_format, error
 
 
 def parse_user(users_df, command_args, arg_str) -> CommandArgs:
@@ -496,3 +496,14 @@ def file_exists(path):
 def text_to_number(text):
     numbers = [ord(character) for character in text]
     return sum(numbers)
+
+def generate_period_headline(command_args):
+    match command_args.period_mode:
+        case PeriodFilterMode.HOUR:
+            return f"past {command_args.period_time}h"
+        case PeriodFilterMode.DATE:
+            return command_args.dt.strftime(command_args.dt_format.value)
+        case PeriodFilterMode.DATE_RANGE:
+            return f"{command_args.start_dt.strftime(command_args.dt_format.value)} - {command_args.end_dt.strftime(command_args.dt_format.value)}"
+        case _:
+            return command_args.period_mode.value

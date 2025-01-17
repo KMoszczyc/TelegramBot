@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 import os
 import plotly.graph_objects as go
 
-from definitions import TEMP_DIR
+from definitions import TEMP_DIR, DatetimeFormat, PeriodFilterMode
 import src.stats.utils as stats_utils
+
 
 def create_table_plt(df, title, columns):
     fig, ax = plt.subplots()
@@ -32,28 +33,36 @@ def create_table_plt(df, title, columns):
 
     return path
 
-def create_table_plotly(df, title, columns):
-    HEADER_CELL_HEIGHT = 35
-    CELL_HEIGHT = 35
+
+def create_table_plotly(df, command_args, columns):
+    HEADER_CELL_HEIGHT = 50
+    CELL_HEIGHT = 50
+    CELL_WIDTH = 270
+    is_first_col_wide = command_args.period_mode == PeriodFilterMode.DATE_RANGE
+    WIDTH = CELL_WIDTH *1.3 + CELL_WIDTH * (len(columns) -1) if is_first_col_wide else CELL_WIDTH * 0.9 + CELL_WIDTH * (len(columns) -1)
+    WIDTHS = [CELL_WIDTH * 1.3] + [CELL_WIDTH] * (len(columns) -1) if is_first_col_wide else [CELL_WIDTH * 0.9] + [CELL_WIDTH] * (len(columns) -1)
+
     layout = go.Layout(
         autosize=True,
         margin={'l': 0, 'r': 1, 't': 0, 'b': 0},
-        height=CELL_HEIGHT * len(df) + HEADER_CELL_HEIGHT + 1)
+        height=CELL_HEIGHT * len(df) + HEADER_CELL_HEIGHT + 1,
+        width=WIDTH)
 
     fig = go.Figure(data=[go.Table(
         header=dict(values=list(columns),
                     fill_color='#2E3A46',
-                    font=dict(color='#FFFFFF', family='Roboto', size=16),
+                    font=dict(color='#FFFFFF', family='Roboto', size=25),
                     line_color='#4A525A',
                     align='center',
                     height=HEADER_CELL_HEIGHT),
         cells=dict(values=[df[col] for col in df.columns],
                    fill_color=['#2E3A46'] + ['#1B1F24'] * (len(columns) - 1),
-                   font=dict(color='#E0E0E0', family='Roboto', size=16),
+                   font=dict(color='#E0E0E0', family='Roboto', size=25),
                    line_color='#4A525A',
                    align='left',
-                   height=CELL_HEIGHT))
-        ],
+                   height=CELL_HEIGHT),
+        columnwidth=WIDTHS)
+    ],
         layout=layout)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
@@ -62,6 +71,7 @@ def create_table_plotly(df, title, columns):
     fig.write_image(path, engine='kaleido')
 
     return path
+
 
 def create_table(df, title, columns, source_notes):
     df.columns = columns
@@ -96,7 +106,7 @@ def cut_excess_white_space_from_image(path):
         if sum(img_gray[:, x]) < y_white_sum:
             start_x = x
             break
-    for x in range(img_gray.shape[1]-1, 0, -1):
+    for x in range(img_gray.shape[1] - 1, 0, -1):
         if sum(img_gray[:, x]) < y_white_sum:
             end_x = x
             break
@@ -106,12 +116,12 @@ def cut_excess_white_space_from_image(path):
             start_y = y
             break
 
-    for y in range(img_gray.shape[0]-1, 0, -1):
+    for y in range(img_gray.shape[0] - 1, 0, -1):
         if sum(img_gray[y, :]) < x_white_sum:
             end_y = y
             break
 
-    print(x_white_sum, y_white_sum, start_x, start_y,end_x, end_y)
+    print(x_white_sum, y_white_sum, start_x, start_y, end_x, end_y)
 
     img = img[start_y:end_y, start_x:end_x]
     cv2.imwrite(path, img)

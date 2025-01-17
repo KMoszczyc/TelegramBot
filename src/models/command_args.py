@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from definitions import PeriodFilterMode, ArgType
+from definitions import PeriodFilterMode, ArgType, DatetimeFormat
 
 
 @dataclass
@@ -24,6 +24,7 @@ class CommandArgs:
     start_dt: datetime = None
     end_dt: datetime = None
     dt: datetime = None
+    dt_format: DatetimeFormat = None
     number: int = 5
     string: str = ''
     min_string_length: int = 0
