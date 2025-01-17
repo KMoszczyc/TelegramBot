@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from src.core.command_logger import CommandLogger
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
-from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH
+from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -96,8 +96,11 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        response = "Existing commands:\n- /" + '\n- /'.join(commands)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        text = "Existing commands:\n- /" + '\n- /'.join(commands)
+        text += "\n\n *Arguments*:\n" + "\n".join(arguments_help)
+
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args,

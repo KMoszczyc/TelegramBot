@@ -241,6 +241,11 @@ def filter_by_shifted_time_df(df, command_args):
             return filter_df_in_range(df, dt_now - timedelta(days=365 * 2), dt_now - timedelta(days=365))
         case PeriodFilterMode.TOTAL:
             return df.copy(deep=True)
+        case PeriodFilterMode.DATE:
+            return filter_df_in_range(df, command_args.dt - timedelta(days=1), command_args.dt)
+        case PeriodFilterMode.DATE_RANGE:
+            days_diff = (command_args.end_dt - command_args.start_dt).days
+            return filter_df_in_range(df, command_args.start_dt - timedelta(days=days_diff), command_args.start_dt)
 
 
 def filter_emojis_by_emoji_type(df, emoji_type, col='reaction_emojis'):

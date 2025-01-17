@@ -1,0 +1,4 @@
+- *period*: today, week, month, year, total, date, date_range
+    - date: DD-MM-YYYY, DD-MM-YYYY:HH:MM, DD-MM-YYYY:HH:MM:SS
+    - date_range: DD-MM-YYYY;DD-MM-YYYY (and all the possible date combinations)
+- *username*: full or partial username (at least 3 letters have to match)
