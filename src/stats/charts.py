@@ -35,12 +35,14 @@ def create_table_plt(df, title, columns):
 
 
 def create_table_plotly(df, command_args, columns):
-    HEADER_CELL_HEIGHT = 50
+    is_date_range = command_args.period_mode == PeriodFilterMode.DATE_RANGE
+    is_date = command_args.period_mode == PeriodFilterMode.DATE_RANGE
+
     CELL_HEIGHT = 50
+    HEADER_CELL_HEIGHT = CELL_HEIGHT*1.65 if is_date_range else CELL_HEIGHT
     CELL_WIDTH = 270
-    is_first_col_wide = command_args.period_mode == PeriodFilterMode.DATE_RANGE
-    WIDTH = CELL_WIDTH *1.3 + CELL_WIDTH * (len(columns) -1) if is_first_col_wide else CELL_WIDTH * 0.9 + CELL_WIDTH * (len(columns) -1)
-    WIDTHS = [CELL_WIDTH * 1.3] + [CELL_WIDTH] * (len(columns) -1) if is_first_col_wide else [CELL_WIDTH * 0.9] + [CELL_WIDTH] * (len(columns) -1)
+    WIDTH = CELL_WIDTH * 1.2 + CELL_WIDTH * (len(columns) -1) if is_date_range or is_date else CELL_WIDTH * 0.9 + CELL_WIDTH * (len(columns) -1)
+    WIDTHS = [CELL_WIDTH * 1.2] + [CELL_WIDTH] * (len(columns) -1) if is_date_range or is_date else [CELL_WIDTH * 0.9] + [CELL_WIDTH] * (len(columns) -1)
 
     layout = go.Layout(
         autosize=True,
@@ -51,13 +53,13 @@ def create_table_plotly(df, command_args, columns):
     fig = go.Figure(data=[go.Table(
         header=dict(values=list(columns),
                     fill_color='#2E3A46',
-                    font=dict(color='#FFFFFF', family='Roboto', size=25),
+                    font=dict(color='#FFFFFF', family='Roboto', size=26),
                     line_color='#4A525A',
                     align='center',
                     height=HEADER_CELL_HEIGHT),
         cells=dict(values=[df[col] for col in df.columns],
                    fill_color=['#2E3A46'] + ['#1B1F24'] * (len(columns) - 1),
-                   font=dict(color='#E0E0E0', family='Roboto', size=25),
+                   font=dict(color='#E0E0E0', family='Roboto', size=26),
                    line_color='#4A525A',
                    align='left',
                    height=CELL_HEIGHT),

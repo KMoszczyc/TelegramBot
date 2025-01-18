@@ -7,7 +7,8 @@ from telegram.ext import ContextTypes
 import telegram
 import pandas as pd
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE, PeriodFilterMode
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE, PeriodFilterMode, \
+    ChartType
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.core.command_logger import CommandLogger
@@ -85,6 +86,8 @@ class ChatCommands:
         sad_reactions_df = stats_utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
 
+        self.calculate_monologue_index_metric_periodized(chat_df)
+
         # Calculate message and reaction count
         images_num = len(chat_df[chat_df['message_type'] == 'image'])
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
@@ -148,6 +151,9 @@ class ChatCommands:
         ]
 
         send_msg = '\n'.join(footnotes)
+        if len(rows[0]) != len(columns):
+            for row in rows:
+                row += [''] * (len(columns) - 1)
         summary_df = pd.DataFrame(rows, columns=columns)
         path = charts.create_table_plotly(summary_df, command_args=command_args, columns=columns)
 
@@ -355,7 +361,7 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'acc': ArgType.NONE})
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -389,6 +395,30 @@ class ChatCommands:
         chat_df['period'] = chat_df['timestamp'].dt.to_period('D')
         message_counts = chat_df.groupby(['period', 'final_username']).size().unstack(fill_value=0).stack().reset_index(name='message_count')
         path = self.generate_plot(message_counts, users, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages daily')
+
+        current_message_type = MessageType.IMAGE
+        await self.send_message(update, context, current_message_type, path, text)
+
+    async def cmd_monologuechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'acc': ArgType.NONE})
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        label = 'Monologue index chart accumulated' if 'acc' in command_args.named_args else 'Monologue index chart daily'
+        text = self.generate_response_headline(command_args, label=label)
+
+        users = [command_args.user]
+        if command_args.user is None:
+            users = self.users_df['final_username'].unique()
+        metric_col = 'monologue_index_acc' if 'acc' in command_args.named_args else 'monologue_index_periodized'
+
+        # First calculate the metrics and only then filter by time (accumulated metrics need the entire chat history)
+        total_monologue_stats_df = self.calculate_monologue_index_metric_periodized(self.chat_df, frequency='D')
+        filtered_monologue_stats_df = stats_utils.filter_by_time_df(total_monologue_stats_df, command_args, time_column='period')
+        filtered_monologue_stats_df['period'] = filtered_monologue_stats_df['period'].dt.to_period('D')
+        path = self.generate_plot(filtered_monologue_stats_df, users, 'final_username', 'period', metric_col, text, x_label='time', y_label='monologue index', chart_type=ChartType.LINE)
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -473,6 +503,29 @@ class ChatCommands:
 
         return fun_ratios
 
+    def calculate_monologue_index_metric_periodized(self, chat_df, frequency='D'):
+        chat_df['period'] = chat_df['timestamp'].dt.to_period(frequency)
+        chat_df = chat_df.sort_values('timestamp')
+
+        chat_df['word_count'] = chat_df['text'].apply(lambda x: len(str(x).split()))
+        user_stats = chat_df.groupby(['period', 'final_username']).agg(
+            word_count=('word_count', 'sum'),
+            message_count=('text', 'size')
+        ).reset_index()
+        user_stats['word_count_acc'] = user_stats.groupby('final_username')['word_count'].cumsum()
+        user_stats['message_count_acc'] = user_stats.groupby('final_username')['message_count'].cumsum()
+
+        user_stats['monologue_index_periodized'] = (user_stats['word_count'] / user_stats['message_count']).round(2)
+        user_stats['monologue_index_acc'] = (user_stats['word_count_acc'] / user_stats['message_count_acc']).round(2)
+
+        user_stats['period'] = user_stats['period'].dt.to_timestamp()
+        user_stats['temp_period'] = user_stats['period']
+        user_stats.index = user_stats['temp_period']
+        user_stats['period'] = pd.to_datetime(user_stats['period']).dt.tz_localize(TIMEZONE)
+        user_stats = user_stats.reset_index(drop=True)
+
+        return user_stats
+
     def calculate_wholesome_metric(self, reactions_df):
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='reactions_received_count')
         reactions_given_counts = reactions_df.groupby('reacting_username').size().reset_index(name='reactions_given_count')
@@ -507,12 +560,12 @@ class ChatCommands:
         filtered_df.index = filtered_df.index.to_timestamp()
         return filtered_df
 
-    def generate_plot(self, df, selected_for_grouping: list, grouping_col: str, x_col: str, y_col: str, title: str, x_label='time', y_label='value'):
+    def generate_plot(self, df, selected_for_grouping: list, grouping_col: str, x_col: str, y_col: str, title: str, x_label='time', y_label='value', chart_type=ChartType.MIXED):
         preprocessed_df = self.preprocess_df_for_ploting(df, grouping_col, selected_for_grouping, x_col)
         if len(selected_for_grouping) == 1:
             self.generate_mean_plot(preprocessed_df, y_col)
         else:
-            self.generate_grouped_plot(preprocessed_df, x_col, y_col, grouping_col)
+            self.generate_grouped_plot(preprocessed_df, x_col, y_col, grouping_col, chart_type=chart_type)
 
         plt.title(title)
         plt.xlabel(x_label)
@@ -541,10 +594,10 @@ class ChatCommands:
         monthly_data.index = monthly_data.index - pd.offsets.Day(15)
         monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
 
-    def generate_grouped_plot(self, df, x_col, y_col, grouping_col):
+    def generate_grouped_plot(self, df, x_col, y_col, grouping_col, chart_type):
         cmap = plt.get_cmap("tab20")
         days_diff = (max(df.index) - min(df.index)).days
-        if days_diff > 90:  # line chart
+        if days_diff > 90 or chart_type == ChartType.LINE:  # line chart
             fig, ax = plt.subplots()
             for i, (key, grp) in enumerate(df.groupby([grouping_col])):
                 grp = grp[y_col].resample('W').mean() if days_diff > 180 else grp[y_col]

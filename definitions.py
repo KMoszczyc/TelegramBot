@@ -142,3 +142,9 @@ class NamedArgType(Enum):
     SHORT = 'short'
     NORMAL = 'normal'
     NONE = 'none'
+
+
+class ChartType(Enum):
+    LINE = 'line'
+    BAR = 'bar'
+    MIXED = 'mixed'

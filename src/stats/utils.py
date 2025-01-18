@@ -11,7 +11,7 @@ from datetime import timezone, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE, DatetimeFormat
 from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args, merge_spaced_args
 from src.models.command_args import CommandArgs
 
@@ -191,7 +191,7 @@ def filter_df_in_range(df: pd.DataFrame, start_dt: datetime, end_dt: datetime) -
     return df[(df['timestamp'] >= start_dt) & (df['timestamp'] < end_dt)]
 
 
-def filter_by_time_df(df, command_args):
+def filter_by_time_df(df, command_args, time_column='timestamp'):
     today_dt = get_today_midnight_dt()
     period_mode, period_time = command_args.period_mode, command_args.period_time
 
@@ -199,23 +199,27 @@ def filter_by_time_df(df, command_args):
     match period_mode:
         case PeriodFilterMode.HOUR:
             log.info(f"UTC dt {period_time} hours ago: {get_past_hr_dt(period_time)}")
-            return df[df['timestamp'] >= get_past_hr_dt(period_time)]
+            return df[df[time_column] >= get_past_hr_dt(period_time)]
         case PeriodFilterMode.TODAY:
-            return df[df['timestamp'] >= today_dt]
+            return df[df[time_column] >= today_dt]
         case PeriodFilterMode.YESTERDAY:
-            return df[(df['timestamp'] >= today_dt - timedelta(days=1)) & (df['timestamp'] < today_dt)]
+            return df[(df[time_column] >= today_dt - timedelta(days=1)) & (df[time_column] < today_dt)]
         case PeriodFilterMode.WEEK:
-            return df[df['timestamp'] >= today_dt - timedelta(days=7)]
+            return df[df[time_column] >= today_dt - timedelta(days=7)]
         case PeriodFilterMode.MONTH:
-            return df[df['timestamp'] >= today_dt - timedelta(days=30)]
+            return df[df[time_column] >= today_dt - timedelta(days=30)]
         case PeriodFilterMode.YEAR:
-            return df[df['timestamp'] >= today_dt - timedelta(days=365)]
+            return df[df[time_column] >= today_dt - timedelta(days=365)]
         case PeriodFilterMode.TOTAL:
             return df.copy(deep=True)
         case PeriodFilterMode.DATE:
-            return df[df['timestamp'].dt.date == command_args.dt.date()]
+            return df[df[time_column].dt.date == command_args.dt.date()]
         case PeriodFilterMode.DATE_RANGE:
-            return df[(df['timestamp'] >= command_args.start_dt) & (df['timestamp'] <= command_args.end_dt)]
+            if command_args.dt_format == DatetimeFormat.DATE:
+                return df[(df[time_column] >= command_args.start_dt) & (df[time_column] <= command_args.end_dt + timedelta(days=1))]
+            else:
+                return df[(df[time_column] >= command_args.start_dt) & (df[time_column] <= command_args.end_dt)]
+
 
 
 def filter_by_shifted_time_df(df, command_args):
