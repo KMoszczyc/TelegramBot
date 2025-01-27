@@ -12,6 +12,7 @@ handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 lastmessages - (username, number[optional]) display last x messages from chat history
 likechart - (username[optional], period[optional]) display number of reactions received per day per user
+monologuechart - (username[optional], period[optional], --acc) calculate monologue index (acc stands for accumulative, meaning it's counted from the beginning no matter the filter period)
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
 sadmemes - (username[optional], period[optional]) top sad memes (images) sorted by a number of reactions
 sadmessages - (username[optional], period[optional]) top sad messages sorted by a number of reactions, filtered on negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
