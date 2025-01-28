@@ -4,7 +4,6 @@ from datetime import datetime
 import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
-import schedule
 
 from src.core.command_logger import CommandLogger
 from src.models.bot_state import BotState

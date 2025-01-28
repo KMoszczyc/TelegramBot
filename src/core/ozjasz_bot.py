@@ -9,7 +9,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import src.core.misc_commands as commands
 from src.core.command_logger import CommandLogger
-from src.core.bot_scheduler import BotScheduler
 from src.models.bot_state import BotState
 from src.stats.chat_commands import ChatCommands
 from definitions import EmojiType, MessageType

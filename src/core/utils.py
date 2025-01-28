@@ -6,11 +6,9 @@ import random
 import re
 import sys
 from datetime import datetime, timedelta
-from typing import Tuple, Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import schedule
 
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat
 from src.models.command_args import CommandArgs
