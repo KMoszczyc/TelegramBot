@@ -86,7 +86,10 @@ class PeriodFilterMode(Enum):
       - total
     """
     TODAY = 'today'
+    SECOND='second'
+    MINUTE = 'minute'
     HOUR = 'hour'
+    DAY = 'day'
     YESTERDAY = 'yesterday'
     WEEK = 'week'
     MONTH = 'month'

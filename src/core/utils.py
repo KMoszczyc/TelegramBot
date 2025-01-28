@@ -5,11 +5,12 @@ import logging
 import random
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Tuple, Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import schedule
 
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat
 from src.models.command_args import CommandArgs
@@ -58,6 +59,7 @@ def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs
     command_args.joined_args = ' '.join(command_args.args)
     command_args.joined_args_lower = ' '.join(command_args.args).lower()
     command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
+    command_args.error = get_error(command_args)
 
     return command_args
 
@@ -235,7 +237,7 @@ def parse_named_args(users_df, command_args_ref: CommandArgs):
     command_args = copy.deepcopy(command_args_ref)
     command_args.args = [arg.replace('—', '--') for arg in command_args.args]
     if not command_args.available_named_args_aliases:
-        command_args.available_named_args_aliases = {arg[0]:arg for arg in command_args.available_named_args}
+        command_args.available_named_args_aliases = {arg[0]: arg for arg in command_args.available_named_args}
     args = copy.deepcopy(command_args.args)
     for i, arg in enumerate(args):
         named_arg = parse_named_arg(arg, command_args)
@@ -288,9 +290,22 @@ def parse_period(command_args, arg_str) -> CommandArgs:
 
     period_mode_str = arg_str
     try:
-        if 'h' in arg_str and has_numbers(arg_str):
+        if 's' in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace('s', ''), positive_only=True)
+            period_mode_str = 'second'
+        elif 'm' in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace('m', ''), positive_only=True)
+            period_mode_str = 'minute'
+        elif 'h' in arg_str and has_numbers(arg_str):
             command_args.period_time, error = parse_int(arg_str.replace('h', ''), positive_only=True)
             period_mode_str = 'hour'
+        elif 'd' in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace('d', ''), positive_only=True)
+            period_mode_str = 'day'
+        elif 'w' in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace('w', ''), positive_only=True)
+            period_mode_str = 'week'
+
         if error == '':
             command_args.period_mode = PeriodFilterMode(period_mode_str)
 
@@ -302,7 +317,6 @@ def parse_period(command_args, arg_str) -> CommandArgs:
             command_args.period_mode = PeriodFilterMode.DATE
 
         command_args.parse_error = error
-
     except ValueError:
         command_args.parse_error = f"There is no such time period as {arg_str}."
         command_args.errors.append(command_args.parse_error)
@@ -313,6 +327,8 @@ def parse_period(command_args, arg_str) -> CommandArgs:
         command_args.period_mode = PeriodFilterMode.ERROR
     else:
         command_args.errors.append('')
+
+    command_args.error = get_error(command_args)
     return command_args
 
 
@@ -497,6 +513,7 @@ def text_to_number(text):
     numbers = [ord(character) for character in text]
     return sum(numbers)
 
+
 def generate_period_headline(command_args):
     match command_args.period_mode:
         case PeriodFilterMode.HOUR:
@@ -507,3 +524,34 @@ def generate_period_headline(command_args):
             return f"{command_args.start_dt.strftime(command_args.dt_format.value)} - {command_args.end_dt.strftime(command_args.dt_format.value)}"
         case _:
             return command_args.period_mode.value
+
+
+def get_dt_now():
+    return datetime.now(ZoneInfo(TIMEZONE))
+
+
+def period_offset_to_dt(command_args):
+    dt_now = get_dt_now()
+    match command_args.period_mode:
+        case PeriodFilterMode.SECOND:
+            return dt_now + timedelta(seconds=command_args.period_time), ''
+        case PeriodFilterMode.MINUTE:
+            return dt_now + timedelta(minutes=command_args.period_time), ''
+        case PeriodFilterMode.HOUR:
+            return dt_now + timedelta(hours=command_args.period_time), ''
+        case PeriodFilterMode.DAY:
+            return dt_now + timedelta(days=command_args.period_time), ''
+        case PeriodFilterMode.WEEK:
+            return dt_now + timedelta(weeks=command_args.period_time), ''
+        case PeriodFilterMode.DATE:
+            return command_args.dt, ''
+        case _:
+            return None, 'Wrong period offset. Use one of the following: second, minute, hour, day, week, date'
+
+
+async def send_response_message(context, update, message):
+    await context.bot.send_message(chat_id=update.effective_chat.id, reply_to_message_id=update.message.message_id, text=message)
+
+
+def dt_to_pretty_str(dt):
+    return dt.strftime("%d-%m-%Y %H:%M:%S")

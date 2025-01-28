@@ -9,6 +9,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import src.core.misc_commands as commands
 from src.core.command_logger import CommandLogger
+from src.core.bot_scheduler import BotScheduler
 from src.models.bot_state import BotState
 from src.stats.chat_commands import ChatCommands
 from definitions import EmojiType, MessageType
@@ -56,6 +57,7 @@ class OzjaszBot:
             'bible': lambda update, context: self.core_commands.cmd_bible(update, context, self.bot_state),
             'handlowa': self.core_commands.cmd_show_shopping_sundays,
             'biblestats': self.core_commands.cmd_bible_stats,
+            'remindme': self.core_commands.cmd_remind_me,
             'commands': self.chat_commands.cmd_command_usage,
             'summary': self.chat_commands.cmd_summary,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
