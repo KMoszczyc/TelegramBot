@@ -51,15 +51,86 @@ def preprocess_input(users_df: pd.DataFrame, command_args: CommandArgs):
     return filtered_phrases
 
 
-def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs:
+# def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs:
+#     command_args = merge_spaced_args(command_args)
+#     command_args = parse_named_args(users_df, command_args)
+#     command_args.joined_args = ' '.join(command_args.args)
+#     command_args.joined_args_lower = ' '.join(command_args.args).lower()
+#     command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
+#     command_args.error = get_error(command_args)
+#
+#     return command_args
+
+def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
+    """
+    A function to parse arguments and return a tuple with period mode, mode time, user, and error.
+    Parameters:
+        users_df: DataFrame - The DataFrame containing user data.
+        command_args: CommandArgs - Dataclass with the command arguments related data
+
+    Returns:
+        command_args: Dataclass with the command arguments related data
+    """
     command_args = merge_spaced_args(command_args)
     command_args = parse_named_args(users_df, command_args)
     command_args.joined_args = ' '.join(command_args.args)
-    command_args.joined_args_lower = ' '.join(command_args.args).lower()
+    if command_args.args_with_spaces:
+        command_args.args = [command_args.joined_args]
+
+    args_num = len(command_args.args)
+    expected_args_num = len(command_args.expected_args)
+    print('args_num', args_num, expected_args_num)
+    if args_num != expected_args_num:
+        command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
+        return command_args
+
+    # Handle optional args
+    command_args, success = handle_optional_args(users_df, command_args)
+    if not success:
+        command_args.error = get_error(command_args)
+        return command_args
+
+    # Parse args
+    for i, arg in enumerate(command_args.args):
+        print('command_args', command_args)
+        arg_type = command_args.handled_expected_args[i]
+        _, command_args = parse_arg(users_df, command_args, arg, arg_type)
+
     command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
     command_args.error = get_error(command_args)
-
     return command_args
+
+
+def handle_optional_args(users_df, command_args_ref: CommandArgs):
+    """Handle optional arguments like Period or User."""
+    if len(command_args_ref.args) == 0 or len(command_args_ref.args) == len(command_args_ref.expected_args) or sum(command_args_ref.optional) == 0:
+        command_args_ref.handled_expected_args = command_args_ref.expected_args
+        return command_args_ref, True
+
+    command_args = copy.deepcopy(command_args_ref)
+    successes = []
+    expected_args = command_args.expected_args.copy()
+    handled_expected_args = command_args.expected_args.copy()
+    for i, arg_type in enumerate(expected_args):
+        if not command_args.optional[i]:
+            continue
+
+        for arg in command_args.args:
+            _, command_args = parse_arg(users_df, command_args, arg, arg_type)
+
+            if command_args.errors[-1] != '':
+                handled_expected_args.remove(arg_type)
+                successes.append(False)
+            else:
+                successes.append(True)
+
+    if sum(successes) == len(command_args.args):
+        log.info("All optional args were parsed successfully.")
+        command_args_ref.handled_expected_args = handled_expected_args
+        return command_args_ref, True
+
+    log.info("None of the optional args were parsed successfully, despite there being an argument send by user.")
+    return command_args, False
 
 
 def merge_spaced_args(command_args: CommandArgs):

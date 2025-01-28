@@ -207,19 +207,19 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_remind_me(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.STRING], optional=[False, False], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
-        command_args = core_utils.parse_period(command_args, command_args.args[0])
-        message = command_args.args[1]
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
+        print(command_args)
 
         dt, error = core_utils.period_offset_to_dt(command_args)
         if error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
             return
 
-        context.job_queue.run_once(callback=lambda context: core_utils.send_response_message(context, update, message), when=dt)
+
+        context.job_queue.run_once(callback=lambda context: core_utils.send_response_message(context, update, command_args.string), when=dt)
         response = f"You're gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
