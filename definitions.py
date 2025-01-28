@@ -53,6 +53,7 @@ CLEANED_CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/cleaned_chat_history.pa
 REACTIONS_PATH = os.path.join(DATA_DIR, 'chat/reactions.parquet')
 USERS_PATH = os.path.join(DATA_DIR, 'chat/users.parquet')
 COMMANDS_USAGE_PATH = os.path.join(DATA_DIR, 'chat/commands_usage.parquet')
+SCHEDULED_JOBS_PATH = os.path.join(DATA_DIR, 'chat/scheduled_jobs.pkl')
 
 # Miscalenous
 TVP_HEADLINES_PATH = os.path.join(DATA_DIR, 'misc/paski-tvp.txt')

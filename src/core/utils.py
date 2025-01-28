@@ -618,8 +618,9 @@ def period_offset_to_dt(command_args):
             return None, 'Wrong period offset. Use one of the following: second, minute, hour, day, week, date'
 
 
-async def send_response_message(context, update, message):
-    await context.bot.send_message(chat_id=update.effective_chat.id, reply_to_message_id=update.message.message_id, text=message)
+async def send_response_message(context, chat_id, message_id, message):
+    print(context)
+    await context.bot.send_message(chat_id=chat_id, reply_to_message_id=message_id, text=message)
 
 
 def dt_to_pretty_str(dt):

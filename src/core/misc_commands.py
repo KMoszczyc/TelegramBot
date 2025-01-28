@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from src.core.command_logger import CommandLogger
+from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help
@@ -16,8 +17,9 @@ log = logging.getLogger(__name__)
 
 
 class Commands:
-    def __init__(self, command_logger: CommandLogger):
+    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance):
         self.command_logger = command_logger
+        self.job_persistance = job_persistance
         self.users_df = stats_utils.read_df(USERS_PATH)
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -220,6 +222,10 @@ class Commands:
             return
 
 
-        context.job_queue.run_once(callback=lambda context: core_utils.send_response_message(context, update, command_args.string), when=dt)
+        # context.job_queue.run_once(callback=lambda context: core_utils.send_response_message(context, update, command_args.string), when=dt)
+        # context.job_queue.run_once(callback=lambda context: core_utils.send_response_message(context, update.effective_chat.id, update.message.message_id, command_args.string), when=dt)
+        # print(context.job_queue.jobs())
+
+        self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, update.message.message_id, command_args.string])
         response = f"You're gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)

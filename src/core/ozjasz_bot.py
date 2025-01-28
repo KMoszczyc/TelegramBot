@@ -1,4 +1,5 @@
 import os
+import pickle
 from functools import wraps
 
 from dotenv import load_dotenv
@@ -9,9 +10,10 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import src.core.misc_commands as commands
 from src.core.command_logger import CommandLogger
+from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.stats.chat_commands import ChatCommands
-from definitions import EmojiType, MessageType
+from definitions import EmojiType, MessageType, SCHEDULED_JOBS_PATH
 import src.core.utils as core_utils
 
 load_dotenv()
@@ -25,13 +27,15 @@ log = logging.getLogger(__name__)
 class OzjaszBot:
     def __init__(self):
         log.info('Starting Ozjasz bot...')
+        self.application = ApplicationBuilder().token(TOKEN).build()
 
         self.bot_state = BotState()
+        self.job_persistance = JobPersistance(self.application.job_queue)
+
         self.command_logger = CommandLogger(self.bot_state)
-        self.core_commands = commands.Commands(self.command_logger)
+        self.core_commands = commands.Commands(self.command_logger, self.job_persistance)
         self.chat_commands = ChatCommands(self.command_logger)
 
-        self.application = ApplicationBuilder().token(TOKEN).build()
         self.add_commands()
         self.application.run_polling()
 
