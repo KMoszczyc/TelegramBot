@@ -211,6 +211,7 @@ class Commands:
     async def cmd_remind_me(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.STRING], optional=[False, False], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
+        print(command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return

@@ -151,7 +151,8 @@ def merge_spaced_args(command_args: CommandArgs):
             current_spaced_args.append(arg)
         else:
             new_args.append(arg)
-
+    if len(current_spaced_args) == 1:
+        new_args.append(current_spaced_args[0])
     command_args.args = new_args
 
     return command_args

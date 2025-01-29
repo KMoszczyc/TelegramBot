@@ -22,7 +22,7 @@ class JobPersistance:
         for job_id, _ in self.jobs.items():
             self.run_job(job_queue, job_id)
 
-        # print(self.jobs)
+        print(self.jobs)
 
         return self.jobs
 
@@ -39,11 +39,12 @@ class JobPersistance:
         self.save_jobs()
 
     def save_jobs(self):
-        # print('saving jobs', self.jobs)
+        print('saving jobs', self.jobs)
         with open(SCHEDULED_JOBS_PATH, 'wb') as f:
             pickle.dump(self.jobs, f)
 
     def sync_jobs(self, job_queue):
+        """TODO: possible issue here"""
         latest_job_id = self.get_latest_job_id(job_queue)
         self.jobs[latest_job_id] = self.jobs.pop(0)
         new_jobs = {}
