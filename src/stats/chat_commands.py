@@ -52,7 +52,7 @@ class ChatCommands:
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
         self.update()
 
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             return self.chat_df, self.reactions_df, command_args
 
@@ -269,8 +269,8 @@ class ChatCommands:
 
     async def cmd_add_nickname(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=20, label='Nickname')
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], is_text_arg=True, min_string_length=3, max_string_length=20, label='Nickname')
+        command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -296,8 +296,8 @@ class ChatCommands:
 
     async def cmd_set_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], args_with_spaces=True, min_string_length=3, max_string_length=MAX_USERNAME_LENGTH, label='Username')
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], is_text_arg=True, min_string_length=3, max_string_length=MAX_USERNAME_LENGTH, label='Username')
+        command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -325,7 +325,7 @@ class ChatCommands:
 
     async def cmd_fun(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -343,7 +343,7 @@ class ChatCommands:
 
     async def cmd_wholesome(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -446,7 +446,7 @@ class ChatCommands:
 
     async def cmd_command_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
 
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -465,7 +465,7 @@ class ChatCommands:
 
     async def cmd_command_usage_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, available_named_args={'user': ArgType.USER, 'period': ArgType.PERIOD, 'command': ArgType.STRING})
-        command_args = stats_utils.parse_args(self.users_df, command_args)
+        command_args = core_utils.parse_args(self.users_df, command_args)
 
         if 'command' in command_args.named_args and command_args.named_args['command'] not in self.command_logger.get_commands():
             command_args.error += f'Command "{command_args.named_args["command"]}" does not exist.'

@@ -33,7 +33,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="Markdown")
 
     async def cmd_ozjasz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases)
+        command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -43,7 +43,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_bartosiak(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=bartosiak_phrases)
+        command_args = CommandArgs(args=context.args, phrases=bartosiak_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -54,7 +54,7 @@ class Commands:
 
     async def cmd_tvp(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         merged_headlines = tvp_latest_headlines + tvp_headlines
-        command_args = CommandArgs(args=context.args, phrases=merged_headlines)
+        command_args = CommandArgs(args=context.args, phrases=merged_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -65,7 +65,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_tvp_latest(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=tvp_latest_headlines)
+        command_args = CommandArgs(args=context.args, phrases=tvp_latest_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -76,7 +76,7 @@ class Commands:
 
     async def cmd_tusk(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         tusk_headlines = [headline for headline in tvp_headlines if 'tusk' in headline.lower()]
-        command_args = CommandArgs(args=context.args, phrases=tusk_headlines)
+        command_args = CommandArgs(args=context.args, phrases=tusk_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -86,7 +86,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_are_you_lucky_today(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args)
+        command_args = CommandArgs(args=context.args, is_text_arg=True)
         command_args = core_utils.parse_args(self.users_df, command_args)
 
         args_provided = command_args.joined_args != ''
@@ -214,7 +214,6 @@ class Commands:
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
-        print(command_args)
 
         dt, error = core_utils.period_offset_to_dt(command_args)
         if error != '':

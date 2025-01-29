@@ -31,7 +31,7 @@ class CommandArgs:
     max_string_length: int = 20
     label: str = ''
     number_limit: int = 100
-    args_with_spaces: bool = False
+    is_text_arg: bool = False
     period_error: str = ''
     user_error: str = ''
     parse_error: str = ''

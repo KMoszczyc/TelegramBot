@@ -47,8 +47,8 @@ def save_df(df, path):
 
 def preprocess_input(users_df: pd.DataFrame, command_args: CommandArgs):
     command_args = parse_args(users_df, command_args)
-    filtered_phrases = filter_phrases(command_args)
-    return filtered_phrases
+    filtered_phrases, command_args = filter_phrases(command_args)
+    return filtered_phrases, command_args
 
 
 # def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs:
@@ -74,13 +74,15 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     command_args = merge_spaced_args(command_args)
     command_args = parse_named_args(users_df, command_args)
     command_args.joined_args = ' '.join(command_args.args)
-    if command_args.args_with_spaces:
+    command_args.joined_args_lower = ' '.join(command_args.args).lower()
+    if command_args.is_text_arg:
         command_args.args = [command_args.joined_args]
+        command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
+        return command_args
 
     args_num = len(command_args.args)
     expected_args_num = len(command_args.expected_args)
-    print('args_num', args_num, expected_args_num)
-    if args_num != expected_args_num:
+    if not command_args.optional and args_num != expected_args_num:
         command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
         return command_args
 
@@ -92,11 +94,9 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
 
     # Parse args
     for i, arg in enumerate(command_args.args):
-        print('command_args', command_args)
         arg_type = command_args.handled_expected_args[i]
         _, command_args = parse_arg(users_df, command_args, arg, arg_type)
 
-    command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
     command_args.error = get_error(command_args)
     return command_args
 
@@ -619,7 +619,6 @@ def period_offset_to_dt(command_args):
 
 
 async def send_response_message(context, chat_id, message_id, message):
-    print(context)
     await context.bot.send_message(chat_id=chat_id, reply_to_message_id=message_id, text=message)
 
 

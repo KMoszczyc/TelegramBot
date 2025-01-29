@@ -22,17 +22,39 @@ class JobPersistance:
         for job_id, _ in self.jobs.items():
             self.run_job(job_queue, job_id)
 
+        # print(self.jobs)
+
         return self.jobs
 
     def save_job(self, job_queue, dt, func, args):
-        job_id = self.get_new_job_id()
-        self.jobs[job_id] = {'dt': dt, 'func': func, 'args': args}
-        self.run_job(job_queue, job_id)
+        # job_id = self.get_new_job_id()
+        placeholder_id=0
+        self.jobs[placeholder_id] = {'dt': dt, 'func': func, 'args': args}
+        self.run_job(job_queue, placeholder_id)
+        # print('job_queue', job_queue.jobs())
+        # print('before', self.jobs)
+        self.sync_jobs(job_queue)
+        # print('after', self.jobs)
+
         self.save_jobs()
 
     def save_jobs(self):
+        # print('saving jobs', self.jobs)
         with open(SCHEDULED_JOBS_PATH, 'wb') as f:
             pickle.dump(self.jobs, f)
+
+    def sync_jobs(self, job_queue):
+        latest_job_id = self.get_latest_job_id(job_queue)
+        self.jobs[latest_job_id] = self.jobs.pop(0)
+        new_jobs = {}
+        for job in job_queue.jobs():
+            if job.id in self.jobs:
+                new_jobs[job.id] = self.jobs[job.id]
+
+        self.jobs = new_jobs
+
+    def get_latest_job_id(self, job_queue):
+        return job_queue.jobs()[-1].id
 
     def get_new_job_id(self):
         return max(self.jobs.keys()) + 1 if self.jobs else 0
