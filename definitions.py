@@ -65,6 +65,7 @@ COMMANDS_PATH = os.path.join(DATA_DIR, 'misc/commands.txt')
 ARGUMENTS_HELP_PATH = os.path.join(DATA_DIR, 'misc/arguments_help.txt')
 BIBLE_PATH = os.path.join(DATA_DIR, 'misc/bible.parquet')
 SHOPPING_SUNDAYS_PATH = os.path.join(DATA_DIR, 'misc/niedziele.txt')
+EUROPEJSKAFIRMA_PATH = os.path.join(DATA_DIR, 'misc/europejskafirma.txt')
 
 # Load text files with funny phrases
 tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
@@ -75,6 +76,7 @@ commands = read_str_file(COMMANDS_PATH)
 arguments_help = read_str_file(ARGUMENTS_HELP_PATH)
 bible_df = pd.read_parquet(BIBLE_PATH)
 shopping_sundays = read_str_file(SHOPPING_SUNDAYS_PATH)
+europejskafirma_phrases = read_str_file(EUROPEJSKAFIRMA_PATH)
 
 
 class PeriodFilterMode(Enum):

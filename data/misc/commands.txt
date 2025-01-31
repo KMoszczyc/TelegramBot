@@ -6,6 +6,7 @@ biblestats - show bible data
 commands - username[optional], period[optional]) - display OzjaszBot's command usage
 commandschart - (--command, --period, --user) - display OzjaszBot's command usage chart
 displayusers - just display all existing users on the chat and their nicknames
+europejskafirma - text_filter or [regex] - Best of our favourite twitter shitposter @europejskafirma (Jerzy Krajewski)
 fun - (period[optional]) fun metric for all users
 funchart - (username[optional], period[optional]) fun metric chart
 handlowa - (--all) shopping sundays in Poland

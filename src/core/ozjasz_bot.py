@@ -51,6 +51,7 @@ class OzjaszBot:
         return {
             'all': self.core_commands.cmd_all,
             'ozjasz': self.core_commands.cmd_ozjasz,
+            'europejskafirma': self.core_commands.cmd_europejskafirma,
             'bartosiak': self.core_commands.cmd_bartosiak,
             'tvp': self.core_commands.cmd_tvp,
             'tvp_latest': self.core_commands.cmd_tvp_latest,
