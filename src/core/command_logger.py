@@ -52,8 +52,9 @@ class CommandLogger:
         return command_df
 
     def preprocess_data(self, users_df, command_args: CommandArgs):
-        filtered_df = filter_by_time_df(self.command_usage_df, command_args)
+        filtered_df = self.command_usage_df.copy()
         filtered_df['username'] = filtered_df.merge(users_df[['final_username']], on='user_id', how='left')['final_username']
+        filtered_df = filter_by_time_df(filtered_df, command_args)
         filtered_df['timestamp'] = pd.to_datetime(filtered_df['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
 
         if command_args.user is not None:
