@@ -115,7 +115,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
-        command_args = CommandArgs(args=context.args,
+        command_args = CommandArgs(args=context.args, is_text_arg=True,
                                    available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
                                                          'book': ArgType.STRING, 'chapter': ArgType.POSITIVE_INT},
                                    available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'b': 'book', 'ch': 'chapter'})
