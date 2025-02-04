@@ -467,8 +467,9 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, available_named_args={'user': ArgType.USER, 'period': ArgType.PERIOD, 'command': ArgType.STRING})
         command_args = core_utils.parse_args(self.users_df, command_args)
 
-        if 'command' in command_args.named_args and command_args.named_args['command'] not in self.command_logger.get_commands():
-            command_args.error += f'Command "{command_args.named_args["command"]}" does not exist.'
+        command = command_args.named_args['command'] if 'command' in command_args.named_args else ''
+        if command != '' and command not in self.command_logger.get_commands():
+            command_args.error += f'Command "{command}" does not exist.'
 
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -477,10 +478,15 @@ class ChatCommands:
         text = self.generate_response_headline(command_args, label='Command usage chart')
         command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
 
-        commands = command_usage_df['command_name'].unique() if command_args.string == '' else [command_args.string]
+        commands = command_usage_df['command_name'].unique() if command == '' else command
+        users = self.users_df['final_username'].unique()
         command_usage_df['period'] = command_usage_df['timestamp'].dt.to_period('D')
-        command_usage_counts = command_usage_df.groupby(['period', 'command_name']).size().unstack(fill_value=0).stack().reset_index(name='command_count')
-        path = self.generate_plot(command_usage_counts, commands, 'command_name', 'period', 'command_count', text, x_label='time', y_label='command usage daily')
+
+        grouping_col = 'username' if command != '' else 'command_name'
+        selected_for_grouping = users if command != '' else commands
+
+        command_usage_counts = command_usage_df.groupby(['period', grouping_col]).size().unstack(fill_value=0).stack().reset_index(name='command_count')
+        path = self.generate_plot(command_usage_counts, selected_for_grouping, grouping_col, 'period', 'command_count', text, x_label='time', y_label='command usage daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)

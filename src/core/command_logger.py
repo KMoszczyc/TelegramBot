@@ -18,6 +18,7 @@ class CommandLogger:
     def __init__(self, bot_state):
         self.bot_state = bot_state
         self.command_usage_df = self.load_data()
+        self.commands = []
 
     def count_command(self, command_name):
         """Decorator to log command executions and timestamps."""
@@ -47,6 +48,7 @@ class CommandLogger:
             command_df = pd.DataFrame(columns=['timestamp', 'user_id', 'command_name'])
 
         command_df['timestamp'] = pd.to_datetime(command_df['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
+        self.commands = command_df['command_name'].unique().tolist()
         return command_df
 
     def preprocess_data(self, users_df, command_args: CommandArgs):
@@ -56,8 +58,18 @@ class CommandLogger:
 
         if command_args.user is not None:
             filtered_df = filtered_df[filtered_df['username'] == command_args.user]
+
+        if 'command' in command_args.named_args and command_args.named_args['command']:
+            filtered_df = filtered_df[filtered_df['command_name'] == command_args.named_args['command']]
         return filtered_df
 
+    def parse_command(self, command: str) -> tuple[bool, str]:
+        if command is None:
+            return False, ''
+
+        if command in self.commands:
+            return True, command
+        return False, f'Command {command} does not exist.'
 
     def get_commands(self) -> list:
         return self.command_usage_df['command_name'].unique().tolist()
