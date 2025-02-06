@@ -57,6 +57,12 @@ users_schema = pa.DataFrameSchema({
     'nicknames': pa.Column(object, nullable=True)  # list (nullable)
 }, index=pa.Index(int, name="user_id"), name="users")
 
+# 5. Bot messages whitelisted Schema
+bot_whitelisted_messages_schema = pa.DataFrameSchema({
+    'message_id': pa.Column(int)
+}, name="messages_whitelisted")
+
+
 #
 # chat_history_schema = {
 #     'message_id': "int64",

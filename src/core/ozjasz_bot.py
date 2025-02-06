@@ -42,7 +42,7 @@ class OzjaszBot:
     def add_commands(self):
         commands_map = self.get_commands_map()
         validated_commands_map = {command_name: self.validate_command()(func) for command_name, func in commands_map.items()}  # Validate chat_id via decorator
-        counted_commands_map = {command_name: self.command_logger.count_command(command_name)(func) for command_name, func in validated_commands_map.items()}  # Apply the command counter decorator
+        counted_commands_map = {command_name: self.command_logger.log_command(command_name)(func) for command_name, func in validated_commands_map.items()}  # Apply the command counter decorator
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)

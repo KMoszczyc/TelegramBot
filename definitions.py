@@ -53,6 +53,7 @@ CLEANED_CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/cleaned_chat_history.pa
 REACTIONS_PATH = os.path.join(DATA_DIR, 'chat/reactions.parquet')
 USERS_PATH = os.path.join(DATA_DIR, 'chat/users.parquet')
 COMMANDS_USAGE_PATH = os.path.join(DATA_DIR, 'chat/commands_usage.parquet')
+BOT_WHITELISTED_MESSAGES_PATH = os.path.join(DATA_DIR, 'chat/bot_whitelisted_messages.parquet')
 SCHEDULED_JOBS_PATH = os.path.join(DATA_DIR, 'chat/scheduled_jobs.pkl')
 
 # Miscalenous
@@ -78,6 +79,12 @@ bible_df = pd.read_parquet(BIBLE_PATH)
 shopping_sundays = read_str_file(SHOPPING_SUNDAYS_PATH)
 europejskafirma_phrases = read_str_file(EUROPEJSKAFIRMA_PATH)
 
+whitelisted_commands_from_deletion = [
+    'ozjasz',
+    'summary',
+    'europejskafirma',
+    'starababa'
+]
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:

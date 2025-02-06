@@ -1,3 +1,4 @@
+import os
 import time
 from datetime import datetime
 from functools import wraps
@@ -11,16 +12,17 @@ from src.core.utils import read_df, save_df
 from src.models.command_args import CommandArgs
 from src.models.schemas import commands_usage_schema
 from src.stats.utils import filter_by_time_df, validate_schema
-from definitions import COMMANDS_USAGE_PATH, TIMEZONE
+from definitions import COMMANDS_USAGE_PATH, TIMEZONE, whitelisted_commands_from_deletion, BOT_WHITELISTED_MESSAGES_PATH
 
 
 class CommandLogger:
     def __init__(self, bot_state):
         self.bot_state = bot_state
-        self.command_usage_df = self.load_data()
+        self.command_usage_df = self.load_command_usage_df()
+        self.bot_whitelisted_messages_df = self.load_bot_whitelisted_messages()
         self.commands = []
 
-    def count_command(self, command_name):
+    def log_command(self, command_name):
         """Decorator to log command executions and timestamps."""
 
         def decorator(func):
@@ -29,12 +31,10 @@ class CommandLogger:
                 result = await func(update, context, *args, **kwargs)
 
                 user_id = update.effective_user.id
-                timestamp = datetime.now()
-                new_entry = pd.DataFrame([{'timestamp': timestamp, 'user_id': user_id, 'command_name': command_name}])
-                new_entry['timestamp'] = pd.to_datetime(new_entry['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
+                message_id = update.message.message_id
 
-                self.command_usage_df = pd.concat([self.command_usage_df, new_entry], ignore_index=True)
-                save_df(self.command_usage_df, COMMANDS_USAGE_PATH)
+                self.update_command_counts(user_id, command_name)
+                self.update_bot_whitelisted_messages(message_id, command_name)
 
                 return result
 
@@ -42,7 +42,29 @@ class CommandLogger:
 
         return decorator
 
-    def load_data(self):
+    def update_command_counts(self, user_id, command_name):
+        timestamp = datetime.now()
+        new_entry = pd.DataFrame([{'timestamp': timestamp, 'user_id': user_id, 'command_name': command_name}])
+        new_entry['timestamp'] = pd.to_datetime(new_entry['timestamp'], utc=True).dt.tz_convert(TIMEZONE)
+
+        self.command_usage_df = pd.concat([self.command_usage_df, new_entry], ignore_index=True)
+        save_df(self.command_usage_df, COMMANDS_USAGE_PATH)
+
+    def update_bot_whitelisted_messages(self, message_id, command_name):
+        if command_name not in whitelisted_commands_from_deletion:
+            return
+
+        new_entry = pd.DataFrame([{'message_id': message_id}])
+        self.bot_whitelisted_messages_df = pd.concat([self.bot_whitelisted_messages_df, new_entry], ignore_index=True)
+        save_df(self.bot_whitelisted_messages_df, BOT_WHITELISTED_MESSAGES_PATH)
+
+    def load_bot_whitelisted_messages(self):
+        bot_whitelisted_messages_df = read_df(BOT_WHITELISTED_MESSAGES_PATH)
+        if bot_whitelisted_messages_df is None:
+            bot_whitelisted_messages_df = pd.DataFrame(columns=['message_id'])
+        return bot_whitelisted_messages_df
+
+    def load_command_usage_df(self):
         command_df = read_df(COMMANDS_USAGE_PATH)
         if command_df is None:
             command_df = pd.DataFrame(columns=['timestamp', 'user_id', 'command_name'])

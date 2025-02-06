@@ -8,10 +8,11 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE, MessageType
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE, MessageType, \
+    BOT_WHITELISTED_MESSAGES_PATH
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
-from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema
+from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema, bot_whitelisted_messages_schema
 from src.stats.ocr import OCR
 
 load_dotenv()
@@ -237,9 +238,12 @@ class ChatETL:
         stats_utils.validate_schema(reactions_df, reactions_schema)
         core_utils.save_df(reactions_df, REACTIONS_PATH)
 
+
     def delete_bot_messages(self):
         """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
         chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
+        bot_whitelisted_messages_df = core_utils.read_df(BOT_WHITELISTED_MESSAGES_PATH)
+        bot_whitelisted_message_ids = bot_whitelisted_messages_df['message_id'].tolist()
         if chat_df is None:
             log.info('No chat history, no bot messages to delete.')
             return
@@ -250,10 +254,11 @@ class ChatETL:
         old_bot_messages_df = bot_messages_df[bot_messages_df['timestamp'] < filter_dt]
         not_liked_old_bot_messages_df = old_bot_messages_df[old_bot_messages_df['reaction_emojis'].apply(lambda x: len(x) == 0)]
 
-        log.info(f"Deleting {len(old_bot_messages_df)} bot messages older than {BOT_MESSAGE_RETENION_IN_MINUTES} minutes and without reactions.")
-        message_ids = not_liked_old_bot_messages_df['message_id'].tolist()
+        all_message_ids = not_liked_old_bot_messages_df['message_id'].tolist()
+        not_whitelisted_message_ids = [message_id for message_id in all_message_ids if message_id not in bot_whitelisted_message_ids]
+        log.info(f"Deleting {len(not_whitelisted_message_ids)} bot messages older than {BOT_MESSAGE_RETENION_IN_MINUTES} minutes and without reactions. {len(all_message_ids) - len(not_whitelisted_message_ids)} messages were whitelisted.")
 
-        self.client_api_handler.delete_messages(message_ids)
+        self.client_api_handler.delete_messages(not_whitelisted_message_ids)
 
     def cleanup_temp_dir(self):
         stats_utils.create_dir(TEMP_DIR)
@@ -264,4 +269,7 @@ class ChatETL:
 
     def validate_data(self):
         commands_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)
+        bot_whitelisted_messages_df = core_utils.read_df(BOT_WHITELISTED_MESSAGES_PATH)
+
         stats_utils.validate_schema(commands_usage_df, commands_usage_schema)
+        stats_utils.validate_schema(bot_whitelisted_messages_df, bot_whitelisted_messages_schema)
