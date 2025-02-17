@@ -16,6 +16,7 @@ likechart - (username[optional], period[optional]) display number of reactions r
 monologuechart - (username[optional], period[optional], --acc) calculate monologue index (acc stands for accumulative, meaning it's counted from the beginning no matter the filter period)
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
 remindme - (period, text) - remind me of something in the future
+remind - (period, user, text) - remind a given user of something in the future
 sadmemes - (username[optional], period[optional]) top sad memes (images) sorted by a number of reactions
 sadmessages - (username[optional], period[optional]) top sad messages sorted by a number of reactions, filtered on negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
 setusername - (new_username) set your new username
