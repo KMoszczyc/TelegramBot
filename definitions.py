@@ -89,7 +89,7 @@ class PeriodFilterMode(Enum):
       - total
     """
     TODAY = 'today'
-    SECOND='second'
+    SECOND = 'second'
     MINUTE = 'minute'
     HOUR = 'hour'
     DAY = 'day'
@@ -127,6 +127,7 @@ class ArgType(Enum):
     USER = 'user'
     PERIOD = 'period'
     TEXT = 'text'
+    TEXT_MULTISPACED = 'text_multispaced'  # use only as the last argument!
     REGEX = 'regex'
     NUMBER = 'number'
     STRING = 'string'

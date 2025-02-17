@@ -93,8 +93,8 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
         return command_args
 
     # Parse args
-    for i, arg in enumerate(command_args.args):
-        arg_type = command_args.handled_expected_args[i]
+    for i, arg_type in enumerate(command_args.handled_expected_args):
+        arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
         _, command_args = parse_arg(users_df, command_args, arg, arg_type)
 
     command_args.error = get_error(command_args)
@@ -295,7 +295,7 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> tuple[s
             command_args = parse_period(command_args, arg_str)
         case ArgType.POSITIVE_INT:
             value, command_args = parse_number(command_args, arg_str, positive_only=True)
-        case ArgType.STRING:
+        case ArgType.STRING | ArgType.TEXT | ArgType.TEXT_MULTISPACED:
             value, command_args = parse_string(command_args, arg_str)
         case _:
             command_args = command_args
