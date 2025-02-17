@@ -447,8 +447,10 @@ def parse_user(users_df, command_args, arg_str) -> CommandArgs:
 
     if not exact_matching_users.empty:
         command_args.user = exact_matching_users.iloc[0]['final_username']
+        command_args.user_id = exact_matching_users.index[0]
     elif len(user_str) >= 3 and not partially_matching_users.empty:
         command_args.user = partially_matching_users.iloc[0]['final_username']
+        command_args.user_id = partially_matching_users.index[0]
     else:
         error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
         command_args.errors.append(error)

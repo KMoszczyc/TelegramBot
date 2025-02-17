@@ -87,6 +87,7 @@ def escape_special_characters(text):
 def contains_stopwords(s, stopwords):
     return any(word in stopwords for word in s.split())
 
+
 def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
     command_args = dataclasses.replace(command_args_ref)
     match arg_type:
@@ -149,7 +150,6 @@ def filter_by_time_df(df, command_args, time_column='timestamp'):
                 return df[(df[time_column] >= command_args.start_dt) & (df[time_column] <= command_args.end_dt + timedelta(days=1))]
             else:
                 return df[(df[time_column] >= command_args.start_dt) & (df[time_column] <= command_args.end_dt)]
-
 
 
 def filter_by_shifted_time_df(df, command_args):
@@ -247,8 +247,10 @@ def check_new_username(users_df, new_username):
 
     return True, ''
 
+
 def are_text_characters_allowed(text, characters_filter):
     return all(c in characters_filter for c in text)
+
 
 def is_alpha_numeric(text):
     return any(not c.isalnum() for c in text)
@@ -274,13 +276,24 @@ def generate_random_filename(extension):
 def username_to_user_id(users_df, username):
     return users_df[users_df['final_username'] == username].iloc[0]['user_id']
 
+
 def is_list_column(series):
     return series.apply(lambda x: isinstance(x, list)).all()
 
+
 def is_string_column(series):
     return series.apply(lambda x: isinstance(x, str)).all()
+
 
 def validate_schema(df, schema):
     log.info(f'Validating schema: {schema.name}')
     if df is not None and not df.empty:
         schema(df)
+
+
+def get_last_message_id_of_a_user(df, user_id) -> [int, str]:
+    messages_by_user_df = df[df['user_id'] == user_id]
+    if messages_by_user_df.empty:
+        return None, 'This user exists but has never posted a message.'
+    else:
+        return int(messages_by_user_df.iloc[-1]['message_id']), ''

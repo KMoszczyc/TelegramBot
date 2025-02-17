@@ -21,6 +21,7 @@ class CommandArgs:
     period_mode: PeriodFilterMode = PeriodFilterMode.TOTAL
     period_time: int = -1
     user: str = None
+    user_id: str = None
     start_dt: datetime = None
     end_dt: datetime = None
     dt: datetime = None

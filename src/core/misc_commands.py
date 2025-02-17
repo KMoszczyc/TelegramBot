@@ -17,9 +17,10 @@ log = logging.getLogger(__name__)
 
 
 class Commands:
-    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance):
+    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState):
         self.command_logger = command_logger
         self.job_persistance = job_persistance
+        self.bot_state = bot_state
         self.users_df = stats_utils.read_df(USERS_PATH)
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
