@@ -86,22 +86,21 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
         command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
         return command_args
 
-    # Handle optional args
-    command_args, success = handle_optional_args(users_df, command_args)
-    if not success:
-        command_args.error = get_error(command_args)
-        return command_args
-
-    # Parse args
-    for i, arg_type in enumerate(command_args.handled_expected_args):
-        arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
-        _, command_args = parse_arg(users_df, command_args, arg, arg_type)
-
+    # Handle args
+    command_args, success = handle_args(users_df, command_args)
     command_args.error = get_error(command_args)
     return command_args
 
+    # # Parse args
+    # for i, arg_type in enumerate(command_args.handled_expected_args):
+    #     arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
+    #     _, command_args = parse_arg(users_df, command_args, arg, arg_type)
 
-def handle_optional_args(users_df, command_args_ref: CommandArgs):
+    # command_args.error = get_error(command_args)
+    # return command_args
+
+
+def handle_args(users_df, command_args_ref: CommandArgs):
     """Handle optional arguments like Period or User."""
     if len(command_args_ref.args) == 0 or len(command_args_ref.args) == len(command_args_ref.expected_args) or sum(command_args_ref.optional) == 0:
         command_args_ref.handled_expected_args = command_args_ref.expected_args
@@ -113,8 +112,11 @@ def handle_optional_args(users_df, command_args_ref: CommandArgs):
     handled_expected_args = command_args.expected_args.copy()
     for i, arg_type in enumerate(expected_args):
         if not command_args.optional[i]:
+            arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
+            _, command_args = parse_arg(users_df, command_args, arg, arg_type)
             continue
 
+        # handle optional arg
         for arg in command_args.args:
             _, command_args = parse_arg(users_df, command_args, arg, arg_type)
 
