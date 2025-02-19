@@ -496,7 +496,8 @@ class ChatCommands:
         await self.send_message(update, context, current_message_type, path, text)
 
     async def cmd_remind(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER, ArgType.TEXT_MULTISPACED], optional=[False, False], min_string_length=1, max_string_length=1000)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER, ArgType.TEXT_MULTISPACED], optional=[False, False, False], min_string_length=1,
+                                   max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -512,7 +513,6 @@ class ChatCommands:
         self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, message_id, command_args.string])
         response = f"{command_args.user} is gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-
 
     def generate_response_headline(self, command_args, label):
         text = label

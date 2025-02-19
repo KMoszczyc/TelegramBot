@@ -88,23 +88,6 @@ def contains_stopwords(s, stopwords):
     return any(word in stopwords for word in s.split())
 
 
-def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> CommandArgs:
-    command_args = dataclasses.replace(command_args_ref)
-    match arg_type:
-        case ArgType.USER:
-            command_args = parse_user(users_df, command_args, arg_str)
-        case ArgType.PERIOD:
-            command_args = parse_period(command_args, arg_str)
-        case ArgType.POSITIVE_INT:
-            _, command_args = parse_number(command_args, arg_str, positive_only=True)
-        case ArgType.STRING:
-            _, command_args = parse_string(command_args, arg_str)
-        case _:
-            command_args = command_args
-
-    return command_args
-
-
 def get_today_midnight_dt():
     return datetime.datetime.now().replace(tzinfo=ZoneInfo(TIMEZONE)).replace(hour=0, minute=0, second=0, microsecond=0)
 

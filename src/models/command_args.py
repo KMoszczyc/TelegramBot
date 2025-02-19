@@ -16,6 +16,7 @@ class CommandArgs:
     available_named_args_aliases: dict[str, str] = field(default_factory=lambda: {})
     named_args: dict = field(default_factory=lambda: {})
     errors: list[str] = field(default_factory=lambda: [])
+    optional_errors: list[str] = field(default_factory=lambda: [])
     arg_type: ArgType = None
     phrases: list[str] = field(default_factory=lambda: [])
     period_mode: PeriodFilterMode = PeriodFilterMode.TOTAL

@@ -87,7 +87,7 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
         return command_args
 
     # Handle args
-    command_args, success = handle_args(users_df, command_args)
+    command_args = handle_args(users_df, command_args)
     command_args.error = get_error(command_args)
     return command_args
 
@@ -102,37 +102,36 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
 
 def handle_args(users_df, command_args_ref: CommandArgs):
     """Handle optional arguments like Period or User."""
-    if len(command_args_ref.args) == 0 or len(command_args_ref.args) == len(command_args_ref.expected_args) or sum(command_args_ref.optional) == 0:
-        command_args_ref.handled_expected_args = command_args_ref.expected_args
-        return command_args_ref, True
+    if len(command_args_ref.args) == 0:
+        return command_args_ref
 
     command_args = copy.deepcopy(command_args_ref)
     successes = []
     expected_args = command_args.expected_args.copy()
-    handled_expected_args = command_args.expected_args.copy()
     for i, arg_type in enumerate(expected_args):
         if not command_args.optional[i]:
             arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
-            _, command_args = parse_arg(users_df, command_args, arg, arg_type)
+            _, command_args = parse_arg(users_df, command_args, arg, arg_type, is_optional=False)
+            continue
+
+        if sum(successes) == len(command_args.args):
             continue
 
         # handle optional arg
         for arg in command_args.args:
-            _, command_args = parse_arg(users_df, command_args, arg, arg_type)
-
-            if command_args.errors[-1] != '':
-                handled_expected_args.remove(arg_type)
+            _, command_args = parse_arg(users_df, command_args, arg, arg_type, is_optional=True)
+            if command_args.optional_errors[-1] != '':
                 successes.append(False)
             else:
                 successes.append(True)
 
-    if sum(successes) == len(command_args.args):
-        log.info("All optional args were parsed successfully.")
-        command_args_ref.handled_expected_args = handled_expected_args
-        return command_args_ref, True
+    if not any(successes):
+        log.info("None optional args were parsed successfully, despite there being an argument send by user.")
+        command_args.errors.extend(command_args.optional_errors)
+        return command_args
 
-    log.info("None of the optional args were parsed successfully, despite there being an argument send by user.")
-    return command_args, False
+    log.info("All args were parsed successfully.")
+    return command_args
 
 
 def merge_spaced_args(command_args: CommandArgs):
@@ -287,20 +286,26 @@ async def download_media(message, message_type):
         await message.download_media(file=path)
 
 
-def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType) -> tuple[str | int, CommandArgs]:
+def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType, is_optional=False) -> tuple[str | int, CommandArgs]:
     command_args = copy.deepcopy(command_args_ref)
     value = None
+    error = ''
     match arg_type:
         case ArgType.USER:
-            command_args = parse_user(users_df, command_args, arg_str)
+            command_args, error = parse_user(users_df, command_args, arg_str)
         case ArgType.PERIOD:
-            command_args = parse_period(command_args, arg_str)
+            command_args, error = parse_period(command_args, arg_str)
         case ArgType.POSITIVE_INT:
-            value, command_args = parse_number(command_args, arg_str, positive_only=True)
+            value, command_args, error = parse_number(command_args, arg_str, positive_only=True)
         case ArgType.STRING | ArgType.TEXT | ArgType.TEXT_MULTISPACED:
-            value, command_args = parse_string(command_args, arg_str)
+            value, command_args, error = parse_string(command_args, arg_str)
         case _:
             command_args = command_args
+
+    if is_optional:
+        command_args.optional_errors.append(error)
+    else:
+        command_args.errors.append(error)
 
     return value, command_args
 
@@ -352,13 +357,12 @@ def is_named_arg(arg, commands_args):
     return is_aliased_named_arg(arg, commands_args.available_named_args_aliases) or is_normal_named_arg(arg, commands_args.available_named_args)
 
 
-def parse_period(command_args, arg_str) -> CommandArgs:
+def parse_period(command_args, arg_str) -> [CommandArgs, str]:
     error = ''
     if arg_str == '':
         error = "Period cannot be empty."
-        command_args.errors.append(error)
         log.error(error)
-        return command_args
+        return command_args, error
 
     period_mode_str = arg_str
     try:
@@ -390,18 +394,13 @@ def parse_period(command_args, arg_str) -> CommandArgs:
 
         command_args.parse_error = error
     except ValueError:
-        command_args.parse_error = f"There is no such time period as {arg_str}."
-        command_args.errors.append(command_args.parse_error)
-        log.error(command_args.parse_error)
+        error = f"There is no such time period as {arg_str}."
+        log.error(error)
 
-    if command_args.parse_error != '':
-        command_args.errors.append(command_args.parse_error)
+    if error != '':
         command_args.period_mode = PeriodFilterMode.ERROR
-    else:
-        command_args.errors.append('')
 
-    command_args.error = get_error(command_args)
-    return command_args
+    return command_args, error
 
 
 def parse_date(date_str: str) -> tuple[datetime, DatetimeFormat, str] | tuple[None, None, str]:
@@ -435,12 +434,12 @@ def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, DatetimeF
     return start_date, end_date, dt_format, error
 
 
-def parse_user(users_df, command_args, arg_str) -> CommandArgs:
+def parse_user(users_df, command_args, arg_str) -> [CommandArgs, str]:
     if arg_str == '':
         error = "User cannot be empty."
-        command_args.errors.append(error)
-        log.error(command_args.error)
-        return command_args
+        # command_args.errors.append(error)
+        log.error(error)
+        return command_args, error
 
     user_str = arg_str.replace('@', '')
 
@@ -455,32 +454,27 @@ def parse_user(users_df, command_args, arg_str) -> CommandArgs:
         command_args.user_id = partially_matching_users.index[0]
     else:
         error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
-        command_args.errors.append(error)
-        log.error(command_args.error)
-        return command_args
+        log.error(error)
+        return command_args, error
 
-    command_args.errors.append('')
-    return command_args
+    return command_args, ''
 
 
-def parse_number(command_args, arg_str, positive_only=False) -> tuple[int, CommandArgs]:
+def parse_number(command_args, arg_str, positive_only=False) -> [int, CommandArgs, str]:
     if arg_str == '':
-        return command_args
+        return None, command_args, ''
 
     number, error = parse_int(arg_str, positive_only)
     if error != '':
-        command_args.errors.append(error)
-        return command_args
+        return None, command_args, error
 
     if number > command_args.number_limit:
         error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
-        command_args.errors.append(error)
         log.error(error)
-        return command_args
+        return number, command_args, error
 
     command_args.number = number
-    command_args.errors.append('')
-    return number, command_args
+    return number, command_args, ''
 
 
 def get_error(command_args: CommandArgs) -> str:
@@ -516,16 +510,15 @@ def x_to_light_years_str(x):
     return f'{ly} light years'
 
 
-def parse_string(command_args: CommandArgs, text: str) -> tuple[str, CommandArgs]:
+def parse_string(command_args: CommandArgs, text: str) -> [str, CommandArgs, str]:
     error = ''
     if len(text) < command_args.min_string_length:
         error = f'{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters.'
     if len(text) > command_args.max_string_length:
         error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
 
-    command_args.errors.append(error)
     command_args.string = text
-    return text, command_args
+    return text, command_args, error
 
 
 def display_shopping_sunday(dt):

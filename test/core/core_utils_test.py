@@ -21,7 +21,7 @@ from src.models.command_args import CommandArgs
 ])
 def test_parse_period(period_str, expected_period_mode, expected_period_time):
     command_args = CommandArgs()
-    command_args = parse_period(command_args, period_str)
+    command_args, error = parse_period(command_args, period_str)
 
     assert command_args.period_mode == expected_period_mode
     assert command_args.period_time == expected_period_time
