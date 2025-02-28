@@ -51,7 +51,8 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        response = f"{command_args.user} to " + core_utils.select_random_phrase(boczek_phrases, 'Nie ma takiej wypowiedzi :(')
+        curse = core_utils.select_random_phrase(boczek_phrases, 'Nie ma takiej wypowiedzi :(')
+        response = f"{command_args.user} to {curse}" if command_args.user is not None else curse
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_europejskafirma(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
