@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+import pandas as pd
 import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -10,7 +11,7 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases
+    boczek_phrases, kiepscy_df
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -246,3 +247,47 @@ class Commands:
         self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, update.message.message_id, command_args.string])
         response = f"You're gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+    async def cmd_kiepscy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED], min_string_length=1, max_string_length=1000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        search_phrase = command_args.string
+        search_phrases = command_args.strings
+
+        if search_phrases:  # use & operator to match multiple words
+            regex = core_utils.regexify_multiword_filter(search_phrases)
+            matching_by_title_df = kiepscy_df[kiepscy_df['title'].str.contains(regex, case=False)]
+            matching_by_description_df = kiepscy_df[kiepscy_df['description'].str.contains(regex, case=False)]
+        else:
+            matching_by_title_df = kiepscy_df[kiepscy_df['title'].str.contains(search_phrase, case=False)]
+            matching_by_description_df = kiepscy_df[kiepscy_df['description'].str.contains(search_phrase, case=False)]
+        merged_df = pd.concat([matching_by_title_df, matching_by_description_df], ignore_index=True)
+
+        text = f"Kiepscy episodes that match [{search_phrase}]:\n"
+        for i, (index, row) in enumerate(merged_df.iterrows()):
+            description = f"{row['description'][:100]}.." if len(row['description']) > 100 else row['description']
+            text += f"- *{row['nr']}: {row['title']}* - {description}\n"
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def cmd_kiepscyurl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], number_limit=1000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        episode_nr = str(command_args.number)
+        matching_episode_df = kiepscy_df[kiepscy_df['nr'] == episode_nr]
+        if matching_episode_df.empty:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Nie ma takiego epizodu :(")
+            return
+        row = matching_episode_df.iloc[0]
+        text = f"*{episode_nr}: {row['title']}* - {row['url']}"
+
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)

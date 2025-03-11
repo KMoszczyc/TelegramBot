@@ -517,7 +517,10 @@ def parse_string(command_args: CommandArgs, text: str) -> [str, CommandArgs, str
     if len(text) > command_args.max_string_length:
         error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
 
-    command_args.string = text
+    if '&' in text: # user for 'AND' filtering
+        command_args.strings = text.split('&')
+    else:
+        command_args.string = text
     return text, command_args, error
 
 
@@ -622,3 +625,9 @@ async def send_response_message(context, chat_id, message_id, message):
 
 def dt_to_pretty_str(dt):
     return dt.strftime("%d-%m-%Y %H:%M:%S")
+
+def regexify_multiword_filter(words):
+    base = r'^{}'
+    expr = '(?=.*{})'
+    return base.format(''.join(expr.format(w) for w in words))
+

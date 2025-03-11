@@ -66,6 +66,8 @@ class OzjaszBot:
             'remind': self.chat_commands.cmd_remind,
             'commands': self.chat_commands.cmd_command_usage,
             'summary': self.chat_commands.cmd_summary,
+            'kiepscy': self.core_commands.cmd_kiepscy,
+            'kiepscyurl': self.core_commands.cmd_kiepscyurl,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
             'topmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.ALL),

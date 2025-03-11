@@ -29,6 +29,7 @@ class CommandArgs:
     dt_format: DatetimeFormat = None
     number: int = 5
     string: str = ''
+    strings: list[str] = field(default_factory=lambda: [])
     min_string_length: int = 0
     max_string_length: int = 20
     label: str = ''
