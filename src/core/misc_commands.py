@@ -266,14 +266,18 @@ class Commands:
             matching_by_title_df = kiepscy_df[kiepscy_df['title'].str.contains(search_phrase, case=False)]
             matching_by_description_df = kiepscy_df[kiepscy_df['description'].str.contains(search_phrase, case=False)]
         merged_df = pd.concat([matching_by_title_df, matching_by_description_df], ignore_index=True)
+        merged_df['nr'] = merged_df['nr'].replace('—', '999').astype(int)
+        merged_df = merged_df.drop_duplicates('nr').sort_values('nr').reset_index(drop=True)
 
         text = f"Kiepscy episodes that match [{search_phrase}]:\n"
+        last_text = text
         for i, (index, row) in enumerate(merged_df.iterrows()):
-            if len(text) > 4096:
-                text = stats_utils.escape_special_characters(text)
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-                text = ""
             text += f"- *{row['nr']}: {row['title']}* - {row['description']}\n"
+            if len(text) > 4096:
+                response = stats_utils.escape_special_characters(last_text)
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+                text = ""
+            last_text = text
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 

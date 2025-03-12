@@ -27,7 +27,12 @@ log = logging.getLogger(__name__)
 class OzjaszBot:
     def __init__(self):
         log.info('Starting Ozjasz bot...')
-        self.application = ApplicationBuilder().token(TOKEN).build()
+        self.application = (ApplicationBuilder()
+                            .token(TOKEN)
+                            .read_timeout(30)
+                            .write_timeout(30)
+                            .build()
+                            )
 
         self.bot_state = BotState()
         self.job_persistance = JobPersistance(self.application.job_queue)
