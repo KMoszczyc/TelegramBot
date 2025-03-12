@@ -269,8 +269,7 @@ class Commands:
 
         text = f"Kiepscy episodes that match [{search_phrase}]:\n"
         for i, (index, row) in enumerate(merged_df.iterrows()):
-            description = f"{row['description'][:100]}.." if len(row['description']) > 100 else row['description']
-            text += f"- *{row['nr']}: {row['title']}* - {description}\n"
+            text += f"- *{row['nr']}: {row['title']}* - {row['description']}\n"
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
