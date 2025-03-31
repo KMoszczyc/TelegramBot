@@ -206,8 +206,8 @@ def generate_unique_number(user_id):
 
 def are_you_lucky(user_id, with_args=False):
     today = int(datetime.now().strftime('%Y%m%d'))
-    user_hash = user_id + today
-    random.seed(user_hash)
+    hash = today if with_args else user_id + today
+    random.seed(hash)
     rand_value = random.random()
 
     if rand_value < 0.1:
@@ -221,7 +221,7 @@ def are_you_lucky(user_id, with_args=False):
     else:
         message = 'Tak. 🗿' if with_args else "Dzisiaj masz ogromne szczęście! Wyjdź z domu i spróbuj zrobić coś nowego, na pewno Ci się uda!"
 
-    log.info(f'User [{user_hash}] ({rand_value}) - {message}')
+    log.info(f'User [{hash}] ({rand_value}) - {message}')
     return message
 
 
