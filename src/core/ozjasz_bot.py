@@ -62,6 +62,7 @@ class OzjaszBot:
             'tvp': self.core_commands.cmd_tvp,
             'tvp_latest': self.core_commands.cmd_tvp_latest,
             'tusk': self.core_commands.cmd_tusk,
+            'walesa': self.core_commands.cmd_walesa,
             'starababa': self.core_commands.cmd_are_you_lucky_today,
             'help': self.core_commands.cmd_help,
             'bible': lambda update, context: self.core_commands.cmd_bible(update, context, self.bot_state),

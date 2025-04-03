@@ -11,7 +11,7 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases, kiepscy_df
+    boczek_phrases, kiepscy_df, walesa_phrases
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -107,6 +107,16 @@ class Commands:
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego nagłówka :(')
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+    async def cmd_walesa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, phrases=walesa_phrases, is_text_arg=True)
+        filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego przedmiotu :(').replace(r"\n", "\n")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_are_you_lucky_today(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -34,4 +34,5 @@ topvideos - (username[optional], period[optional]) top videos (and video notes) 
 tvp - text_filter or [regex] - all TVP headlines, from the past few years
 tvp_latest - text_filter or [regex] - latest TVP headlines
 tusk - text_filter or [regex] - epic TVP Tusk reference
+walesa - text_filter or [regex] - epic gifts by Lech Wałęsa for Jasna Góra church
 wholesome - (period[optional]) summary metric for all users
