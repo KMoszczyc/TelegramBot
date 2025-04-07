@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat
+from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat, HolyTextType, SiglumType
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -517,7 +517,7 @@ def parse_string(command_args: CommandArgs, text: str) -> [str, CommandArgs, str
     if len(text) > command_args.max_string_length:
         error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
 
-    if '&' in text: # user for 'AND' filtering
+    if '&' in text:  # user for 'AND' filtering
         command_args.strings = text.split('&')
     else:
         command_args.string = text
@@ -528,20 +528,37 @@ def display_shopping_sunday(dt):
     return dt.strftime('%d %B')
 
 
-def display_bible_df(df, bot_state, label='Filtered bible verses', show_siglum=True):
+def display_holy_text_df(df, bot_state, holy_text_type, label='Filtered bible verses', show_siglum=True):
     response = f'{label}:\n\n'
     for i, row in df.iterrows():
-        verse = f"[{get_siglum(row)}] {row['text']}\n\n" if show_siglum else f"{row['verse']}. {row['text']}\n"
+        verse = f"[{get_siglum(row, holy_text_type, siglum_type=SiglumType.SHORT)}] {row['text']}\n\n" if show_siglum else f"{row['verse']}. {row['text']}\n"
         if len(response + verse) > 4096:
             break
         response += verse
-        bot_state.last_bible_verse_id = row.name
+        bot_state.set_holy_text_last_verse_id(row.name, holy_text_type)
 
     return response
 
 
-def get_siglum(row):
-    return f"{row['abbreviation']} {row['chapter']}, {row['verse']}"
+def get_siglum(row, holy_text_type: HolyTextType, siglum_type: SiglumType) -> str:
+    if holy_text_type == HolyTextType.BIBLE:
+        return get_bible_siglum(row, siglum_type)
+    elif holy_text_type == HolyTextType.QURAN:
+        return get_quran_siglum(row, siglum_type)
+
+
+def get_bible_siglum(row, siglum_type: SiglumType) -> str:
+    if siglum_type == SiglumType.FULL:
+        return f"{row['book']} {row['chapter']}, {row['verse']}"
+    elif siglum_type == SiglumType.SHORT:
+        return f"{row['abbreviation']} {row['chapter']}, {row['verse']}"
+
+
+def get_quran_siglum(row, siglum_type: SiglumType):
+    if siglum_type == SiglumType.FULL:
+        return f"Sura {row['chapter_nr']}. {row['chapter_name']}, {row['verse']}"
+    elif siglum_type == SiglumType.SHORT:
+        return f"{row['chapter_nr']}:{row['verse']}"
 
 
 def get_full_siglum(row):
@@ -626,8 +643,8 @@ async def send_response_message(context, chat_id, message_id, message):
 def dt_to_pretty_str(dt):
     return dt.strftime("%d-%m-%Y %H:%M:%S")
 
+
 def regexify_multiword_filter(words):
     base = r'^{}'
     expr = '(?=.*{})'
     return base.format(''.join(expr.format(w) for w in words))
-

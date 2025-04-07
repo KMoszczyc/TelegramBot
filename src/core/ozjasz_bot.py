@@ -66,6 +66,7 @@ class OzjaszBot:
             'starababa': self.core_commands.cmd_are_you_lucky_today,
             'help': self.core_commands.cmd_help,
             'bible': lambda update, context: self.core_commands.cmd_bible(update, context, self.bot_state),
+            'koran': lambda update, context: self.core_commands.cmd_quran(update, context, self.bot_state),
             'handlowa': self.core_commands.cmd_show_shopping_sundays,
             'biblestats': self.core_commands.cmd_bible_stats,
             'remindme': self.core_commands.cmd_remind_me,

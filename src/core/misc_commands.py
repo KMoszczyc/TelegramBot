@@ -11,7 +11,7 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases, kiepscy_df, walesa_phrases
+    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -172,40 +172,76 @@ class Commands:
             book = random_row['book']
             chapter = random_row['chapter']
             filtered_df = bible_df[(bible_df['book'] == book) & (bible_df['chapter'] == chapter)].head(command_args.named_args['chapter'])
-            response += core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} verses from chapter {chapter}', show_siglum=False)
+            response += core_utils.display_holy_text_df(filtered_df, bot_state, HolyTextType.BIBLE, label=f'{len(filtered_df)} verses from chapter {chapter}', show_siglum=False)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
             return
         else:
             filtered_df = filtered_df.sample(frac=1)
 
+        response = self.handle_holy_text_named_params(command_args, filtered_df, bible_df, bot_state, filter_phrase, HolyTextType.BIBLE)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+    async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
+        command_args = CommandArgs(args=context.args, is_text_arg=True,
+                                   available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
+                                                          'chapter': ArgType.POSITIVE_INT},
+                                   available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'ch': 'chapter', 'num': 'num'})
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        filter_phrase = command_args.joined_args_lower
+        filtered_df = quran_df[quran_df['text'].str.lower().str.contains(filter_phrase)]
+        filtered_df = filtered_df.sample(frac=1)
+
+        print(command_args.named_args)
+
+        response = ''
+        if 'chapter' in command_args.named_args:
+            books = quran_df['chapter_name'].unique()
+            matched_chapter_name = core_utils.match_substr_to_list_of_texts(command_args.named_args['book'], books)
+
+            if matched_chapter_name is not None:
+                filtered_df = filtered_df[filtered_df['chapter_name'] == matched_chapter_name]
+
+            if matched_chapter_name is None:
+                response += f'[Sura {filtered_df.iloc[0]['chapter_nr']}]. {filtered_df.iloc[0]['chapter_name']}, '
+
+        response = self.handle_holy_text_named_params(command_args, filtered_df, quran_df, bot_state, filter_phrase, HolyTextType.QURAN)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+
+    def handle_holy_text_named_params(self, command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type):
+        last_verse_id = bot_state.last_bible_verse_id if holy_text_type == HolyTextType.BIBLE else bot_state.last_quran_verse_id
         if filtered_df.empty:
-            response = 'Nie ma takiego cytatu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
+            response = 'Nie ma takiego wersetu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
         elif 'num' in command_args.named_args:
-            filtered_df = filtered_df.head(command_args.named_args['num'])
-            response = core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
+            df = filtered_df.head(command_args.named_args['num'])
+            response = core_utils.display_holy_text_df(df, bot_state, holy_text_type, label=f'{len(df)} {holy_text_type.value} verses with "{filter_phrase}"')
         elif 'all' in command_args.named_args:
-            response = core_utils.display_bible_df(filtered_df, bot_state, label=f'{len(filtered_df)} bible verses with "{filter_phrase}"')
-        elif 'prev' in command_args.named_args and bot_state.last_bible_verse_id != -1:
-            start_index = max(0, bot_state.last_bible_verse_id - command_args.named_args['prev'])
-            filtered_df = bible_df.iloc[start_index:bot_state.last_bible_verse_id]
-            label = f'{command_args.named_args['prev']} bible verses before {core_utils.get_full_siglum(bible_df.iloc[bot_state.last_bible_verse_id])}'
-            response = core_utils.display_bible_df(filtered_df, bot_state, label=label, show_siglum=False)
-        elif 'next' in command_args.named_args and bot_state.last_bible_verse_id != -1:
-            end_index = min(len(bible_df), bot_state.last_bible_verse_id + command_args.named_args['next'] + 1)
-            filtered_df = bible_df.iloc[bot_state.last_bible_verse_id + 1:end_index]
-            label = f'{command_args.named_args['next']} bible verses after {core_utils.get_full_siglum(bible_df.iloc[bot_state.last_bible_verse_id])}'
-            response = core_utils.display_bible_df(filtered_df, bot_state, label=label, show_siglum=False)
+            response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}"')
+        elif 'prev' in command_args.named_args and last_verse_id != -1:
+            start_index = max(0, last_verse_id - command_args.named_args['prev'])
+            filtered_df = raw_df.iloc[start_index:last_verse_id]
+            label = f'{command_args.named_args['prev']} {holy_text_type.value} verses before {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}'
+            response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=label, show_siglum=False)
+        elif 'next' in command_args.named_args and last_verse_id != -1:
+            end_index = min(len(filtered_df), last_verse_id + command_args.named_args['next'] + 1)
+            filtered_df = raw_df.iloc[last_verse_id + 1:end_index]
+            label = f'{command_args.named_args['next']} {holy_text_type.value} verses after {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}'
+            response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=label, show_siglum=False)
         elif 'count' in command_args.named_args:
             random_row = filtered_df.iloc[0]
-            bot_state.last_bible_verse_id = random_row.name
-            response = f'{len(filtered_df)} bible verses with "{filter_phrase}": \n\n'
-            response += f'[{core_utils.get_siglum(random_row)}] {random_row["text"]}'
+            self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
+            response = f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}": \n\n'
+            response += f'[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row["text"]}'
         else:
             random_row = filtered_df.iloc[0]
-            bot_state.last_bible_verse_id = random_row.name
-            response = f"[{random_row['abbreviation']} {random_row['chapter']}, {random_row['verse']}] {random_row['text']}"
+            self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
+            response = f"[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row['text']}"
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        return response
 
     async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         bible_stats_df = bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
