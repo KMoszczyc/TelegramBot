@@ -184,7 +184,7 @@ class Commands:
     async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
                                    available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
-                                                          'chapter': ArgType.POSITIVE_INT},
+                                                          'chapter': ArgType.STRING},
                                    available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'ch': 'chapter', 'num': 'num'})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
@@ -195,12 +195,10 @@ class Commands:
         filtered_df = quran_df[quran_df['text'].str.lower().str.contains(filter_phrase)]
         filtered_df = filtered_df.sample(frac=1)
 
-        print(command_args.named_args)
-
         response = ''
         if 'chapter' in command_args.named_args:
             books = quran_df['chapter_name'].unique()
-            matched_chapter_name = core_utils.match_substr_to_list_of_texts(command_args.named_args['book'], books)
+            matched_chapter_name = core_utils.match_substr_to_list_of_texts(command_args.named_args['chapter'], books)
 
             if matched_chapter_name is not None:
                 filtered_df = filtered_df[filtered_df['chapter_name'] == matched_chapter_name]
