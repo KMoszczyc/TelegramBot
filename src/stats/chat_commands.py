@@ -38,8 +38,6 @@ class ChatCommands:
         self.bot_state = bot_state
         self.job_persistance = job_persistance
 
-        # CommandLogger.decorate_commands(self, command_logger)
-
     def update(self):
         """If chat data was updated recentely, reload it."""
         if not os.path.isfile(UPDATE_REQUIRED_PATH):
@@ -492,6 +490,22 @@ class ChatCommands:
         command_usage_counts = command_usage_df.groupby(['period', grouping_col]).size().unstack(fill_value=0).stack().reset_index(name='command_count')
         path = self.generate_plot(command_usage_counts, selected_for_grouping, grouping_col, 'period', 'command_count', text, x_label='time', y_label='command usage daily')
 
+        current_message_type = MessageType.IMAGE
+        await self.send_message(update, context, current_message_type, path, text)
+
+    async def cmd_relationship_graph(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+
+        chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        if reactions_df.empty:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='No data from that period, sorry :(')
+
+        text = self.generate_response_headline(command_args, label='Relationship Graph')
+        path = charts.create_relationship_graph(reactions_df)
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
 

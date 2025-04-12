@@ -1,8 +1,10 @@
 import cv2
+import pandas as pd
 from great_tables import GT, md
 import matplotlib.pyplot as plt
 import os
 import plotly.graph_objects as go
+import networkx as nx
 
 from definitions import TEMP_DIR, DatetimeFormat, PeriodFilterMode
 import src.stats.utils as stats_utils
@@ -39,10 +41,10 @@ def create_table_plotly(df, command_args, columns):
     is_date = command_args.period_mode == PeriodFilterMode.DATE_RANGE
 
     CELL_HEIGHT = 50
-    HEADER_CELL_HEIGHT = CELL_HEIGHT*1.65 if is_date_range else CELL_HEIGHT
+    HEADER_CELL_HEIGHT = CELL_HEIGHT * 1.65 if is_date_range else CELL_HEIGHT
     CELL_WIDTH = 270
-    WIDTH = CELL_WIDTH * 1.2 + CELL_WIDTH * (len(columns) -1) if is_date_range or is_date else CELL_WIDTH * 0.9 + CELL_WIDTH * (len(columns) -1)
-    WIDTHS = [CELL_WIDTH * 1.2] + [CELL_WIDTH] * (len(columns) -1) if is_date_range or is_date else [CELL_WIDTH * 0.9] + [CELL_WIDTH] * (len(columns) -1)
+    WIDTH = CELL_WIDTH * 1.2 + CELL_WIDTH * (len(columns) - 1) if is_date_range or is_date else CELL_WIDTH * 0.9 + CELL_WIDTH * (len(columns) - 1)
+    WIDTHS = [CELL_WIDTH * 1.2] + [CELL_WIDTH] * (len(columns) - 1) if is_date_range or is_date else [CELL_WIDTH * 0.9] + [CELL_WIDTH] * (len(columns) - 1)
 
     layout = go.Layout(
         autosize=True,
@@ -127,3 +129,91 @@ def cut_excess_white_space_from_image(path):
 
     img = img[start_y:end_y, start_x:end_x]
     cv2.imwrite(path, img)
+
+
+def create_relationship_graph(reactions_df):
+    min_node_size = 300
+    max_node_size = 10000
+    min_edge_width = 1
+    max_edge_width = 30
+
+    reaction_map_df = reactions_df.groupby(['reacting_username', 'reacted_to_username']).size().reset_index().rename(columns={0: 'count'})
+    reaction_map_df = reaction_map_df[reaction_map_df['reacting_username'] != reaction_map_df['reacted_to_username']].copy() # Remove self-likes
+
+    # Combine bi-directional edges into one, sum their counts
+    reaction_map_df['pair'] = reaction_map_df.apply(lambda row: tuple(sorted([row['reacting_username'], row['reacted_to_username']])), axis=1)
+    combined_df = reaction_map_df.groupby('pair', as_index=False)['count'].sum()
+    combined_df[['node1', 'node2']] = pd.DataFrame(combined_df['pair'].tolist(), index=combined_df.index)
+
+    # --- Build Graph ---
+    G = nx.Graph()
+    for _, row in combined_df.iterrows():
+        G.add_edge(row['node1'], row['node2'], weight=row['count'])
+
+    # --- Node Size Scaling ---
+    node_strength = dict(G.degree(weight='weight'))
+    max_strength = max(node_strength.values(), default=1)
+    node_sizes = [min_node_size + (node_strength[n] / max_strength) * (max_node_size - min_node_size) for n in G.nodes()]
+
+    # --- Edge Width Scaling ---
+    weights = [G[u][v]['weight'] for u, v in G.edges()]
+    max_weight = max(weights, default=1)
+    edge_widths = [min_edge_width + (w / max_weight) * (max_edge_width - min_edge_width) for w in weights]
+
+    # Smart layout with tuned spacing and normalized range
+    node_count = len(G.nodes())
+    pos = nx.spring_layout(G, seed=41, k=250 / node_count, scale=5)
+
+    # Normalize positions to avoid floating islands
+    for node in pos:
+        x, y = pos[node]
+        pos[node] = (x * 0.8, y * 0.8)
+
+    # --- Plot ---
+    fig, ax = plt.subplots(figsize=(22, 18), facecolor='black')
+    plt.axis('off')
+
+    # Draw nodes
+    nx.draw_networkx_nodes(
+        G, pos,
+        node_color='#e68a00',
+        node_size=node_sizes,
+        alpha=0.95,
+        ax=ax
+    )
+
+    # Draw edges
+    nx.draw_networkx_edges(
+        G, pos,
+        width=edge_widths,
+        edge_color='#ffaa00',
+        alpha=0.6,
+        ax=ax
+    )
+
+    # # Draw node labels (slightly above nodes)
+    for node, (x, y) in pos.items():
+        # Get the degree or total weight of the node (number of reactions)w
+        reaction_count = sum([d['weight'] for u, v, d in G.edges(node, data=True)]) if G.has_node(node) else 0
+        label = f"{node}\n[{reaction_count}]"  # Display both node name and reaction count
+        ax.text(x, y + 0.035, label, fontsize=13, fontweight='bold', color='white', ha='center', va='center')
+
+    # Edge labels (counts) — adjusted alignment
+    edge_labels = {(u, v): str(d['weight']) for u, v, d in G.edges(data=True)}
+    nx.draw_networkx_edge_labels(
+        G, pos,
+        edge_labels=edge_labels,
+        font_color='lightgray',
+        font_size=12,
+        font_weight='bold',
+        bbox=dict(boxstyle='round,pad=0.25', fc='black', ec='none', alpha=0.9),
+        label_pos=0.55
+    )
+    ax.set_title("Relationship Network", fontsize=20, color='white', pad=20)
+    plt.tight_layout(pad=5)
+
+    path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
+    stats_utils.create_dir(TEMP_DIR)
+    plt.savefig(path, dpi=250, facecolor=fig.get_facecolor())
+
+    return path

@@ -133,7 +133,8 @@ def filter_by_time_df(df, command_args, time_column='timestamp'):
                 return df[(df[time_column] >= command_args.start_dt) & (df[time_column] <= command_args.end_dt + timedelta(days=1))]
             else:
                 return df[(df[time_column] >= command_args.start_dt) & (df[time_column] <= command_args.end_dt)]
-
+        case _:
+            return df[df[time_column] >= today_dt - timedelta(days=7)]
 
 def filter_by_shifted_time_df(df, command_args):
     period_mode, period_time = command_args.period_mode, command_args.period_time
@@ -163,7 +164,8 @@ def filter_by_shifted_time_df(df, command_args):
         case PeriodFilterMode.DATE_RANGE:
             days_diff = (command_args.end_dt - command_args.start_dt).days
             return filter_df_in_range(df, command_args.start_dt - timedelta(days=days_diff), command_args.start_dt)
-
+        case _:
+            return filter_df_in_range(df, dt_now - timedelta(days=14), dt_now - timedelta(days=7))
 
 def filter_emojis_by_emoji_type(df, emoji_type, col='reaction_emojis'):
     if emoji_type == EmojiType.NEGATIVE:
