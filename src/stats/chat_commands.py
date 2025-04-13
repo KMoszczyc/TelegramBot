@@ -503,6 +503,7 @@ class ChatCommands:
 
         if reactions_df.empty:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='No data from that period, sorry :(')
+            return
 
         text = self.generate_response_headline(command_args, label='Relationship Graph')
         path = charts.create_relationship_graph(reactions_df)

@@ -109,10 +109,12 @@ def filter_by_time_df(df, command_args, time_column='timestamp'):
     today_dt = get_today_midnight_dt()
     period_mode, period_time = command_args.period_mode, command_args.period_time
 
-    print(command_args.dt, command_args.start_dt, command_args.end_dt, command_args.parse_error)
     match period_mode:
+        case PeriodFilterMode.SECOND:
+            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(seconds=period_time)]
+        case PeriodFilterMode.MINUTE:
+            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(minutes=period_time)]
         case PeriodFilterMode.HOUR:
-            log.info(f"UTC dt {period_time} hours ago: {get_past_hr_dt(period_time)}")
             return df[df[time_column] >= get_past_hr_dt(period_time)]
         case PeriodFilterMode.TODAY:
             return df[df[time_column] >= today_dt]
@@ -143,6 +145,14 @@ def filter_by_shifted_time_df(df, command_args):
     dt_now = get_dt_now()
     log.info(f"Filter by period_mode: {period_mode}, period_time: {period_time}, midnight today: {today_dt}. but it's shifted.")
     match period_mode:
+        case PeriodFilterMode.SECOND:
+            start_dt = dt_now - timedelta(seconds=period_time * 2)
+            end_dt = dt_now - timedelta(seconds=period_time)
+            return filter_df_in_range(df, start_dt, end_dt)
+        case PeriodFilterMode.MINUTE:
+            start_dt = dt_now - timedelta(minutes=period_time * 2)
+            end_dt = dt_now - timedelta(minutes=period_time)
+            return filter_df_in_range(df, start_dt, end_dt)
         case PeriodFilterMode.HOUR:
             start_dt = dt_now - timedelta(hours=period_time * 2)
             end_dt = dt_now - timedelta(hours=period_time)

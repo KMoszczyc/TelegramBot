@@ -160,9 +160,8 @@ def create_relationship_graph(reactions_df):
     max_weight = max(weights, default=1)
     edge_widths = [min_edge_width + (w / max_weight) * (max_edge_width - min_edge_width) for w in weights]
 
-    # Smart layout with tuned spacing and normalized range
-    node_count = len(G.nodes())
-    pos = nx.spring_layout(G, seed=41, k=250 / node_count, scale=5)
+    # --- Layout ---
+    pos = nx.circular_layout(G)
 
     # Normalize positions to avoid floating islands
     for node in pos:
@@ -199,18 +198,18 @@ def create_relationship_graph(reactions_df):
         ax.text(x, y + 0.035, label, fontsize=13, fontweight='bold', color='white', ha='center', va='center')
 
     # Edge labels (counts) — adjusted alignment
-    edge_labels = {(u, v): str(d['weight']) for u, v, d in G.edges(data=True)}
-    nx.draw_networkx_edge_labels(
-        G, pos,
-        edge_labels=edge_labels,
-        font_color='lightgray',
-        font_size=12,
-        font_weight='bold',
-        bbox=dict(boxstyle='round,pad=0.25', fc='black', ec='none', alpha=0.9),
-        label_pos=0.55
-    )
-    ax.set_title("Relationship Network", fontsize=20, color='white', pad=20)
-    plt.tight_layout(pad=5)
+    # edge_labels = {(u, v): str(d['weight']) for u, v, d in G.edges(data=True)}
+    # nx.draw_networkx_edge_labels(
+    #     G, pos,
+    #     edge_labels=edge_labels,
+    #     font_color='lightgray',
+    #     font_size=10,
+    #     font_weight='bold',
+    #     bbox=dict(boxstyle='round,pad=0.25', fc='black', ec='none', alpha=0.5),
+    #     label_pos=0.55
+    # )
+    # ax.set_title("Relationship Network", fontsize=20, color='white', pad=20)
+    # plt.tight_layout(pad=5)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
     stats_utils.create_dir(TEMP_DIR)
