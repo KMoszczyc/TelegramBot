@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat, HolyTextType, SiglumType
+from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat, HolyTextType, SiglumType, \
+    quran_df
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -648,3 +649,34 @@ def regexify_multiword_filter(words):
     base = r'^{}'
     expr = '(?=.*{})'
     return base.format(''.join(expr.format(w) for w in words))
+
+
+def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str,str]:
+    arg_split = arg.split(':')
+    if len(arg_split) != 2:
+        return '', 'Failed to parse the --verse argument.'
+
+    chapter_arg, verse_arg = arg_split[0].lower(), arg_split[1].lower()
+    chapter_nums = quran_df.drop_duplicates('chapter_nr')['chapter_nr'].tolist()
+    chapter_names = quran_df.drop_duplicates('chapter_name')['chapter_name'].tolist()
+
+    matching_chapter_nums = [num for num in chapter_nums if str(num) == chapter_arg]
+    matching_chapter_names = [chapter_name for chapter_name in chapter_names if chapter_arg in chapter_name.lower()]
+
+    if matching_chapter_nums:
+        chapter_nr = matching_chapter_nums[0]
+        matching_verse_df = quran_df[(quran_df['chapter_nr'] == chapter_nr) & (quran_df['verse'] == verse_arg)]
+        row = None if matching_verse_df.empty else matching_verse_df.iloc[0]
+    elif matching_chapter_names:
+        chapter_name = matching_chapter_names[0]
+        matching_verse_df = quran_df[(quran_df['chapter_name'] == chapter_name) & (quran_df['verse'] == verse_arg)]
+        row = None if matching_verse_df.empty else matching_verse_df.iloc[0]
+    else:
+        return '', f"Verse {chapter_arg}:{verse_arg} doesn't exist in Quran."
+
+    if row is None:
+        return '', f"Verse {chapter_arg}:{verse_arg} doesn't exist in Quran."
+
+    bot_state.set_holy_text_last_verse_id(row.name, holy_text_type)
+    response = f"[{get_siglum(row, holy_text_type, SiglumType.SHORT)}] {row['text']}"
+    return response, ''

@@ -178,14 +178,18 @@ class Commands:
         else:
             filtered_df = filtered_df.sample(frac=1)
 
-        response = self.handle_holy_text_named_params(command_args, filtered_df, bible_df, bot_state, filter_phrase, HolyTextType.BIBLE)
+        response, error = self.handle_holy_text_named_params(command_args, filtered_df, bible_df, bot_state, filter_phrase, HolyTextType.BIBLE)
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
                                    available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
-                                                          'chapter': ArgType.STRING},
-                                   available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'ch': 'chapter', 'num': 'num'})
+                                                          'chapter': ArgType.STRING, 'verse': ArgType.STRING},
+                                   available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'ch': 'chapter', 'num': 'num', 'v': 'verse'})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -206,11 +210,16 @@ class Commands:
             if matched_chapter_name is None:
                 response += f'[Sura {filtered_df.iloc[0]['chapter_nr']}]. {filtered_df.iloc[0]['chapter_name']}, '
 
-        response = self.handle_holy_text_named_params(command_args, filtered_df, quran_df, bot_state, filter_phrase, HolyTextType.QURAN)
+        response, error = self.handle_holy_text_named_params(command_args, filtered_df, quran_df, bot_state, filter_phrase, HolyTextType.QURAN)
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 
     def handle_holy_text_named_params(self, command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type):
+        error = ''
         last_verse_id = bot_state.last_bible_verse_id if holy_text_type == HolyTextType.BIBLE else bot_state.last_quran_verse_id
         if filtered_df.empty:
             response = 'Nie ma takiego wersetu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :('
@@ -234,12 +243,15 @@ class Commands:
             self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
             response = f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}": \n\n'
             response += f'[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row["text"]}'
+        elif 'verse' in command_args.named_args:
+            response, error = core_utils.parse_quran_verse_arg(command_args.named_args['verse'], bot_state, holy_text_type)
         else:
             random_row = filtered_df.iloc[0]
             self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
             response = f"[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row['text']}"
 
-        return response
+        return response, error
+
 
     async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         bible_stats_df = bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')

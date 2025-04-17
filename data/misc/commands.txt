@@ -14,7 +14,7 @@ handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description
 kiepscyurl - (number) Get a Kiepscy episode url by the episode number
-koran - (text_filter, --all, --num[int], --count[int], --next[int], --prev[int], --chapter) - just a whole focking Koran book
+koran - (text_filter, --all, --verse[chapter:verse_nr], --num[int], --count[int], --next[int], --prev[int], --chapter) - just a whole focking Koran book
 lastmessages - (username, number[optional]) display last x messages from chat history
 likechart - (username[optional], period[optional]) display number of reactions received per day per user
 monologuechart - (username[optional], period[optional], --acc) calculate monologue index (acc stands for accumulative, meaning it's counted from the beginning no matter the filter period)
