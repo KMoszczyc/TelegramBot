@@ -42,7 +42,7 @@ def create_table_plotly(df, command_args, columns):
 
     CELL_HEIGHT = 50
     HEADER_CELL_HEIGHT = CELL_HEIGHT * 1.65 if is_date_range else CELL_HEIGHT
-    CELL_WIDTH = 270
+    CELL_WIDTH = 280
     WIDTH = CELL_WIDTH * 1.2 + CELL_WIDTH * (len(columns) - 1) if is_date_range or is_date else CELL_WIDTH * 0.9 + CELL_WIDTH * (len(columns) - 1)
     WIDTHS = [CELL_WIDTH * 1.2] + [CELL_WIDTH] * (len(columns) - 1) if is_date_range or is_date else [CELL_WIDTH * 0.9] + [CELL_WIDTH] * (len(columns) - 1)
 
