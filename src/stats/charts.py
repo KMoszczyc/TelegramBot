@@ -6,7 +6,7 @@ import os
 import plotly.graph_objects as go
 import networkx as nx
 
-from definitions import TEMP_DIR, DatetimeFormat, PeriodFilterMode
+from definitions import TEMP_DIR, DatetimeFormat, PeriodFilterMode, ChartType
 import src.stats.utils as stats_utils
 
 
@@ -216,3 +216,57 @@ def create_relationship_graph(reactions_df):
     plt.savefig(path, dpi=250, facecolor=fig.get_facecolor())
 
     return path
+
+def preprocess_df_for_ploting(df, grouping_col: str, selected_for_grouping: list, x_col: str):
+    filtered_df = df[df[grouping_col].isin(selected_for_grouping)]
+    filtered_df.set_index(x_col, inplace=True)
+    filtered_df.index = filtered_df.index.to_timestamp()
+    return filtered_df
+
+def generate_plot(df, selected_for_grouping: list, grouping_col: str, x_col: str, y_col: str, title: str, x_label='time', y_label='value', chart_type=ChartType.MIXED):
+    preprocessed_df = preprocess_df_for_ploting(df, grouping_col, selected_for_grouping, x_col)
+    if len(selected_for_grouping) == 1:
+        generate_mean_plot(preprocessed_df, y_col)
+    else:
+        generate_grouped_plot(preprocessed_df, x_col, y_col, grouping_col, chart_type=chart_type)
+
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.tight_layout()
+    # plt.legend(loc='best')
+    plt.legend(loc="upper left", ncol=5)
+
+    path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
+    stats_utils.create_dir(TEMP_DIR)
+    plt.savefig(path, bbox_inches='tight')
+
+    return path
+
+def generate_mean_plot(df, y_col):
+    cmap = plt.get_cmap("tab10")
+    df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
+
+    # Generate shifted weekly plot
+    weekly_data = df[y_col].resample('W').mean()
+    weekly_data.index = weekly_data.index - pd.offsets.Day(3)
+    weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg', color=cmap(2))
+
+    # Generate shifted monthly plot, so it shows in the middle of the month on chart
+    monthly_data = df[y_col].resample('M').mean()
+    monthly_data.index = monthly_data.index - pd.offsets.Day(15)
+    monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
+
+def generate_grouped_plot(df, x_col, y_col, grouping_col, chart_type):
+    cmap = plt.get_cmap("tab20")
+    days_diff = (max(df.index) - min(df.index)).days
+    if days_diff > 90 or chart_type == ChartType.LINE:  # line chart
+        fig, ax = plt.subplots()
+        for i, (key, grp) in enumerate(df.groupby([grouping_col])):
+            grp = grp[y_col].resample('W').mean() if days_diff > 180 else grp[y_col]
+            ax = grp.plot(ax=ax, kind='line', figsize=(10, 5), label=key[0], color=cmap(i))
+    else:  # stacked bar chart
+        pivot_df = df.pivot_table(index=x_col, columns=grouping_col, values=y_col, fill_value=0)
+        pivot_df.index = pivot_df.index.strftime('%Y-%m-%d')
+        pivot_df.plot(kind='bar', stacked=True, figsize=(10, 7), cmap=cmap)
+        plt.xticks(rotation=70, ha='right', fontsize=6)

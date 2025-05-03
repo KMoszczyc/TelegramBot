@@ -292,3 +292,7 @@ def get_last_message_id_of_a_user(df, user_id) -> [int, str]:
         return None, 'This user exists but has never posted a message.'
     else:
         return int(messages_by_user_df.iloc[-1]['message_id']), ''
+
+
+def text_to_word_length_sum(text):
+    return sum(len(word) for word in str(text).split())

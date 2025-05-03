@@ -98,8 +98,11 @@ class ChatCommands:
         sad_reactions_given_counts = sad_reactions_df.groupby('reacting_username').size().reset_index(name='count').sort_values('count', ascending=False)
 
         chat_df['word_count'] = chat_df['text'].apply(lambda x: len(str(x).split()))
+        chat_df['word_length'] = chat_df['text'].apply(lambda x: stats_utils.text_to_word_length_sum(x))
+
         user_stats = chat_df.groupby('final_username').agg(
             word_count=('word_count', 'sum'),
+            word_length=('word_length', 'sum'),
             message_count=('text', 'size')
         ).reset_index()
 
@@ -107,6 +110,7 @@ class ChatCommands:
         fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
         wholesome_metric = self.calculate_wholesome_metric(reactions_df)
         user_stats['monologue_ratio'] = (user_stats['word_count'] / user_stats['message_count']).round(2)
+        user_stats['avg_word_length'] = (user_stats['word_length'] / user_stats['word_count']).round(2)
 
         # Calculate message and reaction count changes
         message_count_change = 0 if shifted_chat_df.empty else round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1)
@@ -138,6 +142,7 @@ class ChatCommands:
             ['<b>Top spammer</b>', *[f"{row['final_username']}: <b>{row['message_count']}</b>" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()]],
             ['<b>Word count</b>', *[f"{row['final_username']}: <b>{row['word_count']}</b>" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()]],
             ['<b>Monologue index</b>', *[f"{row['final_username']}: <b>{row['monologue_ratio']}</b>" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()]],
+            ['<b>Elaborateness</b>', *[f"{row['final_username']}: <b>{row['avg_word_length']}</b>" for _, row in user_stats.sort_values('avg_word_length', ascending=False).head(3).iterrows()]],
             ['<b>Fun</b>', *[f"{row['final_username']}: <b>{row['ratio']}</b>" for _, row in fun_metric.head(3).iterrows()]],
             ['<b>Wholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.head(3).iterrows()]],
             ['<b>Unwholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()]],
@@ -376,7 +381,7 @@ class ChatCommands:
             users = self.users_df['final_username'].unique()
 
         fun_ratios = self.calculate_fun_metric_periodized(chat_df, reactions_df, frequency='D')
-        path = self.generate_plot(fun_ratios, users, 'final_username', 'period', 'ratio', text, x_label='time', y_label='funratio daily')
+        path = charts.generate_plot(fun_ratios, users, 'final_username', 'period', 'ratio', text, x_label='time', y_label='funratio daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -396,7 +401,7 @@ class ChatCommands:
 
         chat_df['period'] = chat_df['timestamp'].dt.to_period('D')
         message_counts = chat_df.groupby(['period', 'final_username']).size().unstack(fill_value=0).stack().reset_index(name='message_count')
-        path = self.generate_plot(message_counts, users, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages daily')
+        path = charts.generate_plot(message_counts, users, 'final_username', 'period', 'message_count', text, x_label='time', y_label='messages daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -420,7 +425,7 @@ class ChatCommands:
         total_monologue_stats_df = self.calculate_monologue_index_metric_periodized(self.chat_df, frequency='D')
         filtered_monologue_stats_df = stats_utils.filter_by_time_df(total_monologue_stats_df, command_args, time_column='period')
         filtered_monologue_stats_df['period'] = filtered_monologue_stats_df['period'].dt.to_period('D')
-        path = self.generate_plot(filtered_monologue_stats_df, users, 'final_username', 'period', metric_col, text, x_label='time', y_label='monologue index', chart_type=ChartType.LINE)
+        path = charts.generate_plot(filtered_monologue_stats_df, users, 'final_username', 'period', metric_col, text, x_label='time', y_label='monologue index', chart_type=ChartType.LINE)
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -441,7 +446,7 @@ class ChatCommands:
 
         reactions_df['period'] = reactions_df['timestamp'].dt.to_period('D')
         reaction_counts = reactions_df.groupby(['period', 'reacted_to_username']).size().unstack(fill_value=0).stack().reset_index(name='reaction_count')
-        path = self.generate_plot(reaction_counts, users, 'reacted_to_username', 'period', 'reaction_count', text, x_label='time', y_label='likes received daily')
+        path = charts.generate_plot(reaction_counts, users, 'reacted_to_username', 'period', 'reaction_count', text, x_label='time', y_label='likes received daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -488,7 +493,7 @@ class ChatCommands:
         selected_for_grouping = users if command != '' else commands
 
         command_usage_counts = command_usage_df.groupby(['period', grouping_col]).size().unstack(fill_value=0).stack().reset_index(name='command_count')
-        path = self.generate_plot(command_usage_counts, selected_for_grouping, grouping_col, 'period', 'command_count', text, x_label='time', y_label='command usage daily')
+        path = charts.generate_plot(command_usage_counts, selected_for_grouping, grouping_col, 'period', 'command_count', text, x_label='time', y_label='command usage daily')
 
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -597,57 +602,3 @@ class ChatCommands:
         result_df = merged_df[['period', 'final_username', 'ratio']].sort_values(['period', 'ratio'], ascending=[True, False])
 
         return result_df
-
-    def preprocess_df_for_ploting(self, df, grouping_col: str, selected_for_grouping: list, x_col: str):
-        filtered_df = df[df[grouping_col].isin(selected_for_grouping)]
-        filtered_df.set_index(x_col, inplace=True)
-        filtered_df.index = filtered_df.index.to_timestamp()
-        return filtered_df
-
-    def generate_plot(self, df, selected_for_grouping: list, grouping_col: str, x_col: str, y_col: str, title: str, x_label='time', y_label='value', chart_type=ChartType.MIXED):
-        preprocessed_df = self.preprocess_df_for_ploting(df, grouping_col, selected_for_grouping, x_col)
-        if len(selected_for_grouping) == 1:
-            self.generate_mean_plot(preprocessed_df, y_col)
-        else:
-            self.generate_grouped_plot(preprocessed_df, x_col, y_col, grouping_col, chart_type=chart_type)
-
-        plt.title(title)
-        plt.xlabel(x_label)
-        plt.ylabel(y_label)
-        plt.tight_layout()
-        # plt.legend(loc='best')
-        plt.legend(loc="upper left", ncol=5)
-
-        path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
-        stats_utils.create_dir(TEMP_DIR)
-        plt.savefig(path, bbox_inches='tight')
-
-        return path
-
-    def generate_mean_plot(self, df, y_col):
-        cmap = plt.get_cmap("tab10")
-        df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
-
-        # Generate shifted weekly plot
-        weekly_data = df[y_col].resample('W').mean()
-        weekly_data.index = weekly_data.index - pd.offsets.Day(3)
-        weekly_data.plot(kind='line', figsize=(10, 5), label='weekly avg', color=cmap(2))
-
-        # Generate shifted monthly plot, so it shows in the middle of the month on chart
-        monthly_data = df[y_col].resample('M').mean()
-        monthly_data.index = monthly_data.index - pd.offsets.Day(15)
-        monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
-
-    def generate_grouped_plot(self, df, x_col, y_col, grouping_col, chart_type):
-        cmap = plt.get_cmap("tab20")
-        days_diff = (max(df.index) - min(df.index)).days
-        if days_diff > 90 or chart_type == ChartType.LINE:  # line chart
-            fig, ax = plt.subplots()
-            for i, (key, grp) in enumerate(df.groupby([grouping_col])):
-                grp = grp[y_col].resample('W').mean() if days_diff > 180 else grp[y_col]
-                ax = grp.plot(ax=ax, kind='line', figsize=(10, 5), label=key[0], color=cmap(i))
-        else:  # stacked bar chart
-            pivot_df = df.pivot_table(index=x_col, columns=grouping_col, values=y_col, fill_value=0)
-            pivot_df.index = pivot_df.index.strftime('%Y-%m-%d')
-            pivot_df.plot(kind='bar', stacked=True, figsize=(10, 7), cmap=cmap)
-            plt.xticks(rotation=70, ha='right', fontsize=6)
