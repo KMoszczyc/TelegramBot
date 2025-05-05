@@ -76,8 +76,9 @@ class ChatCommands:
         return filtered_chat_df, filtered_reactions_df, command_args
 
     async def cmd_summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'num': ArgType.POSITIVE_INT})
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
+        display_count = command_args.named_args['num'] if 'num' in command_args.named_args else 3
 
         shifted_chat_df = stats_utils.filter_by_shifted_time_df(self.chat_df, command_args)
         shifted_reactions_df = stats_utils.filter_by_shifted_time_df(self.reactions_df, command_args)
@@ -137,30 +138,31 @@ class ChatCommands:
         # text = stats_utils.escape_special_characters(text)
         # await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-        columns = [f'<b>{core_utils.generate_period_headline(command_args)}</b>', '<b>TOP1</b>', '<b>TOP2</b>', '<b>TOP3</b>']
         rows = [
-            ['<b>Top spammer</b>', *[f"{row['final_username']}: <b>{row['message_count']}</b>" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()]],
-            ['<b>Word count</b>', *[f"{row['final_username']}: <b>{row['word_count']}</b>" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()]],
-            ['<b>Monologue index</b>', *[f"{row['final_username']}: <b>{row['monologue_ratio']}</b>" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()]],
-            ['<b>Elaborateness</b>', *[f"{row['final_username']}: <b>{row['avg_word_length']}</b>" for _, row in user_stats.sort_values('avg_word_length', ascending=False).head(3).iterrows()]],
-            ['<b>Fun</b>', *[f"{row['final_username']}: <b>{row['ratio']}</b>" for _, row in fun_metric.head(3).iterrows()]],
-            ['<b>Wholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.head(3).iterrows()]],
-            ['<b>Unwholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()]],
-            ['<b>Most liked</b>', *[f"{row['reacted_to_username']}: <b>{row['count']}</b>" for _, row in reactions_received_counts.head(3).iterrows()]],
-            ['<b>Most liking</b>', *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in reactions_given_counts.head(3).iterrows()]],
-            ['<b>Most disliked</b>', *[f"{row['reacted_to_username']}: <b>{row['count']}</b>" for _, row in sad_reactions_received_counts.head(3).iterrows()]],
-            ['<b>Most disliking</b>', *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in sad_reactions_given_counts.head(3).iterrows()]],
+            ['<b>Top spammer</b>', *[f"{row['final_username']}: <b>{row['message_count']}</b>" for _, row in user_stats.sort_values('message_count', ascending=False).head(display_count).iterrows()]],
+            ['<b>Word count</b>', *[f"{row['final_username']}: <b>{row['word_count']}</b>" for _, row in user_stats.sort_values('word_count', ascending=False).head(display_count).iterrows()]],
+            ['<b>Monologue index</b>', *[f"{row['final_username']}: <b>{row['monologue_ratio']}</b>" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(display_count).iterrows()]],
+            ['<b>Elaborateness</b>', *[f"{row['final_username']}: <b>{row['avg_word_length']}</b>" for _, row in user_stats.sort_values('avg_word_length', ascending=False).head(display_count).iterrows()]],
+            ['<b>Fun</b>', *[f"{row['final_username']}: <b>{row['ratio']}</b>" for _, row in fun_metric.head(display_count).iterrows()]],
+            ['<b>Wholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.head(display_count).iterrows()]],
+            ['<b>Unwholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(display_count).iterrows()]],
+            ['<b>Most liked</b>', *[f"{row['reacted_to_username']}: <b>{row['count']}</b>" for _, row in reactions_received_counts.head(display_count).iterrows()]],
+            ['<b>Most liking</b>', *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in reactions_given_counts.head(display_count).iterrows()]],
+            ['<b>Most disliked</b>', *[f"{row['reacted_to_username']}: <b>{row['count']}</b>" for _, row in sad_reactions_received_counts.head(display_count).iterrows()]],
+            ['<b>Most disliking</b>', *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in sad_reactions_given_counts.head(display_count).iterrows()]],
         ]
         footnotes = [
             f"Total: {len(chat_df)} ({message_count_change_text}) messages, {len(reactions_df)} ({reaction_count_change_text}) reactions and {images_num} images",
             "Top message: " + ", ".join(
                 [f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in text_only_chat_df.head(1).iterrows()])
         ]
-
         send_msg = '\n'.join(footnotes)
-        if len(rows[0]) != len(columns):
-            for row in rows:
-                row += [''] * (len(columns) - 1)
+
+        # Adjust the col display count to the longest row
+        longest_row_count = max(len(row) for row in rows) - 1 # -1 because 1st column is a header for metric name
+        col_count = min(longest_row_count, display_count)
+        columns = [f'<b>{core_utils.generate_period_headline(command_args)}</b>', *[f"<b>TOP{i+1}</b>"for i in range(col_count)]]
+
         summary_df = pd.DataFrame(rows, columns=columns)
         path = charts.create_table_plotly(summary_df, command_args=command_args, columns=columns)
 
