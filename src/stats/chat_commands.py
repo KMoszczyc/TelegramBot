@@ -569,9 +569,28 @@ class ChatCommands:
 
         self.cwel_stats_df = stats_utils.append_cwel_stats(self.cwel_stats_df, source_message.date, receiver_username, giver_username, message_id, 1)
         cwel_count = self.cwel_stats_df[self.cwel_stats_df['receiver_username'] == receiver_username]['value'].sum()
+        processed_cwel_stats_df = self.cwel_stats_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
+        cwel_place = processed_cwel_stats_df[processed_cwel_stats_df['receiver_username'] == receiver_username].index[0] + 1
 
-        response = f"{giver_username} cwel'd {receiver_username}, now {receiver_username} is cwel lvl {cwel_count}"
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        response = f"*{giver_username}* cwel'd *{receiver_username}*, now *{receiver_username}* is cwel *\#{cwel_place}*, lvl *{cwel_count}*"
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def cmd_topcwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        processed_cwel_stats_df = self.cwel_stats_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
+        text = self.generate_response_headline(command_args, label='``` Top Cwel')
+
+        for i, (index, row) in enumerate(processed_cwel_stats_df.iterrows()):
+            text += f"\n{i + 1}.".ljust(4) + f" {row['receiver_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['value']}" if command_args.user is None else f"\n{i + 1}."
+
+        text += "```"
+        text = stats_utils.escape_special_characters(text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     def generate_response_headline(self, command_args, label):
         text = label

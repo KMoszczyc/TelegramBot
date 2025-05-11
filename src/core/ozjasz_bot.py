@@ -94,7 +94,8 @@ class OzjaszBot:
             'commandschart': self.chat_commands.cmd_command_usage_chart,
             'monologuechart': self.chat_commands.cmd_monologuechart,
             'relgraph': self.chat_commands.cmd_relationship_graph,
-            'cwel': self.chat_commands.cmd_cwel
+            'cwel': self.chat_commands.cmd_cwel,
+            'topcwel': self.chat_commands.cmd_topcwel
         }
 
     def validate_command(self):
