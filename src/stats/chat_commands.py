@@ -11,6 +11,7 @@ from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, U
     ChartType
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
+from src.core.client_api_handler import BOT_ID
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
@@ -32,11 +33,13 @@ MAX_NICKNAMES_NUM = 5
 class ChatCommands:
     def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState):
         self.users_df = stats_utils.read_df(USERS_PATH)
+        self.users_map = stats_utils.get_users_map(self.users_df)
         self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
         self.command_logger = command_logger
         self.bot_state = bot_state
         self.job_persistance = job_persistance
+        self.cwel_stats_df = stats_utils.init_cwel_stats()
 
     def update(self):
         """If chat data was updated recentely, reload it."""
@@ -141,8 +144,10 @@ class ChatCommands:
         rows = [
             ['<b>Top spammer</b>', *[f"{row['final_username']}: <b>{row['message_count']}</b>" for _, row in user_stats.sort_values('message_count', ascending=False).head(display_count).iterrows()]],
             ['<b>Word count</b>', *[f"{row['final_username']}: <b>{row['word_count']}</b>" for _, row in user_stats.sort_values('word_count', ascending=False).head(display_count).iterrows()]],
-            ['<b>Monologue index</b>', *[f"{row['final_username']}: <b>{row['monologue_ratio']}</b>" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(display_count).iterrows()]],
-            ['<b>Elaborateness</b>', *[f"{row['final_username']}: <b>{row['avg_word_length']}</b>" for _, row in user_stats.sort_values('avg_word_length', ascending=False).head(display_count).iterrows()]],
+            ['<b>Monologue index</b>',
+             *[f"{row['final_username']}: <b>{row['monologue_ratio']}</b>" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(display_count).iterrows()]],
+            ['<b>Elaborateness</b>',
+             *[f"{row['final_username']}: <b>{row['avg_word_length']}</b>" for _, row in user_stats.sort_values('avg_word_length', ascending=False).head(display_count).iterrows()]],
             ['<b>Fun</b>', *[f"{row['final_username']}: <b>{row['ratio']}</b>" for _, row in fun_metric.head(display_count).iterrows()]],
             ['<b>Wholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.head(display_count).iterrows()]],
             ['<b>Unwholesome</b>', *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(display_count).iterrows()]],
@@ -159,9 +164,9 @@ class ChatCommands:
         send_msg = '\n'.join(footnotes)
 
         # Adjust the col display count to the longest row
-        longest_row_count = max(len(row) for row in rows) - 1 # -1 because 1st column is a header for metric name
+        longest_row_count = max(len(row) for row in rows) - 1  # -1 because 1st column is a header for metric name
         col_count = min(longest_row_count, display_count)
-        columns = [f'<b>{core_utils.generate_period_headline(command_args)}</b>', *[f"<b>TOP{i+1}</b>"for i in range(col_count)]]
+        columns = [f'<b>{core_utils.generate_period_headline(command_args)}</b>', *[f"<b>TOP{i + 1}</b>" for i in range(col_count)]]
 
         summary_df = pd.DataFrame(rows, columns=columns)
         path = charts.create_table_plotly(summary_df, command_args=command_args, columns=columns)
@@ -534,6 +539,38 @@ class ChatCommands:
 
         self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, message_id, command_args.string])
         response = f"{command_args.user} is gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+    async def cmd_cwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, min_string_length=1, max_string_length=1000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        error = 'You have to reply to a message to cwel someone.' if not update.message.reply_to_message else ''
+        error += 'You cannot cwel Ozjasz. Only Ozjasz can cwel you.' if update.message.reply_to_message and update.message.reply_to_message.from_user.id == BOT_ID else error
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
+        source_message = update.message.reply_to_message
+        receiver_username = self.users_map[source_message.from_user.id]
+        message_id = source_message.message_id
+        giver_id = update.message.from_user.id
+        giver_username = self.users_map[giver_id]
+        if receiver_username == giver_username:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='You cannot cwel yourself.')
+            return
+        success, error = self.bot_state.update_cwel_usage_map(giver_id)
+        if not success:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
+        self.cwel_stats_df = stats_utils.append_cwel_stats(self.cwel_stats_df, source_message.date, receiver_username, giver_username, message_id, 1)
+        cwel_count = self.cwel_stats_df[self.cwel_stats_df['receiver_username'] == receiver_username]['value'].sum()
+
+        response = f"{giver_username} cwel'd {receiver_username}, now {receiver_username} is cwel lvl {cwel_count}"
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     def generate_response_headline(self, command_args, label):

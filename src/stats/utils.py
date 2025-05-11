@@ -11,7 +11,7 @@ from datetime import timezone, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE, DatetimeFormat
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE, DatetimeFormat, CWEL_STATS_PATH
 from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args, merge_spaced_args
 from src.models.command_args import CommandArgs
 
@@ -138,6 +138,7 @@ def filter_by_time_df(df, command_args, time_column='timestamp'):
         case _:
             return df[df[time_column] >= today_dt - timedelta(days=7)]
 
+
 def filter_by_shifted_time_df(df, command_args):
     period_mode, period_time = command_args.period_mode, command_args.period_time
 
@@ -176,6 +177,7 @@ def filter_by_shifted_time_df(df, command_args):
             return filter_df_in_range(df, command_args.start_dt - timedelta(days=days_diff), command_args.start_dt)
         case _:
             return filter_df_in_range(df, dt_now - timedelta(days=14), dt_now - timedelta(days=7))
+
 
 def filter_emojis_by_emoji_type(df, emoji_type, col='reaction_emojis'):
     if emoji_type == EmojiType.NEGATIVE:
@@ -296,3 +298,27 @@ def get_last_message_id_of_a_user(df, user_id) -> [int, str]:
 
 def text_to_word_length_sum(text):
     return sum(len(word) for word in str(text).split())
+
+
+def init_cwel_stats():
+    if not os.path.exists(CWEL_STATS_PATH):
+        columns = ['timestamp', 'receiver_username', 'giver_username', 'reply_message_id', 'value']
+        df = pd.DataFrame(columns=columns)
+        df.to_parquet(CWEL_STATS_PATH)
+    else:
+        df = pd.read_parquet(CWEL_STATS_PATH)
+    return df
+
+
+def append_cwel_stats(cwel_stats_df, timestamp, receiver_username, giver_username, reply_message_id, value):
+    new_entry = pd.DataFrame([{'timestamp': timestamp, 'receiver_username': receiver_username, 'giver_username': giver_username, 'reply_message_id': reply_message_id, 'value': value}])
+    cwel_stats_df = pd.concat([cwel_stats_df, new_entry], ignore_index=True)
+    cwel_stats_df.to_parquet(CWEL_STATS_PATH)
+    return cwel_stats_df
+
+
+def get_users_map(users_df):
+    return {
+        index: row['final_username']
+        for index, row in users_df.iterrows()
+    }

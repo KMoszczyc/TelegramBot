@@ -57,6 +57,15 @@ users_schema = pa.DataFrameSchema({
     'nicknames': pa.Column(object, nullable=True)  # list (nullable)
 }, index=pa.Index(int, name="user_id"), name="users")
 
+# 5. Cwel schema
+cwel_schema = pa.DataFrameSchema({
+    'timestamp': pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),  # datetime64[ns]
+    'receiver_username': pa.Column(str),
+    'giver_username': pa.Column(str),
+    'reply_message_id': pa.Column(int),
+    'value': pa.Column(int)  # string
+})
+
 #
 # chat_history_schema = {
 #     'message_id': "int64",

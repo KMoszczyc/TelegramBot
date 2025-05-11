@@ -35,6 +35,7 @@ log.info(f'Runtime: {RUNTIME_ENV}')
 MAX_USERNAME_LENGTH = 20
 MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 3
+MAX_CWEL_USAGE_DAILY = 3
 TIMEZONE = 'Europe/Warsaw'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +56,7 @@ REACTIONS_PATH = os.path.join(DATA_DIR, 'chat/reactions.parquet')
 USERS_PATH = os.path.join(DATA_DIR, 'chat/users.parquet')
 COMMANDS_USAGE_PATH = os.path.join(DATA_DIR, 'chat/commands_usage.parquet')
 SCHEDULED_JOBS_PATH = os.path.join(DATA_DIR, 'chat/scheduled_jobs.pkl')
+CWEL_STATS_PATH = os.path.join(DATA_DIR, 'chat/cwel_stats.parquet')
 
 # Miscalenous
 TVP_HEADLINES_PATH = os.path.join(DATA_DIR, 'misc/paski-tvp.txt')

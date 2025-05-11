@@ -651,7 +651,7 @@ def regexify_multiword_filter(words):
     return base.format(''.join(expr.format(w) for w in words))
 
 
-def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str,str]:
+def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str, str]:
     arg_split = arg.split(':')
     if len(arg_split) != 2:
         return '', 'Failed to parse the --verse argument.'

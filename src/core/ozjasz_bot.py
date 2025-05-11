@@ -93,7 +93,8 @@ class OzjaszBot:
             'likechart': self.chat_commands.cmd_likechart,
             'commandschart': self.chat_commands.cmd_command_usage_chart,
             'monologuechart': self.chat_commands.cmd_monologuechart,
-            'relgraph': self.chat_commands.cmd_relationship_graph
+            'relgraph': self.chat_commands.cmd_relationship_graph,
+            'cwel': self.chat_commands.cmd_cwel
         }
 
     def validate_command(self):
