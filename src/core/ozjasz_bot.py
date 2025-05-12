@@ -34,7 +34,7 @@ class OzjaszBot:
                             .build()
                             )
 
-        self.bot_state = BotState()
+        self.bot_state = BotState(self.application.job_queue)
         self.job_persistance = JobPersistance(self.application.job_queue)
 
         self.command_logger = CommandLogger(self.bot_state)

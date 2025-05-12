@@ -1,5 +1,8 @@
 import logging
 from collections import defaultdict
+import datetime
+from zoneinfo import ZoneInfo
+
 import schedule
 from definitions import TIMEZONE, MAX_REMINDERS_DAILY_USAGE, HolyTextType, MAX_CWEL_USAGE_DAILY
 
@@ -7,13 +10,13 @@ log = logging.getLogger(__name__)
 
 
 class BotState:
-    def __init__(self):
+    def __init__(self, job_queue):
         self.last_bible_verse_id = -1
         self.last_quran_verse_id = -1
         self.remindme_usage_map = defaultdict(int)
         self.cwel_usage_daily_count_map = defaultdict(int)
 
-        self.run_schedules()
+        self.run_schedules(job_queue)
 
 
     def update_cwel_usage_map(self, cwel_giver_id) -> [bool, str]:
@@ -30,12 +33,13 @@ class BotState:
         else:
             return False
 
-    def run_schedules(self):
-        schedule.every().day.at("00:15", TIMEZONE).do(self.reset_command_limits)
+    def run_schedules(self, job_queue):
+        time = datetime.time(0, 15, tzinfo=ZoneInfo(TIMEZONE))
+        job_queue.run_daily(callback=lambda context: self.reset_command_limits(context), time=time, name='Reset command limits (/remindme and /cwel)')
 
-    def reset_command_limits(self):
+    async def reset_command_limits(self, context):
         self.remindme_usage_map = defaultdict(int)
-        self.cwel_usage_daily_count = defaultdict(int)
+        self.cwel_usage_daily_count_map = defaultdict(int)
 
         log.info('Remindme and cwel usage limits have been reset.')
 

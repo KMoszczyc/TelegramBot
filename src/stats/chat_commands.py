@@ -572,7 +572,8 @@ class ChatCommands:
         processed_cwel_stats_df = self.cwel_stats_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
         cwel_place = processed_cwel_stats_df[processed_cwel_stats_df['receiver_username'] == receiver_username].index[0] + 1
 
-        response = f"*{giver_username}* cwel'd *{receiver_username}*, now *{receiver_username}* is cwel *\#{cwel_place}*, lvl *{cwel_count}*"
+        response = f"*{giver_username}* cwel'd *{receiver_username}*, now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
+        response = stats_utils.escape_special_characters(response)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_topcwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
