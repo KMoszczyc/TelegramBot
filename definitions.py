@@ -36,6 +36,8 @@ MAX_USERNAME_LENGTH = 20
 MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
 MAX_CWEL_USAGE_DAILY = 20
+LONG_MESSAGE_LIMIT = 1 # long texts spanning into multiple messages.
+
 TIMEZONE = 'Europe/Warsaw'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -11,7 +11,7 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df
+    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -24,6 +24,7 @@ class Commands:
         self.job_persistance = job_persistance
         self.bot_state = bot_state
         self.users_df = stats_utils.read_df(USERS_PATH)
+        self.users_map = stats_utils.get_users_map(self.users_df)
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = self.users_df['final_username'].tolist()
@@ -188,7 +189,7 @@ class Commands:
     async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
                                    available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
-                                                          'chapter': ArgType.STRING, 'verse': ArgType.STRING},
+                                                         'chapter': ArgType.STRING, 'verse': ArgType.STRING},
                                    available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'ch': 'chapter', 'num': 'num', 'v': 'verse'})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
@@ -216,7 +217,6 @@ class Commands:
             return
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-
 
     def handle_holy_text_named_params(self, command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type):
         error = ''
@@ -251,7 +251,6 @@ class Commands:
             response = f"[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row['text']}"
 
         return response, error
-
 
     async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         bible_stats_df = bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
@@ -307,6 +306,9 @@ class Commands:
     async def cmd_kiepscy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
+
+        # await context.bot.send_message(chat_id=update.effective_chat.id, text='Temporarily disabled :(')
+        # return
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
@@ -325,14 +327,25 @@ class Commands:
         merged_df['nr'] = merged_df['nr'].replace('—', '999').astype(int)
         merged_df = merged_df.drop_duplicates('nr').sort_values('nr').reset_index(drop=True)
 
+        if search_phrase == '' and not search_phrases:
+            random_row = merged_df.sample(frac=1).iloc[1]
+            text = f"*{random_row['nr']}: {random_row['title']}* - {random_row['description']}\n"
+            text = stats_utils.escape_special_characters(text)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
         text = f"Kiepscy episodes that match [{search_phrase}]:\n"
         last_text = text
+        message_sent_count = 0
         for i, (index, row) in enumerate(merged_df.iterrows()):
             text += f"- *{row['nr']}: {row['title']}* - {row['description']}\n"
+            if message_sent_count >= LONG_MESSAGE_LIMIT:
+                return
             if len(text) > 4096:
                 response = stats_utils.escape_special_characters(last_text)
                 await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
                 text = ""
+                message_sent_count += 1
             last_text = text
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
