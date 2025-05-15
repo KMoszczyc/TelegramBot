@@ -8,7 +8,7 @@ import telegram
 import pandas as pd
 
 from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE, PeriodFilterMode, \
-    ChartType
+    ChartType, MAX_CWEL_USAGE_DAILY
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.core.client_api_handler import BOT_ID
@@ -542,7 +542,7 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_cwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, min_string_length=1, max_string_length=1000)
+        command_args = CommandArgs(args=context.args, available_named_args={'num': ArgType.POSITIVE_INT}, number_limit=MAX_CWEL_USAGE_DAILY)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -562,17 +562,19 @@ class ChatCommands:
         if receiver_username == giver_username:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='You cannot cwel yourself.')
             return
-        success, error = self.bot_state.update_cwel_usage_map(giver_id)
+        cwel_value = command_args.named_args['num'] if 'num' in command_args.named_args else 1
+        success, error = self.bot_state.update_cwel_usage_map(giver_id, cwel_value)
         if not success:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
             return
-
-        self.cwel_stats_df = stats_utils.append_cwel_stats(self.cwel_stats_df, source_message.date, receiver_username, giver_username, message_id, 1)
+        self.cwel_stats_df = stats_utils.append_cwel_stats(self.cwel_stats_df, source_message.date, receiver_username, giver_username, message_id, cwel_value)
         cwel_count = self.cwel_stats_df[self.cwel_stats_df['receiver_username'] == receiver_username]['value'].sum()
         processed_cwel_stats_df = self.cwel_stats_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
         cwel_place = processed_cwel_stats_df[processed_cwel_stats_df['receiver_username'] == receiver_username].index[0] + 1
+        cwels_left = self.bot_state.get_cwels_left(giver_id)
 
-        response = f"*{giver_username}* cwel'd *{receiver_username}*, now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
+        time_str = "times" if cwel_value > 1 else "time"
+        response = f"*{giver_username}* cwel'd *{receiver_username}* {cwel_value} {time_str} (*{cwels_left}* cwels left), now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
         response = stats_utils.escape_special_characters(response)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
@@ -583,7 +585,8 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
 
-        processed_cwel_stats_df = self.cwel_stats_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
+        filtered_df = stats_utils.filter_by_time_df(self.cwel_stats_df, command_args)
+        processed_cwel_stats_df = filtered_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
         text = self.generate_response_headline(command_args, label='``` Top Cwel')
 
         for i, (index, row) in enumerate(processed_cwel_stats_df.iterrows()):

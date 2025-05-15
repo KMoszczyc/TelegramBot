@@ -19,8 +19,8 @@ class BotState:
         self.run_schedules(job_queue)
 
 
-    def update_cwel_usage_map(self, cwel_giver_id) -> [bool, str]:
-        if cwel_giver_id in self.cwel_usage_daily_count_map and self.cwel_usage_daily_count_map[cwel_giver_id] >= MAX_CWEL_USAGE_DAILY:
+    def update_cwel_usage_map(self, cwel_giver_id, cwel_value) -> [bool, str]:
+        if cwel_giver_id in self.cwel_usage_daily_count_map and self.cwel_usage_daily_count_map[cwel_giver_id] + cwel_value - 1 >= MAX_CWEL_USAGE_DAILY:
             return False, 'You have reached your daily cwel limit.'
 
         self.cwel_usage_daily_count_map[cwel_giver_id] += 1
@@ -48,3 +48,5 @@ class BotState:
             self.last_bible_verse_id = last_verse_id
         elif holy_text_type == HolyTextType.QURAN:
             self.last_quran_verse_id = last_verse_id
+    def get_cwels_left(self, user_id):
+        return MAX_CWEL_USAGE_DAILY - self.cwel_usage_daily_count_map[user_id]

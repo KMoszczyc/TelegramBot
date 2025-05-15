@@ -35,7 +35,7 @@ log.info(f'Runtime: {RUNTIME_ENV}')
 MAX_USERNAME_LENGTH = 20
 MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
-MAX_CWEL_USAGE_DAILY = 10
+MAX_CWEL_USAGE_DAILY = 20
 TIMEZONE = 'Europe/Warsaw'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

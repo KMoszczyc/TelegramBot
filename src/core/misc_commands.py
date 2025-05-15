@@ -300,7 +300,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
             return
 
-        self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, update.message.message_id, command_args.string])
+        self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.e, args=[update.effective_chat.id, update.message.message_id, command_args.string])
         response = f"You're gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
