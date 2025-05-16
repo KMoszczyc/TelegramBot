@@ -27,7 +27,7 @@ class CommandArgs:
     end_dt: datetime = None
     dt: datetime = None
     dt_format: DatetimeFormat = None
-    number: int = 5
+    number: int = None
     string: str = ''
     strings: list[str] = field(default_factory=lambda: [])
     min_string_length: int = 0

@@ -35,7 +35,7 @@ log.info(f'Runtime: {RUNTIME_ENV}')
 MAX_USERNAME_LENGTH = 20
 MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
-MAX_CWEL_USAGE_DAILY = 20
+MAX_CWEL_USAGE_DAILY = 25
 LONG_MESSAGE_LIMIT = 1 # long texts spanning into multiple messages.
 
 TIMEZONE = 'Europe/Warsaw'
