@@ -563,7 +563,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='You cannot cwel yourself.')
             return
         cwel_value = command_args.number if command_args.number is not None else 1
-        success, error = self.bot_state.update_cwel_usage_map(giver_id, cwel_value)
+        success, error = self.bot_state.update_cwel_usage_map(giver_id, lambda cwel: cwel + cwel_value)
         if not success:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
             return
@@ -575,6 +575,45 @@ class ChatCommands:
         cwels_left = self.bot_state.get_cwels_left(giver_id)
 
         time_str = f"{cwel_value} times " if cwel_value > 1 else ""
+        response = f"*{giver_username}* cwel'd *{receiver_username}* {time_str}(*{cwels_left}* cwels left), now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
+        response = stats_utils.escape_special_characters(response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+
+    async def cmd_odcwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], optional=[True], number_limit=MAX_CWEL_USAGE_DAILY)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        error = 'You have to reply to a message to cwel someone.' if not update.message.reply_to_message else ''
+        error += 'Thou canst not uncwel fair Ozjasz, for ne’er was he cweled to begin with.' if update.message.reply_to_message and update.message.reply_to_message.from_user.id == BOT_ID else error
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
+        source_message = update.message.reply_to_message
+        receiver_username = self.users_map[source_message.from_user.id]
+        message_id = source_message.message_id
+        giver_id = update.message.from_user.id
+        giver_username = self.users_map[giver_id]
+        if receiver_username == giver_username:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='You cannot cwel yourself.')
+            return
+        odcwel_value = command_args.number if command_args.number is not None else 1
+        success, error = self.bot_state.update_cwel_usage_map(giver_id, lambda cwel: cwel - odcwel_value)
+        if not success:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
+        self.cwel_stats_df = stats_utils.append_cwel_stats(self.cwel_stats_df, source_message.date, receiver_username, giver_username, message_id, odcwel_value)
+        cwel_count = self.cwel_stats_df[self.cwel_stats_df['receiver_username'] == receiver_username]['value'].sum()
+        processed_cwel_stats_df = self.cwel_stats_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
+        cwel_place = processed_cwel_stats_df[processed_cwel_stats_df['receiver_username'] == receiver_username].index[0] + 1
+        cwels_left = self.bot_state.get_cwels_left(giver_id)
+
+        time_str = f"{odcwel_value} times " if odcwel_value > 1 else ""
         response = f"*{giver_username}* cwel'd *{receiver_username}* {time_str}(*{cwels_left}* cwels left), now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
         response = stats_utils.escape_special_characters(response)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)

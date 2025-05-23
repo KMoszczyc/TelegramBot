@@ -19,11 +19,17 @@ class BotState:
         self.run_schedules(job_queue)
 
 
-    def update_cwel_usage_map(self, cwel_giver_id, cwel_value) -> [bool, str]:
-        if cwel_giver_id in self.cwel_usage_daily_count_map and self.cwel_usage_daily_count_map[cwel_giver_id] + cwel_value > MAX_CWEL_USAGE_DAILY:
-            return False, 'You have reached your daily cwel limit.'
+    def update_cwel_usage_map(self, cwel_giver_id, get_cwel_value: Callable[int, int]) -> [bool, str]:
+        current_cwels = self.cwel_usage_daily_count_map.get(cwel_giver_id, 0)
+        updated_cwels_value = get_cwel_value(current_cwels)
 
-        self.cwel_usage_daily_count_map[cwel_giver_id] += cwel_value
+        if updated_cwels_value > MAX_CWEL_USAGE_DAILY:
+            return False, 'You have reached your daily cwel limit.'
+        
+        if updated_cwels_value < 0:
+            return False, "This person is not cwel enough to be this much uncwelled."
+
+        self.cwel_usage_daily_count_map[cwel_giver_id] = updated_cwels_value
         return True, ''
 
     def update_remindme(self, user_id) -> bool:

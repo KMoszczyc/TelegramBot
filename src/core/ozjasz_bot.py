@@ -95,6 +95,7 @@ class OzjaszBot:
             'monologuechart': self.chat_commands.cmd_monologuechart,
             'relgraph': self.chat_commands.cmd_relationship_graph,
             'cwel': self.chat_commands.cmd_cwel,
+            'odcwel': self.chat_commands.cmd_odcwel,
             'topcwel': self.chat_commands.cmd_topcwel
         }
 
