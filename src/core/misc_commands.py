@@ -23,7 +23,7 @@ class Commands:
         self.command_logger = command_logger
         self.job_persistance = job_persistance
         self.bot_state = bot_state
-        self.users_df = stats_utils.read_df(USERS_PATH)
+        self.users_df = pd.DataFrame()
         self.users_map = stats_utils.get_users_map(self.users_df)
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
