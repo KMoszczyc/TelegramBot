@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 class OzjaszBot:
     def __init__(self):
-        log.info('Starting Ozjasz bot...')
+        log.info('Starting Ozjasz Light bot...')
         self.application = (ApplicationBuilder()
                             .token(TOKEN)
                             .read_timeout(30)
@@ -46,8 +46,8 @@ class OzjaszBot:
 
     def add_commands(self):
         commands_map = self.get_commands_map()
-        validated_commands_map = {command_name: self.validate_command()(func) for command_name, func in commands_map.items()}  # Validate chat_id via decorator
-        counted_commands_map = {command_name: self.command_logger.count_command(command_name)(func) for command_name, func in validated_commands_map.items()}  # Apply the command counter decorator
+        # validated_commands_map = {command_name: self.validate_command()(func) for command_name, func in commands_map.items()}  # Validate chat_id via decorator
+        counted_commands_map = {command_name: self.command_logger.count_command(command_name)(func) for command_name, func in commands_map.items()}  # Apply the command counter decorator
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
@@ -75,27 +75,27 @@ class OzjaszBot:
             'summary': self.chat_commands.cmd_summary,
             'kiepscy': self.core_commands.cmd_kiepscy,
             'kiepscyurl': self.core_commands.cmd_kiepscyurl,
-            'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
-            'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
-            'topmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.ALL),
-            'sadmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.NEGATIVE),
-            'topvideos': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.VIDEO, EmojiType.ALL),
-            'topgifs': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.GIF, EmojiType.ALL),
-            'topaudio': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.AUDIO, EmojiType.ALL),
-            'lastmessages': self.chat_commands.cmd_last_messages,
-            'displayusers': self.chat_commands.cmd_display_users,
-            'setusername': self.chat_commands.cmd_set_username,
-            'addnickname': self.chat_commands.cmd_add_nickname,
-            'fun': self.chat_commands.cmd_fun,
-            'wholesome': self.chat_commands.cmd_wholesome,
-            'funchart': self.chat_commands.cmd_funchart,
-            'spamchart': self.chat_commands.cmd_spamchart,
-            'likechart': self.chat_commands.cmd_likechart,
-            'commandschart': self.chat_commands.cmd_command_usage_chart,
-            'monologuechart': self.chat_commands.cmd_monologuechart,
-            'relgraph': self.chat_commands.cmd_relationship_graph,
-            'cwel': self.chat_commands.cmd_cwel,
-            'topcwel': self.chat_commands.cmd_topcwel
+            # 'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
+            # 'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
+            # 'topmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.ALL),
+            # 'sadmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.NEGATIVE),
+            # 'topvideos': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.VIDEO, EmojiType.ALL),
+            # 'topgifs': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.GIF, EmojiType.ALL),
+            # 'topaudio': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.AUDIO, EmojiType.ALL),
+            # 'lastmessages': self.chat_commands.cmd_last_messages,
+            # 'displayusers': self.chat_commands.cmd_display_users,
+            # 'setusername': self.chat_commands.cmd_set_username,
+            # 'addnickname': self.chat_commands.cmd_add_nickname,
+            # 'fun': self.chat_commands.cmd_fun,
+            # 'wholesome': self.chat_commands.cmd_wholesome,
+            # 'funchart': self.chat_commands.cmd_funchart,
+            # 'spamchart': self.chat_commands.cmd_spamchart,
+            # 'likechart': self.chat_commands.cmd_likechart,
+            # 'commandschart': self.chat_commands.cmd_command_usage_chart,
+            # 'monologuechart': self.chat_commands.cmd_monologuechart,
+            # 'relgraph': self.chat_commands.cmd_relationship_graph,
+            # 'cwel': self.chat_commands.cmd_cwel,
+            # 'topcwel': self.chat_commands.cmd_topcwel
         }
 
     def validate_command(self):

@@ -1,42 +1,17 @@
-addnickname - (new_nickname) add a new nickname, so it's easier for you and others to use filtering
-all - ping all users
 bartosiak - text_filter or [regex] - Best of our favourite geopolitician Jacek Bartosiak
 boczek - username  - nasty epithets about Arnold Boczek, a character from Świat Według Kiepskich
 bible - (text_filter, --all, --num[int], --count[int]) - just a whole focking bible
 biblestats - show bible data
-commands - username[optional], period[optional]) - display OzjaszBot's command usage
-commandschart - (--command, --period, --user) - display OzjaszBot's command usage chart
-cwel - reply to someone to cwel them
-displayusers - just display all existing users on the chat and their nicknames
 europejskafirma - text_filter or [regex] - Best of our favourite twitter shitposter @europejskafirma (Jerzy Krajewski)
-fun - (period[optional]) fun metric for all users
-funchart - (username[optional], period[optional]) fun metric chart
 handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description
 kiepscyurl - (number) Get a Kiepscy episode url by the episode number
 koran - (text_filter, --all, --verse[chapter:verse_nr], --num[int], --count[int], --next[int], --prev[int], --chapter) - just a whole focking Koran book
-lastmessages - (username, number[optional]) display last x messages from chat history
-likechart - (username[optional], period[optional]) display number of reactions received per day per user
-monologuechart - (username[optional], period[optional], --acc) calculate monologue index (acc stands for accumulative, meaning it's counted from the beginning no matter the filter period)
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
-relgraph - (period[optional], user[optional]) - Network graph of combined user reaction counts in chat
 remindme - (period, text) - remind me of something in the future
-remind - (period, user, text) - remind a given user of something in the future
-sadmemes - (username[optional], period[optional]) top sad memes (images) sorted by a number of reactions
-sadmessages - (username[optional], period[optional]) top sad messages sorted by a number of reactions, filtered on negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
-setusername - (new_username) set your new username
-spamchart - (username[optional], period[optional]) display number of messages per day per user
 starababa - using the current date f.e: 20240709 and the last 2 digits of your user_id, a magic number is created. If it's prime you are lucky today!
-summary - (username[optional], period[optional]) summary of chat stats
-topaudio - (username[optional], period[optional]) top audio (and voice messages) sorted by a number of reactions
-topcwel - (period[optional]) - display top cwels
-topgifs - (username[optional], period[optional]) top gifs sorted by a number of reactions
-topmemes - (username[optional], period[optional]) top memes (images) sorted by a number of reactions
-topmessages - (username[optional], period[optional], --text[string]) top messages sorted by a number of reactions
-topvideos - (username[optional], period[optional]) top videos (and video notes) sorted by a number of reactions
 tvp - text_filter or [regex] - all TVP headlines, from the past few years
 tvp_latest - text_filter or [regex] - latest TVP headlines
 tusk - text_filter or [regex] - epic TVP Tusk reference
 walesa - text_filter or [regex] - epic gifts by Lech Wałęsa for Jasna Góra church
-wholesome - (period[optional]) summary metric for all users
