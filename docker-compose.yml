@@ -1,5 +1,6 @@
 services:
   bot:
+    container_name: telegram-ozjasz-light-bot
     restart: always
     build:
       context: .
