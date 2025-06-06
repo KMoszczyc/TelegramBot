@@ -24,7 +24,7 @@ class Commands:
         self.job_persistance = job_persistance
         self.bot_state = bot_state
         self.users_df = pd.DataFrame()
-        self.users_map = stats_utils.get_users_map(self.users_df)
+        self.users_map = {}
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = self.users_df['final_username'].tolist()
