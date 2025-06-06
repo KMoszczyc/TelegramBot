@@ -1,5 +1,6 @@
 services:
   bot:
+    container_name: ozjasz-bot
     restart: always
     build:
       context: .
@@ -11,6 +12,7 @@ services:
       - ./data:/data
       - .:/app
   etl:
+    container_name: ozjasz-etl
     restart: always
     build:
       context: .
