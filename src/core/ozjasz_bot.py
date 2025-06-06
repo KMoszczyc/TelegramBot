@@ -39,7 +39,7 @@ class OzjaszBot:
 
         self.command_logger = CommandLogger(self.bot_state)
         self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state)
-        self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state)
+        # self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state)
 
         self.add_commands()
         self.application.run_polling()
@@ -70,9 +70,9 @@ class OzjaszBot:
             'handlowa': self.core_commands.cmd_show_shopping_sundays,
             'biblestats': self.core_commands.cmd_bible_stats,
             'remindme': self.core_commands.cmd_remind_me,
-            'remind': self.chat_commands.cmd_remind,
-            'commands': self.chat_commands.cmd_command_usage,
-            'summary': self.chat_commands.cmd_summary,
+            # 'remind': self.chat_commands.cmd_remind,
+            # 'commands': self.chat_commands.cmd_command_usage,
+            # 'summary': self.chat_commands.cmd_summary,
             'kiepscy': self.core_commands.cmd_kiepscy,
             'kiepscyurl': self.core_commands.cmd_kiepscyurl,
             # 'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
