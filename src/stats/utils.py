@@ -7,7 +7,7 @@ import logging
 import pickle
 import datetime
 from datetime import timezone, timedelta
-
+import joblib
 from zoneinfo import ZoneInfo
 import pandas as pd
 
@@ -85,7 +85,29 @@ def escape_special_characters(text):
 
 
 def contains_stopwords(s, stopwords):
+    s = s.lower()
+    stopwords = [word.lower() for word in stopwords]
     return any(word in stopwords for word in s.split())
+
+
+def is_ngram_contaminated_by_stopwords(words_str: str, ratio_threshold: float, stopwords: list[str]) -> bool:
+    """Filter ngrams that contain too many stopwords, controlled by ratio_threshold.
+
+    :param words_str:
+    :param ratio_threshold: The maximum stopword / word ratio for a word n_gram to be considered interesting and not overly saturated by stopwords.
+    :param stopwords:
+    :return:
+    """
+    words = words_str.split()
+    filtered_stopwords = [word for word in words if word in stopwords]
+    ratio = len(filtered_stopwords) / len(words)
+    # print(words_str, ratio, ratio > ratio_threshold)
+    return ratio > ratio_threshold
+
+
+def is_ngram_valid(words_str: str) -> bool:
+    words = words_str.split()
+    return len(words) <= 1 or words[0] != words[1]
 
 
 def get_today_midnight_dt():

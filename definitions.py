@@ -37,6 +37,7 @@ MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
 MAX_CWEL_USAGE_DAILY = 25
 LONG_MESSAGE_LIMIT = 1 # long texts spanning into multiple messages.
+STOPWORD_RATIO_THRESHOLD = 0.6
 
 TIMEZONE = 'Europe/Warsaw'
 
@@ -52,6 +53,7 @@ CHAT_IMAGES_DIR_PATH = os.path.join(DATA_DIR, 'chat/images')
 CHAT_GIFS_DIR_PATH = os.path.join(DATA_DIR, 'chat/gifs')
 CHAT_VIDEOS_DIR_PATH = os.path.join(DATA_DIR, 'chat/videos')
 CHAT_AUDIO_DIR_PATH = os.path.join(DATA_DIR, 'chat/audio')
+CHAT_WORD_STATS_DIR_PATH = os.path.join(DATA_DIR, 'chat/word_stats')
 
 CLEANED_CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/cleaned_chat_history.parquet')
 REACTIONS_PATH = os.path.join(DATA_DIR, 'chat/reactions.parquet')
@@ -91,6 +93,7 @@ europejskafirma_phrases = read_str_file(EUROPEJSKAFIRMA_PATH)
 boczek_phrases = read_str_file(BOCZEK_PATH)
 kiepscy_df = pd.read_parquet(KIEPSCY_PATH)
 walesa_phrases = read_str_file(WALESA_PATH)
+polish_stopwords = read_str_file(POLISH_STOPWORDS_PATH)
 
 
 class PeriodFilterMode(Enum):

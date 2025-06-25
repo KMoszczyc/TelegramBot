@@ -13,6 +13,7 @@ import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema
 from src.stats.ocr import OCR
+from src.stats.word_stats import WordStats
 
 load_dotenv()
 BOT_ID = os.getenv('BOT_ID')
@@ -32,6 +33,7 @@ class ChatETL:
 
     def __init__(self, client_api_handler):
         self.client_api_handler = client_api_handler
+        self.word_stats = WordStats()
 
     def update(self, days: int, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
@@ -40,10 +42,11 @@ class ChatETL:
             self.perform_bulk_ocr()
 
         # ETL
-        self.download_chat_history(days)
+        latest_chat_df = self.download_chat_history(days)
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
+        self.word_stats.update_ngrams(latest_chat_df)
 
         # Validate
         self.validate_data()
@@ -126,6 +129,8 @@ class ChatETL:
 
         stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
         core_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
+
+        return latest_chat_df
 
     def perform_bulk_ocr(self):
         chat_df = core_utils.read_df(CHAT_HISTORY_PATH)

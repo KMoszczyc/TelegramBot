@@ -4,6 +4,7 @@ import os
 import logging
 import random
 import re
+import string
 import sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -680,3 +681,6 @@ def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str, str]:
     bot_state.set_holy_text_last_verse_id(row.name, holy_text_type)
     response = f"[{get_siglum(row, holy_text_type, SiglumType.SHORT)}] {row['text']}"
     return response, ''
+
+def remove_punctuation(s):
+    return s.translate(str.maketrans('', '', string.punctuation))
