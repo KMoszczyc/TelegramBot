@@ -59,7 +59,7 @@ class WordStats:
         for n in ngram_range:
             df = df_raw.copy(deep=True)
             df['ngrams'] = df['text'].str.split().apply(lambda x: list(map(' '.join, ngrams(x, n=n))))
-            df = df[df['ngrams'].str.len() > 0] # remove empty ngram rows
+            df = df[df['ngrams'].str.len() > 0]  # remove empty ngram rows
             latest_ngram_df = df.explode('ngrams')
             latest_ngram_df = latest_ngram_df[latest_ngram_df.apply(lambda row: self.stopword_filter(row['ngrams'], n), axis=1)]
             latest_ngram_df['ngram_id'] = latest_ngram_df.groupby('message_id').cumcount() + 1
@@ -117,7 +117,6 @@ class WordStats:
                 fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
 
         return fitlered_ngram_dfs
-
 
 # chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
 # ws = WordStats()
