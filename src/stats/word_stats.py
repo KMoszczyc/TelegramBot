@@ -11,6 +11,7 @@ from definitions import CLEANED_CHAT_HISTORY_PATH, POLISH_STOPWORDS_PATH, STOPWO
 
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
+from src.models.command_args import CommandArgs
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -28,7 +29,8 @@ class WordStats:
 
     def load_ngrams(self):
         if not os.path.exists(CHAT_WORD_STATS_DIR_PATH):
-            return
+            log.info("Chat word stats directory not found, running full word stats update.")
+            self.full_update()
 
         for n in self.ngram_range:
             path = self.get_ngram_path(n)
@@ -47,14 +49,11 @@ class WordStats:
         filtered_chat_df = filtered_chat_df[~filtered_chat_df['text'].str.contains("https")]  # remove rows with links
         filtered_chat_df['text'] = filtered_chat_df['text'].str.replace(r"\(.*\)", "", regex=True)  # remove text inside braces/brackets
         filtered_chat_df['text'] = filtered_chat_df['text'].apply(core_utils.remove_punctuation)  # remove special characters
+        filtered_chat_df['text'] = filtered_chat_df['text'].str.lower()
 
         return filtered_chat_df
 
     def update_ngrams(self, df):
-        if not os.path.exists(CHAT_WORD_STATS_DIR_PATH):
-            log.info("Chat word stats directory not found, running full word stats update.")
-            self.full_update()
-
         df_raw = self.clean_chat_messages(df)
         ngram_range = [1, 2, 3, 4, 5]
         for n in ngram_range:
@@ -62,7 +61,7 @@ class WordStats:
             df['ngrams'] = df['text'].str.split().apply(lambda x: list(map(' '.join, ngrams(x, n=n))))
             df = df[df['ngrams'].str.len() > 0] # remove empty ngram rows
             latest_ngram_df = df.explode('ngrams')
-            latest_ngram_df = latest_ngram_df[~latest_ngram_df.apply(lambda row: self.stopword_filter(row['ngrams'], n), axis=1)]
+            latest_ngram_df = latest_ngram_df[latest_ngram_df.apply(lambda row: self.stopword_filter(row['ngrams'], n), axis=1)]
             latest_ngram_df['ngram_id'] = latest_ngram_df.groupby('message_id').cumcount() + 1
 
             self.update_ngram(n, latest_ngram_df)
@@ -96,7 +95,7 @@ class WordStats:
             return True
 
         if n == 1:  # for a single word we dont want it to be a stopword 100%
-            return stats_utils.contains_stopwords(text, polish_stopwords)
+            return not stats_utils.contains_stopwords(text, polish_stopwords)
 
         return (not stats_utils.is_ngram_contaminated_by_stopwords(text, STOPWORD_RATIO_THRESHOLD, polish_stopwords)) and stats_utils.is_ngram_valid(text)
 
@@ -106,6 +105,18 @@ class WordStats:
     def get_ngram_path(self, n):
         filename = f'ngram_{n}.parquet'
         return os.path.join(CHAT_WORD_STATS_DIR_PATH, filename)
+
+    def filter_ngrams(self, command_args: CommandArgs):
+        """Filter ngrams by time and user"""
+
+        fitlered_ngram_dfs = {}
+        for n, df in self.ngram_dfs.items():
+            fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
+
+            if command_args.user is not None:
+                fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
+
+        return fitlered_ngram_dfs
 
 
 # chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)

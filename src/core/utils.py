@@ -470,8 +470,13 @@ def parse_number(command_args, arg_str, positive_only=False) -> [int, CommandArg
     if error != '':
         return None, command_args, error
 
-    if number > command_args.number_limit:
+    if number > command_args.max_number:
         error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
+        log.error(error)
+        return number, command_args, error
+
+    if number < command_args.min_number:
+        error = f"Given number is too small ({number}), it has to be in range <{command_args.min_number}, {command_args.max_number}>!"
         log.error(error)
         return number, command_args, error
 

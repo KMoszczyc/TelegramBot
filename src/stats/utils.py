@@ -11,7 +11,8 @@ import joblib
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE, DatetimeFormat, CWEL_STATS_PATH
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, ArgType, NamedArgType, TIMEZONE, DatetimeFormat, CWEL_STATS_PATH, \
+    STOPWORD_RATIO_THRESHOLD, polish_stopwords
 from src.core.utils import create_dir, parse_string, parse_number, parse_int, read_df, parse_user, parse_period, parse_named_args, merge_spaced_args
 from src.models.command_args import CommandArgs
 
@@ -344,3 +345,6 @@ def get_users_map(users_df):
         index: row['final_username']
         for index, row in users_df.iterrows()
     }
+
+# ngram = 'nie da się'
+# print(is_ngram_contaminated_by_stopwords(ngram, STOPWORD_RATIO_THRESHOLD, polish_stopwords))

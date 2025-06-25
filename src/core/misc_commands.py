@@ -351,7 +351,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_kiepscyurl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], number_limit=1000)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], max_number=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)

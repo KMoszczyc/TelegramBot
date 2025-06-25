@@ -33,7 +33,8 @@ class CommandArgs:
     min_string_length: int = 0
     max_string_length: int = 20
     label: str = ''
-    number_limit: int = 100
+    max_number: int = 100
+    min_number: int = 0
     is_text_arg: bool = False
     period_error: str = ''
     user_error: str = ''
