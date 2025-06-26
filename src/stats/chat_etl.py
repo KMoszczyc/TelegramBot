@@ -49,7 +49,7 @@ class ChatETL:
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
-        self.word_stats.update_ngrams(latest_chat_df)
+        # self.word_stats.update_ngrams(latest_chat_df)
 
         # Validate
         self.validate_data()
