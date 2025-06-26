@@ -4,7 +4,7 @@ import os
 from nltk import ngrams
 import pandas as pd
 
-from definitions import CLEANED_CHAT_HISTORY_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH
+from definitions import CLEANED_CHAT_HISTORY_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH
 
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
@@ -63,8 +63,13 @@ class WordStats:
         return filtered_chat_df
 
     def update_ngrams(self, df, full_update=False):
+        if self.is_word_stats_update_locked():
+            log.info("Word stats update is locked, skipping update")
+            return
+
         df_raw = self.clean_chat_messages(df)
         ngram_range = [1, 2, 3, 4, 5]
+        self.create_lock_file()
         for n in ngram_range:
             if (not full_update) and (not os.path.exists(self.get_ngram_path(n))):
                 log.info(f'{self.get_ngram_path(n)} does not exist, skipping {n}-gram update')
@@ -79,6 +84,8 @@ class WordStats:
 
             self.update_ngram(n, latest_ngram_df)
             self.save_ngram(n)
+
+        self.remove_lock_file()
 
     def update_ngram(self, n, latest_df):
         if self.ngram_dfs.get(n) is None:
@@ -131,6 +138,19 @@ class WordStats:
                 fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
 
         return fitlered_ngram_dfs
+
+    def create_lock_file(self):
+        if not os.path.exists(WORD_STATS_UPDATE_LOCK_PATH):
+            open(WORD_STATS_UPDATE_LOCK_PATH, 'a').close()
+            log.info(f"Word stats update lock at {WORD_STATS_UPDATE_LOCK_PATH} created.")
+
+    def remove_lock_file(self):
+        if os.path.exists(WORD_STATS_UPDATE_LOCK_PATH):
+            os.remove(WORD_STATS_UPDATE_LOCK_PATH)
+            log.info(f"Word stats update lock at {WORD_STATS_UPDATE_LOCK_PATH} removed.")
+
+    def is_word_stats_update_locked(self):
+        return os.path.exists(WORD_STATS_UPDATE_LOCK_PATH)
 
 # chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
 # ws = WordStats()

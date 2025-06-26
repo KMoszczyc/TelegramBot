@@ -10,5 +10,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     api_handler = ClientAPIHandler()
-    chat_stats = ChatETL(api_handler, bulk_word_stats=True, bulk_ocr=False)
+    chat_stats = ChatETL(api_handler, bulk_word_stats=False, bulk_ocr=False)
     chat_stats.update(int(args.days))
