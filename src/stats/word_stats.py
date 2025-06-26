@@ -66,6 +66,10 @@ class WordStats:
         df_raw = self.clean_chat_messages(df)
         ngram_range = [1, 2, 3, 4, 5]
         for n in ngram_range:
+            if not os.path.exists(self.get_ngram_path(n)):
+                log.info(f'{self.get_ngram_path(n)} does not exist, skipping {n}-gram update')
+                continue
+
             df = df_raw.copy(deep=True)
             df['ngrams'] = df['text'].str.split().apply(lambda x: list(map(' '.join, ngrams(x, n=n))))
             df = df[df['ngrams'].str.len() > 0]  # remove empty ngram rows
