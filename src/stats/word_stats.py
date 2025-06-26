@@ -1,13 +1,10 @@
 import logging
-import re
 import os
 
 from nltk import ngrams
-import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer
 
-from definitions import CLEANED_CHAT_HISTORY_PATH, POLISH_STOPWORDS_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH
+from definitions import CLEANED_CHAT_HISTORY_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH
 
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
