@@ -88,13 +88,13 @@ class ChatETL:
                 continue
 
             image_text = ''
-            if message_type == MessageType.IMAGE and (
-                    old_chat_df is None
-                    or old_chat_df[old_chat_df['message_id'] == message.id].empty
-            ):
-                path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
-                image_text = OCR.extract_text_from_image(path)
-                ocr_count += 1
+            # if message_type == MessageType.IMAGE and (
+            #         old_chat_df is None
+            #         or old_chat_df[old_chat_df['message_id'] == message.id].empty
+            # ):
+                # path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
+                # image_text = OCR.extract_text_from_image(path)
+                # ocr_count += 1
 
             single_message_data = [int(message.id),
                                    message.date,
