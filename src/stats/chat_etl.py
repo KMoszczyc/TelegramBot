@@ -31,18 +31,13 @@ BOT_MESSAGE_RETENION_IN_MINUTES = 5
 class ChatETL:
     """Core chat downloader and data processor."""
 
-    def __init__(self, client_api_handler, bulk_word_stats=False, bulk_ocr=False):
+    def __init__(self, client_api_handler):
         self.client_api_handler = client_api_handler
         self.word_stats = WordStats()
 
-        if bulk_word_stats:
-            self.word_stats.full_update()
-
-        if bulk_ocr:
-            self.perform_bulk_ocr()
-
-    def update(self, days: int):
+    def update(self, days: int,  bulk_word_stats=False, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
+
 
         # ETL
         latest_chat_df = self.download_chat_history(days)
@@ -50,6 +45,12 @@ class ChatETL:
         self.clean_chat_history()
         self.generate_reactions_df()
         # self.word_stats.update_ngrams(latest_chat_df)
+
+        if bulk_ocr:
+            self.perform_bulk_ocr()
+
+        if bulk_word_stats:
+            self.word_stats.full_update()
 
         # Validate
         self.validate_data()
