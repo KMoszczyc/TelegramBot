@@ -36,14 +36,15 @@ class WordStats:
 
             self.ngram_dfs[n] = pd.read_parquet(self.get_ngram_path(n))
 
-    def is_ngram_parquet_missing(self):
+    def do_all_ngram_parquets_exist(self):
         for n in self.ngram_range:
             path = self.get_ngram_path(n)
             if not os.path.exists(path):
-                return True
+                return False
 
     def full_update(self):
-        if os.path.exists(CHAT_WORD_STATS_DIR_PATH) and not self.is_ngram_parquet_missing():
+        log.info(f"Do all ngram parquets exist: {self.do_all_ngram_parquets_exist()}")
+        if os.path.exists(CHAT_WORD_STATS_DIR_PATH) and self.do_all_ngram_parquets_exist():
             log.info("All word stats ngram parquets exist, no need to run full update")
             return
 
@@ -121,7 +122,7 @@ class WordStats:
         for n, df in self.ngram_dfs.items():
             fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
 
-            print('n', n, df.columns)
+            log.info(f"n: {n}, {df.columns}")
             if command_args.user is not None:
                 fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
 
