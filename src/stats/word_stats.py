@@ -50,7 +50,7 @@ class WordStats:
 
         log.info("Ngram word stats parquets not found, running full word stats update.")
         chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        self.update_ngrams(chat_df)
+        self.update_ngrams(chat_df, full_update=True)
 
     def clean_chat_messages(self, chat_df):
         filtered_chat_df = chat_df[chat_df['text'] != ''].dropna()
@@ -62,11 +62,11 @@ class WordStats:
 
         return filtered_chat_df
 
-    def update_ngrams(self, df):
+    def update_ngrams(self, df, full_update=False):
         df_raw = self.clean_chat_messages(df)
         ngram_range = [1, 2, 3, 4, 5]
         for n in ngram_range:
-            if not os.path.exists(self.get_ngram_path(n)):
+            if (not full_update) and (not os.path.exists(self.get_ngram_path(n))):
                 log.info(f'{self.get_ngram_path(n)} does not exist, skipping {n}-gram update')
                 continue
 
