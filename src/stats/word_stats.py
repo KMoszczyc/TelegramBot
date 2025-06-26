@@ -141,6 +141,7 @@ class WordStats:
 
     def create_lock_file(self):
         if not os.path.exists(WORD_STATS_UPDATE_LOCK_PATH):
+            core_utils.create_dir(CHAT_WORD_STATS_DIR_PATH)
             open(WORD_STATS_UPDATE_LOCK_PATH, 'a').close()
             log.info(f"Word stats update lock at {WORD_STATS_UPDATE_LOCK_PATH} created.")
 
