@@ -629,7 +629,7 @@ class ChatCommands:
 
             max_len_ngram = max(len(ngram) for ngram in top_ngram_texts)
             for ngram_num, top_ngram_text, top_count in zip(ngram_nums, top_ngram_texts, top_counts):
-                text += f"\n({ngram_num}, {ngram_num}) - ".ljust(4) + f" {top_ngram_text}:".ljust(max_len_ngram + 5) + f"{top_count}"
+                text += f"\n[{ngram_num}] - ".ljust(4) + f" {top_ngram_text}:".ljust(max_len_ngram + 5) + f"{top_count}"
 
         text += "```"
         text = stats_utils.escape_special_characters(text)

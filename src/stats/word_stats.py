@@ -26,8 +26,8 @@ class WordStats:
 
     def load_ngrams(self):
         if not os.path.exists(CHAT_WORD_STATS_DIR_PATH):
-            log.info("Chat word stats directory not found, running full word stats update.")
-            self.full_update()
+            log.info("Chat word stats directory not found.")
+            return
 
         for n in self.ngram_range:
             path = self.get_ngram_path(n)
@@ -36,7 +36,18 @@ class WordStats:
 
             self.ngram_dfs[n] = pd.read_parquet(self.get_ngram_path(n))
 
+    def is_ngram_parquet_missing(self):
+        for n in self.ngram_range:
+            path = self.get_ngram_path(n)
+            if not os.path.exists(path):
+                return True
+
     def full_update(self):
+        if os.path.exists(CHAT_WORD_STATS_DIR_PATH) and not self.is_ngram_parquet_missing():
+            log.info("All word stats ngram parquets exist, no need to run full update")
+            return
+
+        log.info("Ngram word stats parquets not found, running full word stats update.")
         chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         self.update_ngrams(chat_df)
 
@@ -62,8 +73,7 @@ class WordStats:
             latest_ngram_df['ngram_id'] = latest_ngram_df.groupby('message_id').cumcount() + 1
 
             self.update_ngram(n, latest_ngram_df)
-
-        self.save_ngrams()
+            self.save_ngram(n)
 
     def update_ngram(self, n, latest_df):
         if self.ngram_dfs.get(n) is None:
@@ -77,12 +87,13 @@ class WordStats:
 
         log.info(f"Updated ngram ({n}, {n}) stats with {len(merged_ngram_df) - len(old_ngram_df)} rows, now its {len(merged_ngram_df)}")
 
-    def save_ngrams(self):
+
+    def save_ngram(self, n):
         if not os.path.exists(CHAT_WORD_STATS_DIR_PATH):
             core_utils.create_dir(CHAT_WORD_STATS_DIR_PATH)
 
-        for ngram, df in self.ngram_dfs.items():
-            df.to_parquet(self.get_ngram_path(ngram))
+        # for ngram, df in self.ngram_dfs.items():
+        self.ngram_dfs[n].to_parquet(self.get_ngram_path(n))
 
     def count_ngrams(self, df):
         return df['ngrams'].value_counts()
@@ -110,6 +121,7 @@ class WordStats:
         for n, df in self.ngram_dfs.items():
             fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
 
+            print('n', n, df.columns)
             if command_args.user is not None:
                 fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
 
