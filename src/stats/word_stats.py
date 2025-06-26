@@ -88,6 +88,8 @@ class WordStats:
         self.remove_lock_file()
 
     def update_ngram(self, n, latest_df):
+        columns = ['timestamp', 'final_username', 'message_id', 'ngram_id', 'ngrams'] # try to optimize memory
+        latest_df = latest_df[columns]
         if self.ngram_dfs.get(n) is None:
             self.ngram_dfs[n] = latest_df
             log.info(f"Init ngram ({n}, {n}) stats with {len(latest_df)} rows")
@@ -133,7 +135,7 @@ class WordStats:
         for n, df in self.ngram_dfs.items():
             fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
 
-            log.info(f"n: {n}, {df.columns}")
+            # log.info(f"n: {n}, {df.columns}")
             if command_args.user is not None:
                 fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
 
