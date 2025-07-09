@@ -611,7 +611,15 @@ def text_to_number(text):
 def generate_period_headline(command_args):
     match command_args.period_mode:
         case PeriodFilterMode.HOUR:
-            return f"past {command_args.period_time}h"
+            return f"past {command_args.period_time} hours"
+        case PeriodFilterMode.SECOND:
+            return f"past {command_args.period_time} seconds"
+        case PeriodFilterMode.MINUTE:
+            return f"past {command_args.period_time} minutes"
+        case PeriodFilterMode.DAY:
+            return f"past {command_args.period_time} days"
+        case PeriodFilterMode.WEEK:
+            return f"past {command_args.period_time} weeks"
         case PeriodFilterMode.DATE:
             return command_args.dt.strftime(command_args.dt_format.value)
         case PeriodFilterMode.DATE_RANGE:

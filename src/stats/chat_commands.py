@@ -614,7 +614,7 @@ class ChatCommands:
             n = command_args.named_args['ngram']
             ngram_df = filtered_ngrams_df[command_args.named_args['ngram']]
             ngram_counts = self.word_stats.count_ngrams(ngram_df)[:10]
-            text = self.generate_response_headline(command_args, label=f'``` Word stats ({n}, {n})')
+            text = self.generate_response_headline(command_args, label=f'``` Word stats {n}-gram')
             max_len_ngram = max(len(ngram) for ngram in ngram_counts.index)
             for i, (ngram_text, ngram_count) in enumerate(ngram_counts.items()):
                 text += f"\n{i + 1}.".ljust(4) + f" {ngram_text}:".ljust(max_len_ngram + 5) + f"{ngram_count}"
