@@ -102,7 +102,7 @@ class WordStats:
         self.remove_lock_file()
 
     def update_ngram(self, n, latest_df):
-        columns = ['timestamp', 'final_username', 'message_id', 'ngram_id', 'ngrams'] # try to optimize memory
+        columns = ['timestamp', 'final_username', 'message_id', 'ngram_id', 'ngrams']  # try to optimize memory
         latest_df = latest_df[columns]
         if self.ngram_dfs.get(n) is None:
             self.ngram_dfs[n] = latest_df
@@ -114,7 +114,6 @@ class WordStats:
         self.ngram_dfs[n] = merged_ngram_df
 
         log.info(f"Updated ngram ({n}, {n}) stats with {len(merged_ngram_df) - len(old_ngram_df)} rows, now its {len(merged_ngram_df)}")
-
 
     def save_ngram(self, n):
         if not os.path.exists(CHAT_WORD_STATS_DIR_PATH):
@@ -147,11 +146,10 @@ class WordStats:
 
         fitlered_ngram_dfs = {}
         for n, df in self.ngram_dfs.items():
-            fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
-
-            # log.info(f"n: {n}, {df.columns}")
             if command_args.user is not None:
-                fitlered_ngram_dfs[n] = df[df['final_username'] == command_args.user]
+                df = df[df['final_username'] == command_args.user]
+
+            fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
 
         return fitlered_ngram_dfs
 
