@@ -38,7 +38,6 @@ class ChatETL:
     def update(self, days: int,  bulk_word_stats=False, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
 
-
         # ETL
         latest_chat_df = self.download_chat_history(days)
         self.extract_users()

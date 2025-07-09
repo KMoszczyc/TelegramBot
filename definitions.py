@@ -36,7 +36,7 @@ MAX_USERNAME_LENGTH = 20
 MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
 MAX_CWEL_USAGE_DAILY = 25
-LONG_MESSAGE_LIMIT = 1 # long texts spanning into multiple messages.
+LONG_MESSAGE_LIMIT = 1  # long texts spanning into multiple messages.
 STOPWORD_RATIO_THRESHOLD = 0.59
 
 TIMEZONE = 'Europe/Warsaw'
@@ -79,7 +79,6 @@ BOCZEK_PATH = os.path.join(DATA_DIR, 'misc/boczek.txt')
 KIEPSCY_PATH = os.path.join(DATA_DIR, 'misc/kiepscy.parquet')
 WALESA_PATH = os.path.join(DATA_DIR, 'misc/walesa.txt')
 
-
 # Load text files with funny phrases
 tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
 tvp_latest_headlines = read_str_file(TVP_LATEST_HEADLINES_PATH)
@@ -113,6 +112,7 @@ class PeriodFilterMode(Enum):
     DAY = 'day'
     YESTERDAY = 'yesterday'
     WEEK = 'week'
+    WEEKS = 'weeks'  # for multiple weeks like 2w = 2 weeks
     MONTH = 'month'
     YEAR = 'year'
     TOTAL = 'total'
@@ -174,9 +174,11 @@ class ChartType(Enum):
     BAR = 'bar'
     MIXED = 'mixed'
 
+
 class HolyTextType(Enum):
     BIBLE = 'bible'
     QURAN = 'quran'
+
 
 class SiglumType(Enum):
     FULL = 'full'

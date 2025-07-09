@@ -133,7 +133,9 @@ def filter_by_time_df(df, command_args, time_column='timestamp'):
         case PeriodFilterMode.MINUTE:
             return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(minutes=period_time)]
         case PeriodFilterMode.HOUR:
-            return df[df[time_column] >= get_past_hr_dt(period_time)]
+            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(hours=period_time)]
+        case PeriodFilterMode.DAY:
+            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(days=period_time)]
         case PeriodFilterMode.TODAY:
             return df[df[time_column] >= today_dt]
         case PeriodFilterMode.YESTERDAY:

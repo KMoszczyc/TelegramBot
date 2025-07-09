@@ -4,7 +4,7 @@ import os
 from nltk import ngrams
 import pandas as pd
 
-from definitions import CLEANED_CHAT_HISTORY_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH
+from definitions import CLEANED_CHAT_HISTORY_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH, PeriodFilterMode
 
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
@@ -42,14 +42,27 @@ class WordStats:
             if not os.path.exists(path):
                 return False
 
-    def full_update(self):
+    def full_update(self, days=None):
         log.info(f"Do all ngram parquets exist: {self.do_all_ngram_parquets_exist()}")
         if os.path.exists(CHAT_WORD_STATS_DIR_PATH) and self.do_all_ngram_parquets_exist():
             log.info("All word stats ngram parquets exist, no need to run full update")
             return
 
+        if not os.path.exists(CLEANED_CHAT_HISTORY_PATH):
+            log.error(f"Cleaned chat history not found at {CLEANED_CHAT_HISTORY_PATH}")
+            return
+
         log.info("Ngram word stats parquets not found, running full word stats update.")
         chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+
+        if days:
+            chat_df = stats_utils.filter_by_time_df(chat_df, CommandArgs(period_mode=PeriodFilterMode.DAY, period_time=days))
+            log.info(f"Updating only last {days} days for word stats, {len(chat_df)} rows")
+
+        if len(chat_df) == 0:
+            log.info("Chat history is empty, skipping word stats update")
+            return
+
         self.update_ngrams(chat_df, full_update=True)
 
     def clean_chat_messages(self, chat_df):
