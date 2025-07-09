@@ -41,6 +41,7 @@ class WordStats:
             path = self.get_ngram_path(n)
             if not os.path.exists(path):
                 return False
+        return True
 
     def full_update(self, days=None):
         log.info(f"Do all ngram parquets exist: {self.do_all_ngram_parquets_exist()}")
