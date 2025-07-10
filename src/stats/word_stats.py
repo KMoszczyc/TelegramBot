@@ -45,7 +45,7 @@ class WordStats:
 
     def full_update(self, days=None):
         log.info(f"Do all ngram parquets exist: {self.do_all_ngram_parquets_exist()}")
-        if os.path.exists(CHAT_WORD_STATS_DIR_PATH) and self.do_all_ngram_parquets_exist():
+        if os.path.exists(CHAT_WORD_STATS_DIR_PATH) and self.do_all_ngram_parquets_exist() and days is None:
             log.info("All word stats ngram parquets exist, no need to run full update")
             return
 
