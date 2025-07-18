@@ -1,4 +1,3 @@
-import pandas as pd
 import pandera as pa
 from pandera.engines import pandas_engine
 

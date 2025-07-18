@@ -698,3 +698,10 @@ def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str, str]:
 
 def remove_punctuation(s):
     return s.translate(str.maketrans('', '', string.punctuation))
+
+
+def max_str_length_in_col(series):
+    """To ease display of dataframes with long strings in telegram markdown table message"""
+    strings = series.tolist()
+
+    return -1 if len(strings) == 0 else max(len(ngram) for ngram in strings)

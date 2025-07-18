@@ -43,7 +43,6 @@ class ChatCommands:
         self.cwel_stats_df = stats_utils.init_cwel_stats()
         self.word_stats = WordStats()
 
-
     def update(self):
         """If chat data was updated recentely, reload it."""
         if not os.path.isfile(UPDATE_REQUIRED_PATH):
@@ -602,23 +601,35 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_wordstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT}, min_number=1,max_number=6)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT}, min_number=1, max_number=6, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         filtered_ngrams_df = self.word_stats.filter_ngrams(command_args)
 
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
-
-        if 'ngram' in command_args.named_args: # for a specific ngram value like (3, 3) etc
+        if 'text' in command_args.named_args: # for a specific phrase like "
+            filter_phrase = command_args.named_args['text'].lower()
+            filter_ngram = len(filter_phrase.split())
+            if filter_ngram not in self.word_stats.ngram_range:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{filter_phrase}" is {filter_ngram}-gram.')
+                return
+            ngram_df = filtered_ngrams_df[filter_ngram]
+            filter_ngram_df = ngram_df[ngram_df['ngrams'].str.lower().str.fullmatch(filter_phrase)]
+            ngram_counts_df = filter_ngram_df.groupby(['final_username', 'ngrams']).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
+            text = self.generate_response_headline(command_args, label=f'``` Word stats')
+            max_len_ngram = core_utils.max_str_length_in_col(ngram_counts_df['final_username'])
+            for i, (index, row) in enumerate(ngram_counts_df.iterrows()):
+                text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(max_len_ngram + 5) + f"{row['counts']}"
+        elif 'ngram' in command_args.named_args:  # for a specific ngram value like (3, 3) etc
             n = command_args.named_args['ngram']
             ngram_df = filtered_ngrams_df[command_args.named_args['ngram']]
             ngram_counts = self.word_stats.count_ngrams(ngram_df)[:10]
             text = self.generate_response_headline(command_args, label=f'``` Word stats {n}-gram')
-            max_len_ngram = max(len(ngram) for ngram in ngram_counts.index)
+            max_len_ngram = core_utils.max_str_length_in_col(ngram_counts.index)
             for i, (ngram_text, ngram_count) in enumerate(ngram_counts.items()):
                 text += f"\n{i + 1}.".ljust(4) + f" {ngram_text}:".ljust(max_len_ngram + 5) + f"{ngram_count}"
-        else:
+        else:  # for all ngram values <1, 2.. 5>
             text = self.generate_response_headline(command_args, label='``` Word stats')
             top_counts, top_ngram_texts, ngram_nums = [], [], []
             for ngram_num, ngram_df in filtered_ngrams_df.items():
@@ -634,7 +645,6 @@ class ChatCommands:
         text += "```"
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-
 
     def generate_response_headline(self, command_args, label):
         text = label

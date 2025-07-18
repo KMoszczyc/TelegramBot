@@ -106,14 +106,14 @@ class WordStats:
         latest_df = latest_df[columns]
         if self.ngram_dfs.get(n) is None:
             self.ngram_dfs[n] = latest_df
-            log.info(f"Init ngram ({n}, {n}) stats with {len(latest_df)} rows")
+            log.info(f"Init ngram-{n} stats with {len(latest_df)} rows")
             return
 
         old_ngram_df = self.ngram_dfs.get(n)
         merged_ngram_df = pd.concat([old_ngram_df, latest_df], ignore_index=True).drop_duplicates(subset=['message_id', 'ngram_id'], keep='last').reset_index(drop=True)
         self.ngram_dfs[n] = merged_ngram_df
 
-        log.info(f"Updated ngram ({n}, {n}) stats with {len(merged_ngram_df) - len(old_ngram_df)} rows, now its {len(merged_ngram_df)}")
+        log.info(f"Updated ngram-{n} stats with {len(merged_ngram_df) - len(old_ngram_df)} rows, now its {len(merged_ngram_df)}")
 
     def save_ngram(self, n):
         if not os.path.exists(CHAT_WORD_STATS_DIR_PATH):
