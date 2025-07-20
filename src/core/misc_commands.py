@@ -140,7 +140,14 @@ class Commands:
         text += "\n\n *Arguments*:\n" + "\n".join(arguments_help)
 
         text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        while len(text) > 1:
+            print(len(text))
+            index = min(4096, len(text))
+            message = text[:index]
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            text = text[index:]
+
+
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
