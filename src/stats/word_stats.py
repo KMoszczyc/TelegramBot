@@ -166,16 +166,3 @@ class WordStats:
 
     def is_word_stats_update_locked(self):
         return os.path.exists(WORD_STATS_UPDATE_LOCK_PATH)
-
-# chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-# ws = WordStats()
-# for i, df in ws.ngram_dfs.items():
-#     print(df.head(5))
-#
-# print(ws.count_ngrams(ws.ngram_dfs[1])[:10])
-#
-# ws2 = WordStats()
-# ws2.update_ngrams(chat_df)
-# for i, df in ws2.ngram_dfs.items():
-#     print(df.head(5))
-# print(ws2.count_ngrams(ws2.ngram_dfs[1])[:10])

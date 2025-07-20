@@ -36,6 +36,7 @@ MAX_USERNAME_LENGTH = 20
 MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
 MAX_CWEL_USAGE_DAILY = 25
+MAX_GET_CREDITS_DAILY = 1
 LONG_MESSAGE_LIMIT = 1  # long texts spanning into multiple messages.
 STOPWORD_RATIO_THRESHOLD = 0.59
 
@@ -62,6 +63,7 @@ USERS_PATH = os.path.join(DATA_DIR, 'chat/users.parquet')
 COMMANDS_USAGE_PATH = os.path.join(DATA_DIR, 'chat/commands_usage.parquet')
 SCHEDULED_JOBS_PATH = os.path.join(DATA_DIR, 'chat/scheduled_jobs.pkl')
 CWEL_STATS_PATH = os.path.join(DATA_DIR, 'chat/cwel_stats.parquet')
+CREDITS_PATH = os.path.join(DATA_DIR, 'chat/credits.pkl')
 
 # Miscalenous
 TVP_HEADLINES_PATH = os.path.join(DATA_DIR, 'misc/paski-tvp.txt')
@@ -183,3 +185,18 @@ class HolyTextType(Enum):
 class SiglumType(Enum):
     FULL = 'full'
     SHORT = 'short'
+
+
+class LuckyScoreType(Enum):
+    VERY_UNLUCKY = 'very unlucky'
+    UNLUCKY = 'unlucky'
+    NEUTRAL = 'neutral'
+    LUCKY = 'lucky'
+    VERY_LUCKY = 'very lucky'
+
+class RouletteBetType(Enum):
+    RED = 'red'
+    BLACK = 'black'
+    ODD = 'odd'
+    EVEN = 'even'
+    NONE = 'none'

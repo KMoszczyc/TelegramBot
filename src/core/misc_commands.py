@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+import asyncio
 
 import pandas as pd
 import telegram
@@ -14,6 +15,7 @@ from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_la
     boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from src.models.roulette import Roulette
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ class Commands:
         self.bot_state = bot_state
         self.users_df = stats_utils.read_df(USERS_PATH)
         self.users_map = stats_utils.get_users_map(self.users_df)
+        self.roulette = Roulette(self.users_df)
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = self.users_df['final_username'].tolist()
@@ -129,7 +132,7 @@ class Commands:
         user_id = update.effective_user.id
         lucky_input = user_id + lucky_text_number
 
-        response = core_utils.are_you_lucky(lucky_input, args_provided)
+        _, response = core_utils.are_you_lucky(lucky_input, args_provided)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -367,3 +370,36 @@ class Commands:
 
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def cmd_get_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        can_get_credits = self.bot_state.update_get_credits_limits(user_id)
+        if not can_get_credits:
+            message = stats_utils.escape_special_characters("You already got your credits today :)")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
+        message = self.roulette.update_credits(user_id)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def cmd_show_credit_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = self.roulette.show_credit_leaderboard(self.users_map)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+
+    async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000, max_string_length=1000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        bet_size = command_args.number
+        bet_type_arg = command_args.string
+
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=stats_utils.escape_special_characters(f"The roulette is spinning..."), parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await asyncio.sleep(5)
+
+        message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
+        message = stats_utils.escape_special_characters(message)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)

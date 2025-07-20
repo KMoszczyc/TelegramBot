@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat, HolyTextType, SiglumType, \
-    quran_df
+    quran_df, LuckyScoreType
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -211,20 +211,26 @@ def are_you_lucky(user_id, with_args=False):
     user_hash = user_id + today
     random.seed(user_hash)
     rand_value = random.random()
+    lucky_score_type = None
 
     if rand_value < 0.1:
         message = 'Nie. 🗿' if with_args else "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
+        lucky_score_type = LuckyScoreType.VERY_UNLUCKY
     elif rand_value < 0.3:
         message = 'Raczej nie.' if with_args else "Dzisiaj masz lekkiego pecha. Zachowaj ostrożność."
+        lucky_score_type = LuckyScoreType.UNLUCKY
     elif rand_value < 0.7:
         message = 'Rabini są niezdecydowani w tej kwestii.' if with_args else "Normalny dzień dla normalnego chłopa."
+        lucky_score_type = LuckyScoreType.NEUTRAL
     elif rand_value < 0.9:
         message = 'Raczej tak.' if with_args else "Dzisiaj masz lekkie szczęście. Możesz spróbować coś zrobić, ale może się to nie powieść."
+        lucky_score_type = LuckyScoreType.LUCKY
     else:
         message = 'Tak. 🗿' if with_args else "Dzisiaj masz ogromne szczęście! Wyjdź z domu i spróbuj zrobić coś nowego, na pewno Ci się uda!"
+        lucky_score_type = LuckyScoreType.VERY_LUCKY
 
     log.info(f'User [{user_hash}] ({rand_value}) - {message}')
-    return message
+    return lucky_score_type, message
 
 
 def is_prime(n):
