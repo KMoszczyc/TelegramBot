@@ -73,10 +73,12 @@ class Roulette:
 
         message = ''
         match bet_type:
-            case RouletteBetType.RED | RouletteBetType.BLACK:
+            case RouletteBetType.RED | RouletteBetType.BLACK | RouletteBetType.GREEN:
                 message = self.play_red_black(user_id, bet_size, bet_type)
             case RouletteBetType.ODD | RouletteBetType.EVEN:
                 message = self.play_odd_even(user_id, bet_size, bet_type)
+            case RouletteBetType.HIGH | RouletteBetType.LOW:
+                message = self.play_high_low(user_id, bet_size, bet_type)
             case RouletteBetType.NONE:
                 message = "Invalid bet type."
         self.save_credits()
@@ -84,26 +86,38 @@ class Roulette:
 
     def play_red_black(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
-        result = self.roulette_colors[n]
-        rule = (bet_type == RouletteBetType.RED and result == 'red') or (bet_type == RouletteBetType.BLACK and result == 'black')
-        return self.apply_bet(n, result, user_id, bet_size, rule)
+        result = RouletteBetType(self.roulette_colors[n])
+
+        rule = bet_type == result
+        special_rule = bet_type == result and RouletteBetType.GREEN == result
+        return self.apply_bet(n, result, user_id, bet_size, rule, special_rule, payout_multiplier=35)
 
     def play_odd_even(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
         is_even = n % 2 == 0
         result = 'even' if is_even else 'odd'
-        rule = (bet_type == RouletteBetType.ODD and not is_even) or (bet_type == RouletteBetType.EVEN and is_even)
-        return self.apply_bet(n, result, user_id, bet_size, rule)
+        winning_rule = (bet_type == RouletteBetType.ODD and not is_even) or (bet_type == RouletteBetType.EVEN and is_even) and not n != 0
+        return self.apply_bet(n, result, user_id, bet_size, winning_rule)
 
-    def apply_bet(self, n, result, user_id, bet_size, rule) -> str:
-        if rule:
+    def play_high_low(self, user_id, bet_size, bet_type) -> str:
+        n = random.choice(self.all_numbers)
+        result = RouletteBetType.HIGH if n > 18 else RouletteBetType.LOW
+        if n == 0:
+            result = RouletteBetType.NONE
+        winning_rule = bet_type == result
+        return self.apply_bet(n, result, user_id, bet_size, winning_rule)
+
+    def apply_bet(self, n, result, user_id, bet_size, winning_rule, special_rule=False, payout_multiplier=1) -> str:
+        if special_rule:
+            self.credits[user_id] += bet_size * payout_multiplier
+            return f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size * payout_multiplier} credits* 🔥"
+        elif winning_rule:
             self.credits[user_id] += bet_size
-            return f"The ball fell on *{n}*, which is *{result}*. Congrats! You won *{bet_size} credits* 🔥"
+            return f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size} credits* 🔥"
         else:
             self.credits[user_id] -= bet_size
-            return f"The ball fell on *{n}*, which is *{result}*. You lose your *{bet_size} credits* 🖕"
+            return f"The ball fell on *{n}*, which is *{result.value}*. You lose your *{bet_size} credits* 🖕"
 
     def parse_bet(self, bet_type_arg: str) -> RouletteBetType:
-        print(list(RouletteBetType))
         exists = bet_type_arg in [bet_type.value for bet_type in list(RouletteBetType)]
         return RouletteBetType(bet_type_arg) if exists else RouletteBetType.NONE

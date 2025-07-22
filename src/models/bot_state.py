@@ -40,7 +40,7 @@ class BotState:
             return False
 
     def run_schedules(self, job_queue):
-        time = datetime.time(0, 15, tzinfo=ZoneInfo(TIMEZONE))
+        time = datetime.time(0, 0, tzinfo=ZoneInfo(TIMEZONE))
         job_queue.run_daily(callback=lambda context: self.reset_command_limits(context), time=time, name='Reset command limits (/remindme and /cwel and /get_credits)')
 
     async def reset_command_limits(self, context):

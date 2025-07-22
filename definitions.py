@@ -197,6 +197,9 @@ class LuckyScoreType(Enum):
 class RouletteBetType(Enum):
     RED = 'red'
     BLACK = 'black'
+    GREEN = 'green'
     ODD = 'odd'
     EVEN = 'even'
     NONE = 'none'
+    HIGH = 'high'
+    LOW = 'low'
