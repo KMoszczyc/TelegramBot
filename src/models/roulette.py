@@ -33,12 +33,16 @@ class Roulette:
     def update_credits(self, user_id):
         lucky_score_type, _ = core_utils.are_you_lucky(user_id, with_args=False)
         match lucky_score_type:
+            case LuckyScoreType.VERY_UNLUCKY:
+                new_credits = 5
+            case LuckyScoreType.UNLUCKY:
+                new_credits = 15
             case LuckyScoreType.NEUTRAL:
-                new_credits = 10
-            case LuckyScoreType.LUCKY:
                 new_credits = 25
-            case LuckyScoreType.VERY_LUCKY:
+            case LuckyScoreType.LUCKY:
                 new_credits = 50
+            case LuckyScoreType.VERY_LUCKY:
+                new_credits = 100
             case _:
                 new_credits = 0
         self.credits[user_id] += new_credits
