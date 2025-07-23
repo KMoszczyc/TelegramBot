@@ -16,7 +16,6 @@ class Roulette:
                                 "red", "black", "red", "black", "red", "black", "red", "black", "black", "red", "black", "red", "black", "red", "black", "red"]
 
     def save_credits(self):
-        print(self.credits)
         with open(CREDITS_PATH, 'wb') as f:
             pickle.dump(self.credits, f)
 
@@ -95,8 +94,8 @@ class Roulette:
     def play_odd_even(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
         is_even = n % 2 == 0
-        result = 'even' if is_even else 'odd'
-        winning_rule = (bet_type == RouletteBetType.ODD and not is_even) or (bet_type == RouletteBetType.EVEN and is_even) and not n != 0
+        result = RouletteBetType.EVEN if is_even else RouletteBetType.ODD
+        winning_rule = bet_type == result and n != 0
         return self.apply_bet(n, result, user_id, bet_size, winning_rule)
 
     def play_high_low(self, user_id, bet_size, bet_type) -> str:
