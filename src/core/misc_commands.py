@@ -16,6 +16,7 @@ from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_la
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.models.roulette import Roulette
+from src.models.youtube_download import YoutubeDownload
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class Commands:
         self.users_df = stats_utils.read_df(USERS_PATH)
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.roulette = Roulette(self.users_df)
+
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = self.users_df['final_username'].tolist()
@@ -410,3 +412,5 @@ class Commands:
         message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+

@@ -35,7 +35,7 @@ class ChatETL:
         self.client_api_handler = client_api_handler
         self.word_stats = WordStats()
 
-    def update(self, days: int,  bulk_word_stats=False, bulk_ocr=False):
+    def update(self, days: int, bulk_word_stats=False, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
 
         # ETL
@@ -57,6 +57,8 @@ class ChatETL:
         # Cleanup
         self.delete_bot_messages()
         self.cleanup_temp_dir()
+
+        self.move_video_notes()
 
     def download_chat_history(self, days):
         old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
@@ -91,9 +93,9 @@ class ChatETL:
             #         old_chat_df is None
             #         or old_chat_df[old_chat_df['message_id'] == message.id].empty
             # ):
-                # path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
-                # image_text = OCR.extract_text_from_image(path)
-                # ocr_count += 1
+            # path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
+            # image_text = OCR.extract_text_from_image(path)
+            # ocr_count += 1
 
             single_message_data = [int(message.id),
                                    message.date,
@@ -269,6 +271,19 @@ class ChatETL:
         if os.path.exists(TEMP_DIR):
             log.info(f'Removing {files_num} files from temp dir...')
             shutil.rmtree(TEMP_DIR)
+
+    def move_video_notes(self):
+        chat_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        if chat_df is None:
+            log.info('No chat history, no video notes to move.')
+            return
+
+        video_notes_df = chat_df[chat_df['message_type'] == MessageType.VIDEO_NOTE.value]
+        ids = video_notes_df['message_id'].tolist()
+        for message_id in ids:
+            src_path = core_utils.message_id_to_path(message_id, MessageType.VIDEO)
+            dst_path = core_utils.message_id_to_path(message_id, MessageType.VIDEO_NOTE)
+            shutil.move(src_path, dst_path)
 
     def validate_data(self):
         commands_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)

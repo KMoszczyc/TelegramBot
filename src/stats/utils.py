@@ -17,47 +17,6 @@ negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩
 MATCHING_USERNAME_THRESHOLD = 5
 
 
-def load_metadata():
-    """Load metadata pickle file as a dict. If it doesn't exist, check if the chat data exists, to extract some metadata out."""
-    if not os.path.exists(METADATA_PATH):
-        chat_df = read_df(CHAT_HISTORY_PATH)
-        if chat_df is None:
-            return {
-                'last_message_id': None,
-                'last_message_utc_timestamp': None,
-                'last_message_dt': None,
-                'last_update': None,
-                'message_count': None,
-                'new_latest_data': False
-            }
-
-        chat_df = chat_df.sort_values(by='message_id').reset_index(drop=True)
-        return {
-            'last_message_id': chat_df['message_id'].iloc[-1],
-            'last_message_utc_timestamp': int(chat_df['timestamp'].iloc[-1].replace(tzinfo=timezone.utc).astimezone(tz=None).timestamp()),
-            'last_message_dt': chat_df['timestamp'].iloc[-1],
-            'last_update': None,
-            'message_count': len(chat_df),
-            'new_latest_data': False
-        }
-    with open(METADATA_PATH, 'rb', buffering=0) as f:
-        return pickle.load(f)
-
-
-def save_metadata(metadata):
-    """Dump metadata dict to pickle file."""
-    dir_path = os.path.split(METADATA_PATH)[0]
-    create_dir(dir_path)
-    with open(METADATA_PATH, 'wb', buffering=0) as f:
-        pickle.dump(metadata, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def read_chat_history():
-    df = pd.read_parquet(CLEANED_CHAT_HISTORY_PATH).sort_values(by='timestamp').reset_index(drop=True)
-    print(df.tail(10))
-    return df
-
-
 def read_users():
     return pd.read_parquet(USERS_PATH)
 
@@ -343,5 +302,8 @@ def get_users_map(users_df):
         for index, row in users_df.iterrows()
     }
 
-# ngram = 'nie da się'
-# print(is_ngram_contaminated_by_stopwords(ngram, STOPWORD_RATIO_THRESHOLD, polish_stopwords))
+
+def get_random_media_path(directory):
+    files = os.listdir(directory)
+    filename = random.choice(files)
+    return os.path.join(directory, filename)

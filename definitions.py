@@ -53,6 +53,7 @@ CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/chat_history.parquet')
 CHAT_IMAGES_DIR_PATH = os.path.join(DATA_DIR, 'chat/images')
 CHAT_GIFS_DIR_PATH = os.path.join(DATA_DIR, 'chat/gifs')
 CHAT_VIDEOS_DIR_PATH = os.path.join(DATA_DIR, 'chat/videos')
+CHAT_VIDEO_NOTES_DIR_PATH = os.path.join(DATA_DIR, 'chat/video_notes')
 CHAT_AUDIO_DIR_PATH = os.path.join(DATA_DIR, 'chat/audio')
 CHAT_WORD_STATS_DIR_PATH = os.path.join(DATA_DIR, 'chat/word_stats')
 WORD_STATS_UPDATE_LOCK_PATH = os.path.join(CHAT_WORD_STATS_DIR_PATH, 'update.lock')
@@ -163,6 +164,7 @@ class MessageType(Enum):
     VIDEO_NOTE = 'video_note'
     IMAGE = 'image'
     AUDIO = 'audio'
+    VOICE = 'voice'
 
 
 class NamedArgType(Enum):

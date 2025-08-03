@@ -8,7 +8,7 @@ import telegram
 import pandas as pd
 
 from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE, PeriodFilterMode, \
-    ChartType, MAX_CWEL_USAGE_DAILY
+    ChartType, MAX_CWEL_USAGE_DAILY, CHAT_VIDEO_NOTES_DIR_PATH
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.core.client_api_handler import BOT_ID
@@ -17,6 +17,7 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 import src.stats.charts
+from src.models.youtube_download import YoutubeDownload
 from src.stats import charts
 from src.stats.word_stats import WordStats
 
@@ -42,6 +43,8 @@ class ChatCommands:
         self.job_persistance = job_persistance
         self.cwel_stats_df = stats_utils.init_cwel_stats()
         self.word_stats = WordStats()
+        self.ytdl = YoutubeDownload()
+
 
     def update(self):
         """If chat data was updated recentely, reload it."""
@@ -245,11 +248,14 @@ class ChatCommands:
                 await context.bot.send_video(chat_id=update.effective_chat.id, video=path, caption=text)
             case MessageType.VIDEO_NOTE:
                 await context.bot.send_video_note(chat_id=update.effective_chat.id, video_note=path)
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+                if text != '':
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
             case MessageType.IMAGE:
                 await context.bot.send_photo(chat_id=update.effective_chat.id, photo=path, caption=text)
             case MessageType.AUDIO:
                 await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text)
+            case MessageType.VOICE:
+                await context.bot.send_voice(chat_id=update.effective_chat.id, voice=path, caption=text)
 
     async def cmd_last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last n messages from chat history"""
@@ -714,3 +720,25 @@ class ChatCommands:
         result_df = merged_df[['period', 'final_username', 'ratio']].sort_values(['period', 'ratio'], ascending=[True, False])
 
         return result_df
+
+    async def cmd_play(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], available_named_args={'full': ArgType.NONE}, optional=[False],max_string_length=1000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        audio_path, error = self.ytdl.download(command_args.string)
+        if error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            return
+
+        if 'full' in command_args.named_args:
+            await self.send_message(update, context, MessageType.VOICE, audio_path, '')
+            return
+
+        video_note_path = stats_utils.get_random_media_path(CHAT_VIDEO_NOTES_DIR_PATH)
+        output_path = self.ytdl.swap_video_audio(video_note_path, audio_path)
+
+        await self.send_message(update, context, MessageType.VIDEO_NOTE, output_path, '')
+

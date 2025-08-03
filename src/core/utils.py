@@ -6,13 +6,14 @@ import random
 import re
 import string
 import sys
+import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat, HolyTextType, SiglumType, \
-    quran_df, LuckyScoreType
+    quran_df, LuckyScoreType, CHAT_VIDEO_NOTES_DIR_PATH
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -211,7 +212,6 @@ def are_you_lucky(user_id, with_args=False):
     user_hash = user_id + today
     random.seed(user_hash)
     rand_value = random.random()
-    lucky_score_type = None
 
     if rand_value < 0.1:
         message = 'Nie. 🗿' if with_args else "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
@@ -253,9 +253,12 @@ def message_id_to_path(message_id, message_type: MessageType):
         case MessageType.GIF:
             filename = f'{message_id}.mp4'
             return os.path.join(CHAT_GIFS_DIR_PATH, filename)
-        case MessageType.VIDEO | MessageType.VIDEO_NOTE:
+        case MessageType.VIDEO:
             filename = f'{message_id}.mp4'
             return os.path.join(CHAT_VIDEOS_DIR_PATH, filename)
+        case MessageType.VIDEO_NOTE:
+            filename = f'{message_id}.mp4'
+            return os.path.join(CHAT_VIDEO_NOTES_DIR_PATH, filename)
         case MessageType.AUDIO:
             filename = f'{message_id}.ogg'
             return os.path.join(CHAT_AUDIO_DIR_PATH, filename)
@@ -283,8 +286,10 @@ async def download_media(message, message_type):
             path = message_id_to_path(message.id, MessageType.IMAGE)
         case MessageType.GIF:
             path = message_id_to_path(message.id, MessageType.GIF)
-        case MessageType.VIDEO | MessageType.VIDEO_NOTE:
+        case MessageType.VIDEO:
             path = message_id_to_path(message.id, MessageType.VIDEO)
+        case MessageType.VIDEO_NOTE:
+            path = message_id_to_path(message.id, MessageType.VIDEO_NOTE)
         case MessageType.AUDIO:
             path = message_id_to_path(message.id, MessageType.AUDIO)
         case _:
@@ -530,7 +535,7 @@ def parse_string(command_args: CommandArgs, text: str) -> [str, CommandArgs, str
     if len(text) > command_args.max_string_length:
         error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
 
-    if '&' in text:  # user for 'AND' filtering
+    if '&' in text and 'http' not in text:  # user for 'AND' filtering but don't do it for links
         command_args.strings = text.split('&')
     else:
         command_args.string = text
@@ -711,3 +716,7 @@ def max_str_length_in_col(series):
     strings = series.tolist()
 
     return -1 if len(strings) == 0 else max(len(ngram) for ngram in strings)
+
+
+def get_random_id():
+    return str(uuid.uuid4())

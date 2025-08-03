@@ -6,7 +6,7 @@ from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
 
-from definitions import CHAT_IMAGES_DIR_PATH
+from definitions import CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_VIDEO_NOTES_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 
@@ -29,7 +29,12 @@ class ClientAPIHandler:
 
         # session_str = StringSession.save(self.client.session)
         # print(session_str)
-        core_utils.create_dir(CHAT_IMAGES_DIR_PATH)
+        self.create_dirs()
+
+    def create_dirs(self):
+        paths = [CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_VIDEO_NOTES_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH]
+        for path in paths:
+            core_utils.create_dir(path)
 
     def get_chat_history(self, days: int = 1) -> object:
         """
