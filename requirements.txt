@@ -16,3 +16,5 @@ great-tables
 schedule
 networkx
 nltk
+yt_dlp
+ffmpeg-python
