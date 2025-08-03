@@ -58,8 +58,6 @@ class ChatETL:
         self.delete_bot_messages()
         self.cleanup_temp_dir()
 
-        self.move_video_notes()
-
     def download_chat_history(self, days):
         old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         latest_messages, message_types = self.client_api_handler.get_chat_history(days)
