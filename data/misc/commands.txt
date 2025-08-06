@@ -21,7 +21,7 @@ kiepscyurl - (number) Get a Kiepscy episode url by the episode number
 koran - (text_filter, --all, --verse[chapter:verse_nr], --num[int], --count[int], --next[int], --prev[int], --chapter) - just a whole focking Koran book
 lastmessages - (username, number[optional]) display last x messages from chat history
 likechart - (username[optional], period[optional]) display number of reactions received per day per user
-monologuechart - (username[optional], period[optional], --acc) calculate monologue index (acc stands for accumulative, meaning it's counted from the beginning no matter the filter period)
+monologuechart - (username[optional], period[optional], --acc) calculate monologue index
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
 play - (url, --full) play a song from youtube. By default its played to a random video note, but with --full you get the just the audio track.
 relgraph - (period[optional], user[optional]) - Network graph of combined user reaction counts in chat
@@ -31,7 +31,7 @@ sadmemes - (username[optional], period[optional]) top sad memes (images) sorted 
 sadmessages - (username[optional], period[optional]) top sad messages sorted by a number of reactions, filtered on negative_emojis
 setusername - (new_username) set your new username
 spamchart - (username[optional], period[optional]) display number of messages per day per user
-starababa - using the current date f.e: 20240709 and the last 2 digits of your user_id, a magic number is created. If it's prime you are lucky today!
+starababa - from the current date f.e: 20240709 and your user_id your luck is determined
 summary - (username[optional], period[optional]) summary of chat stats
 topaudio - (username[optional], period[optional]) top audio (and voice messages) sorted by a number of reactions
 topcwel - (period[optional]) - display top cwels

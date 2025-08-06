@@ -41,4 +41,5 @@ class YoutubeDownload:
         return output_path
 
     def validate_url(self, url):
-        return url.startswith('https://www.youtube.com/watch?v=') or url.startswith('https://youtu.be/')
+        valid_prefixes = ['https://www.youtube.com/watch?v=', 'https://youtu.be/', 'https://www.youtube.com/shorts/']
+        return any(url.startswith(prefix) for prefix in valid_prefixes)

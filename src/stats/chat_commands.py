@@ -45,7 +45,6 @@ class ChatCommands:
         self.word_stats = WordStats()
         self.ytdl = YoutubeDownload()
 
-
     def update(self):
         """If chat data was updated recentely, reload it."""
         if not os.path.isfile(UPDATE_REQUIRED_PATH):
@@ -607,18 +606,20 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_wordstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT}, min_number=1, max_number=6, max_string_length=1000)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT},
+                                   min_number=1, max_number=6, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         filtered_ngrams_df = self.word_stats.filter_ngrams(command_args)
 
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
             return
-        if 'text' in command_args.named_args: # for a specific phrase like "
+        if 'text' in command_args.named_args:  # for a specific phrase like "
             filter_phrase = command_args.named_args['text'].lower()
             filter_ngram = len(filter_phrase.split())
             if filter_ngram not in self.word_stats.ngram_range:
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{filter_phrase}" is {filter_ngram}-gram.')
+                await context.bot.send_message(chat_id=update.effective_chat.id,
+                                               text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{filter_phrase}" is {filter_ngram}-gram.')
                 return
             ngram_df = filtered_ngrams_df[filter_ngram]
             filter_ngram_df = ngram_df[ngram_df['ngrams'].str.lower().str.fullmatch(filter_phrase)]
@@ -722,7 +723,7 @@ class ChatCommands:
         return result_df
 
     async def cmd_play(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], available_named_args={'full': ArgType.NONE}, optional=[False],max_string_length=1000)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.STRING], available_named_args={'full': ArgType.NONE}, optional=[False], max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -737,8 +738,20 @@ class ChatCommands:
             await self.send_message(update, context, MessageType.VOICE, audio_path, '')
             return
 
-        video_note_path = stats_utils.get_random_media_path(CHAT_VIDEO_NOTES_DIR_PATH)
-        output_path = self.ytdl.swap_video_audio(video_note_path, audio_path)
+        reply_message_id = update.message.reply_to_message.message_id
+        reply_message_type = self.get_reply_message_type(reply_message_id)
+        if reply_message_type is not None and reply_message_type in [MessageType.VIDEO, MessageType.VIDEO_NOTE, MessageType.GIF]:
+            video_path = core_utils.message_id_to_path(reply_message_id, reply_message_type)
+            message_type = MessageType.VIDEO if reply_message_type in [MessageType.VIDEO, MessageType.GIF] else MessageType.VIDEO_NOTE
+        else:
+            video_path = stats_utils.get_random_media_path(CHAT_VIDEO_NOTES_DIR_PATH)
+            message_type = MessageType.VIDEO_NOTE
+        output_path = self.ytdl.swap_video_audio(video_path, audio_path)
 
-        await self.send_message(update, context, MessageType.VIDEO_NOTE, output_path, '')
+        await self.send_message(update, context, message_type, output_path, '')
 
+    def get_reply_message_type(self, reply_message_id):
+        reply_message = self.chat_df[self.chat_df['message_id'] == reply_message_id]
+        if reply_message.empty:
+            return None
+        return MessageType(reply_message.iloc[0]['message_type'])

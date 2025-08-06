@@ -165,6 +165,7 @@ class MessageType(Enum):
     IMAGE = 'image'
     AUDIO = 'audio'
     VOICE = 'voice'
+    NONE = 'none'
 
 
 class NamedArgType(Enum):

@@ -266,6 +266,8 @@ def message_id_to_path(message_id, message_type: MessageType):
 
 
 def get_message_type(message):
+    if message is None:
+        return MessageType.NONE
     if message.photo:
         return MessageType.IMAGE
     if message.document and message.document.mime_type == "video/mp4" and message.gif:
