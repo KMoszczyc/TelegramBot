@@ -78,18 +78,27 @@ class Roulette:
                 message = self.play_odd_even(user_id, bet_size, bet_type)
             case RouletteBetType.HIGH | RouletteBetType.LOW:
                 message = self.play_high_low(user_id, bet_size, bet_type)
+            case RouletteNumbers():
+                message = self.play_number(user_id, bet_size, bet_type)
             case RouletteBetType.NONE:
                 message = "Invalid bet type."
         self.save_credits()
         return message
+
+    def play_number(self, user_id, bet_size, number_enum) -> str:
+        n = random.choice(self.all_numbers)
+        result = RouletteBetType(n)
+        rule = number_enum == int(RouletteNumbers(n))
+        return self.apply_bet(n, result, user_id, bet_size, rule, payout_multiplier=35)
 
     def play_red_black(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
         result = RouletteBetType(self.roulette_colors[n])
 
         rule = bet_type == result
-        special_rule = bet_type == result and RouletteBetType.GREEN == result
-        return self.apply_bet(n, result, user_id, bet_size, rule, special_rule, payout_multiplier=35)
+        if RouletteBetType.GREEN == result:
+            return self.apply_bet(n, result, user_id, bet_size, rule, payout_multiplier=35)
+        return self.apply_bet(n, result, user_id, bet_size, rule)
 
     def play_odd_even(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
@@ -106,13 +115,10 @@ class Roulette:
         winning_rule = bet_type == result
         return self.apply_bet(n, result, user_id, bet_size, winning_rule)
 
-    def apply_bet(self, n, result, user_id, bet_size, winning_rule, special_rule=False, payout_multiplier=1) -> str:
-        if special_rule:
+    def apply_bet(self, n, result, user_id, bet_size, winning_rule, payout_multiplier=1) -> str:
+        if winning_rule:
             self.credits[user_id] += bet_size * payout_multiplier
             return f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size * payout_multiplier} credits* 🔥"
-        elif winning_rule:
-            self.credits[user_id] += bet_size
-            return f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size} credits* 🔥"
         else:
             self.credits[user_id] -= bet_size
             return f"The ball fell on *{n}*, which is *{result.value}*. You lose your *{bet_size} credits* 🖕"
