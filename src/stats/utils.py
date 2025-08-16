@@ -70,11 +70,11 @@ def get_today_midnight_dt():
 
 
 def get_past_hr_dt(hours):
-    return datetime.datetime.now(datetime.timezone.utc) - timedelta(hours=hours)
+    return get_dt_now() - timedelta(hours=hours)
 
 
 def get_dt_now():
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now().replace(tzinfo=ZoneInfo(TIMEZONE))
 
 
 def filter_df_in_range(df: pd.DataFrame, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
@@ -85,16 +85,17 @@ def filter_df_in_range(df: pd.DataFrame, start_dt: datetime, end_dt: datetime) -
 def filter_by_time_df(df, command_args, time_column='timestamp'):
     today_dt = get_today_midnight_dt()
     period_mode, period_time = command_args.period_mode, command_args.period_time
+    dt_now = get_dt_now()
 
     match period_mode:
         case PeriodFilterMode.SECOND:
-            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(seconds=period_time)]
+            return df[df[time_column] >= dt_now - timedelta(seconds=period_time)]
         case PeriodFilterMode.MINUTE:
-            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(minutes=period_time)]
+            return df[df[time_column] >= dt_now - timedelta(minutes=period_time)]
         case PeriodFilterMode.HOUR:
-            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(hours=period_time)]
+            return df[df[time_column] >= dt_now - timedelta(hours=period_time)]
         case PeriodFilterMode.DAY:
-            return df[df[time_column] >= datetime.datetime.now(datetime.timezone.utc) - timedelta(days=period_time)]
+            return df[df[time_column] >= dt_now - timedelta(days=period_time)]
         case PeriodFilterMode.TODAY:
             return df[df[time_column] >= today_dt]
         case PeriodFilterMode.YESTERDAY:

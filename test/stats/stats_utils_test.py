@@ -1,6 +1,9 @@
 from unittest.mock import patch
 
 import pytest
+
+from src.core.utils import parse_user
+from src.models.command_args import CommandArgs
 from src.stats.utils import *
 from datetime import datetime
 
@@ -28,26 +31,22 @@ mock_reactions_df = pd.DataFrame({
 
 # Test data
 test_timestamp_df = pd.DataFrame([
-    {"timestamp": datetime(2023, 10, 10, 1, 0, 0)},  # Included in HOUR, TODAY, MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 10, 9, 23, 0, 0)},  # Included in TODAY, MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 10, 9, 0, 0, 0)},  # Included in TODAY, MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 10, 8, 2, 0, 0)},  # Included in WEEK, MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 10, 2, 0, 0, 0)},  # Included in WEEK, MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 9, 5, 0, 0, 0)},  # Included in MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 8, 15, 0, 0, 0)},  # Included in MONTH, YEAR, TOTAL
-    {"timestamp": datetime(2023, 6, 10, 0, 0, 0)},  # Included in YEAR, TOTAL
-    {"timestamp": datetime(2022, 9, 10, 0, 0, 0)},  # Included in YEAR, TOTAL
-    {"timestamp": datetime(2022, 1, 1, 0, 0, 0)},  # Included in YEAR, TOTAL
-    {"timestamp": datetime(2021, 9, 10, 0, 0, 0)},  # Included in TOTAL
+    {"timestamp": datetime(2023, 10, 10, 1, 18, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in HOUR, TODAY, MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 10, 9, 23, 1, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in TODAY, MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 10, 9, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in TODAY, MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 10, 8, 2, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in WEEK, MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 10, 2, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in WEEK, MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 9, 5, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 8, 15, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in MONTH, YEAR, TOTAL
+    {"timestamp": datetime(2023, 6, 10, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in YEAR, TOTAL
+    {"timestamp": datetime(2022, 9, 10, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in YEAR, TOTAL
+    {"timestamp": datetime(2022, 1, 1, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in YEAR, TOTAL
+    {"timestamp": datetime(2021, 9, 10, 0, 0, 0).replace(tzinfo=ZoneInfo(TIMEZONE))},  # Included in TOTAL,
 ])
 
 
 def mock_get_today_midnight_dt():
-    return datetime(2023, 10, 10)
-
-
-def mock_get_dt_now():
-    return datetime(2023, 10, 10, 2, 0, 0)
+    return datetime(2023, 10, 10, hour=0, minute=0, second=0).replace(tzinfo=ZoneInfo(TIMEZONE))
 
 
 @pytest.mark.parametrize("input_text, expected_output", [
@@ -93,27 +92,23 @@ def test_emoji_sentiment_to_label(emoji_type, expected_label):
 ])
 def test_parse_user(user_str, expected_user):
     command_args = CommandArgs()
-    command_args = parse_user(users_v2_df, command_args, user_str)
+    command_args, _ = parse_user(users_v2_df, command_args, user_str)
 
     assert command_args.user == expected_user
 
 
-
-def get_today_midnight_dt():
-    return datetime(2023, 10, 10, 0, 0, 0)
-
-
 def get_past_hr_dt(hours):
-    return datetime(2023, 10, 10, 1, 15, 0) - timedelta(hours=hours)
+    return datetime(2023, 10, 10, 1, 15, 0).replace(tzinfo=ZoneInfo(TIMEZONE)) - timedelta(hours=hours)
 
 
 def mock_get_dt_now():
-    return datetime(2023, 10, 10, 2, 15, 0)
+    return datetime(2023, 10, 10, 2, 15, 0).replace(tzinfo=ZoneInfo(TIMEZONE))
 
 
 @pytest.mark.parametrize("period_mode, period_time, expected_count", [
     (PeriodFilterMode.HOUR, 1, 1),  # ID: hour_filter
-    (PeriodFilterMode.TODAY, None, 1),  # ID: today_filter
+    (PeriodFilterMode.HOUR, 3, 1),  # ID: hour_filter
+    (PeriodFilterMode.HOUR, 4, 2),  # ID: hour_filter
     (PeriodFilterMode.YESTERDAY, None, 2),  # ID: yesterday_filter
     (PeriodFilterMode.WEEK, None, 4),  # ID: week_filter
     (PeriodFilterMode.MONTH, None, 5),  # ID: month_filter
@@ -121,8 +116,8 @@ def mock_get_dt_now():
     (PeriodFilterMode.TOTAL, None, 11),  # ID: total_filter
 ])
 def test_filter_by_time_df(period_mode, period_time, expected_count, mocker):
-    mocker.patch('src.stats.utils.get_today_midnight_dt', side_effect=get_today_midnight_dt)
-    mocker.patch('src.stats.utils.get_past_hr_dt', side_effect=get_past_hr_dt)
+    mocker.patch('src.stats.utils.get_today_midnight_dt', side_effect=mock_get_today_midnight_dt)
+    mocker.patch('src.stats.utils.get_dt_now', side_effect=mock_get_dt_now)
 
     command_args = CommandArgs(period_mode=period_mode, period_time=period_time)
     result_df = filter_by_time_df(test_timestamp_df, command_args)
@@ -144,6 +139,9 @@ def test_filter_by_shifted_time_df(period_mode, period_time, expected_count, moc
 
     command_args = CommandArgs(period_mode=period_mode, period_time=period_time)
     result_df = filter_by_shifted_time_df(test_timestamp_df, command_args)
+
+    print(test_timestamp_df.head(10))
+    print(result_df.head(10))
 
     assert len(result_df) == expected_count
 
@@ -178,5 +176,3 @@ def mock_read_df(path):
 def test_check_bot_messages(mock_read_df, message_ids, expected_result):
     result = check_bot_messages(message_ids, BOT_ID)
     assert result == expected_result
-
-
