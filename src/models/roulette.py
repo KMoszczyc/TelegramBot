@@ -165,8 +165,9 @@ class Roulette:
     def show_top_bet_leaderboard(self, users_map, command_args: CommandArgs):
         filtered_credit_history_df = self.preprocess_credit_history(command_args)
         filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df['action_type'] == CreditActionType.BET.value]
+        filtered_credit_history_df['credit_change'] = filtered_credit_history_df['credit_change'].abs()
         filtered_credit_history_df = filtered_credit_history_df.sort_values(by='credit_change', ascending=False)
-        text = f'``` Top bet leaderboard: \n'
+        text = f'``` TOP bet leaderboard: \n'
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
         for i, (index, row) in enumerate(filtered_credit_history_df.head(10).iterrows()):
             username = users_map[row['user_id']]
