@@ -35,7 +35,7 @@ def remove_file(path):
 
 
 def escape_special_characters(text):
-    special_characters = r'\-.()[{}_]:+!<>=#^|~$%'
+    special_characters = r'\-.()[{}_]:+!<>=#^|~$%[]'
     return re.sub(f'([{re.escape(special_characters)}])', r'\\\1', text)
 
 

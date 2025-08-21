@@ -69,11 +69,9 @@ class Roulette:
             case _:
                 new_credits = 0
         self.credits[user_id] += new_credits
-        self.update_credit_history(user_id, new_credits, CreditActionType.GET, None, None)
+        self.update_credit_history(user_id, new_credits, CreditActionType.GET, None, True, None)
         message = f"Your luck today is: *{lucky_score_type.value}*, StaraBaba gives you *{new_credits} credits* today :). Now in total you have *{self.credits[user_id]} credits*."
-        message = stats_utils.escape_special_characters(message)
-        self.save_credits()
-        return message
+        return stats_utils.escape_special_characters(message)
 
     def show_credit_leaderboard(self, users_map) -> str:
         sorted_credits = sorted(self.credits.items(), key=lambda kv: kv[1], reverse=True)
@@ -104,7 +102,6 @@ class Roulette:
                 message = self.play_high_low(user_id, bet_size, bet_type)
             case RouletteBetType.NONE:
                 message = "Invalid bet type."
-        self.save_credits()
         return message
 
     def play_red_black(self, user_id, bet_size, bet_type) -> str:
@@ -151,6 +148,7 @@ class Roulette:
         data = [stats_utils.get_dt_now(), user_id, robbed_user_id, credit_change, action_type.value, bet_type, success]
         new_entry = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=[data])
         self.credit_history_df = pd.concat([self.credit_history_df, new_entry], ignore_index=True)
+        self.save_credits()
 
     def parse_bet(self, bet_type_arg: str) -> RouletteBetType:
         exists = bet_type_arg in [bet_type.value for bet_type in list(RouletteBetType)]
@@ -175,3 +173,21 @@ class Roulette:
             text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['credit_change']}"
         text += "```"
         return stats_utils.escape_special_characters(text)
+
+    def steal_credits(self, user_id, robbed_user_id, amount, users_map) -> str:
+        robbed_username = users_map[robbed_user_id]
+        if amount > self.credits[robbed_user_id]:
+            return f"*{robbed_username}* doesn't have that much credits. Steal less!"
+        p = self.calculate_steal_chance(robbed_user_id, amount)
+        if random.random() < p:
+            self.credits[user_id] += amount
+            self.credits[robbed_user_id] -= amount
+            self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, True, robbed_user_id)
+            return f"You've successfully stolen *{amount}* credits from *{robbed_username}*!!"
+        else:
+            self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, False, robbed_user_id)
+            return f"You've failed to steal *{amount}* credits from *{robbed_username}*."
+        
+    def calculate_steal_chance(self, robbed_user_id, amount):
+        target_credits = self.credits[robbed_user_id]
+        return core_utils.calculate_skewed_probability(amount, target_credits)

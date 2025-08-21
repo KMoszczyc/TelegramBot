@@ -3,7 +3,7 @@ from collections import defaultdict
 import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import TIMEZONE, MAX_REMINDERS_DAILY_USAGE, HolyTextType, MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY
+from definitions import TIMEZONE, MAX_REMINDERS_DAILY_USAGE, HolyTextType, MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY, MAX_STEAL_CREDITS_DAILY
 
 log = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ class BotState:
         self.remindme_usage_map = defaultdict(int)
         self.cwel_usage_daily_count_map = defaultdict(int)
         self.get_credits_daily_count_map = defaultdict(int)
+        self.steal_credits_daily_count_map = defaultdict(int)
 
         self.run_schedules(job_queue)
 
@@ -39,16 +40,24 @@ class BotState:
         else:
             return False
 
+    def update_steal_credits_limits(self, user_id) -> bool:
+        if user_id not in self.steal_credits_daily_count_map or self.steal_credits_daily_count_map[user_id] < MAX_STEAL_CREDITS_DAILY:
+            self.steal_credits_daily_count_map[user_id] += 1
+            return True
+        else:
+            return False
+
     def run_schedules(self, job_queue):
         time = datetime.time(0, 0, tzinfo=ZoneInfo(TIMEZONE))
-        job_queue.run_daily(callback=lambda context: self.reset_command_limits(context), time=time, name='Reset command limits (/remindme and /cwel and /get_credits)')
+        job_queue.run_daily(callback=lambda context: self.reset_command_limits(context), time=time, name='Reset command limits (/remindme, /cwel, /get_credits and /steal_credits)')
 
     async def reset_command_limits(self, context):
         self.remindme_usage_map = defaultdict(int)
         self.cwel_usage_daily_count_map = defaultdict(int)
         self.get_credits_daily_count_map = defaultdict(int)
+        self.steal_credits_daily_count_map = defaultdict(int)
 
-        log.info('Remindme and cwel and get_credits usage limits have been reset.')
+        log.info('Remindme, cwel, get_credits and steal_credits usage limits have been reset.')
 
     def set_holy_text_last_verse_id(self, last_verse_id, holy_text_type: HolyTextType):
         if holy_text_type == HolyTextType.BIBLE:

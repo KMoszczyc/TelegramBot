@@ -12,7 +12,7 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT
+    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT, MAX_STEAL_CREDITS_DAILY
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.models.roulette import Roulette
@@ -418,5 +418,33 @@ class Commands:
         await asyncio.sleep(5)
 
         message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
+        message = stats_utils.escape_special_characters(message)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def cmd_steal_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.USER], min_number=1, max_number=10000000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        if user_id == command_args.user_id:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="You want to steal from yourself? lol xd")
+            return
+
+        can_steal = self.bot_state.update_steal_credits_limits(user_id)
+        if not can_steal:
+            message = stats_utils.escape_special_characters("You have reached your daily steal quota, no more thieving today :(")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
+        p = self.roulette.calculate_steal_chance(robbed_user_id=command_args.user_id, amount=command_args.number)
+        robbed_username = self.users_map[command_args.user_id]
+        waiting_message = stats_utils.escape_special_characters(f"Attempting to steal *{command_args.number}* credits from *{robbed_username}* [*{p * 100:.1f}%* chance]..")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=waiting_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await asyncio.sleep(5)
+
+        message = self.roulette.steal_credits(user_id=user_id, robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
