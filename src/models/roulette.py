@@ -184,10 +184,10 @@ class Roulette:
             self.credits[user_id] += amount
             self.credits[robbed_user_id] -= amount
             self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, True, robbed_user_id)
-            return f"You've successfully stolen *{amount}* credits from *{robbed_username}*!!"
+            return f"You've *successfully* stolen {amount} credits from *{robbed_username}*!!"
         else:
             self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, False, robbed_user_id)
-            return f"You've failed to steal *{amount}* credits from *{robbed_username}*."
+            return f"You've *failed* to steal {amount} credits from *{robbed_username}*."
         
     def calculate_steal_chance(self, robbed_user_id, amount):
         target_credits = self.credits[robbed_user_id]
