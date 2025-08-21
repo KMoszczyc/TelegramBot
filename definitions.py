@@ -65,6 +65,7 @@ COMMANDS_USAGE_PATH = os.path.join(DATA_DIR, 'chat/commands_usage.parquet')
 SCHEDULED_JOBS_PATH = os.path.join(DATA_DIR, 'chat/scheduled_jobs.pkl')
 CWEL_STATS_PATH = os.path.join(DATA_DIR, 'chat/cwel_stats.parquet')
 CREDITS_PATH = os.path.join(DATA_DIR, 'chat/credits.pkl')
+CREDIT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/credit_history.parquet')
 
 # Miscalenous
 TVP_HEADLINES_PATH = os.path.join(DATA_DIR, 'misc/paski-tvp.txt')
@@ -197,6 +198,7 @@ class LuckyScoreType(Enum):
     LUCKY = 'lucky'
     VERY_LUCKY = 'very lucky'
 
+
 class RouletteBetType(Enum):
     RED = 'red'
     BLACK = 'black'
@@ -206,3 +208,10 @@ class RouletteBetType(Enum):
     NONE = 'none'
     HIGH = 'high'
     LOW = 'low'
+    SINGLE_NUMBER = 'single_number'
+
+
+class CreditActionType(Enum):
+    GET = 'get'  # get_credits()
+    BET = 'bet'  # bet()
+    STEAL = 'steal'  # steal()

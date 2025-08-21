@@ -77,6 +77,7 @@ class OzjaszBot:
             'kiepscyurl': self.core_commands.cmd_kiepscyurl,
             'getcredits': self.core_commands.cmd_get_credits,
             'creditleaderboard': self.core_commands.cmd_show_credit_leaderboard,
+            'betleaderboard': self.core_commands.cmd_show_top_bet_leaderboard,
             'bet': self.core_commands.cmd_bet,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),

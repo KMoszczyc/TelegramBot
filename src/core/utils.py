@@ -719,6 +719,8 @@ def max_str_length_in_col(series):
 
     return -1 if len(strings) == 0 else max(len(ngram) for ngram in strings)
 
+def max_str_length_in_list(strings):
+    return -1 if len(strings) == 0 else max(len(ngram) for ngram in strings)
 
 def get_random_id():
     return str(uuid.uuid4())

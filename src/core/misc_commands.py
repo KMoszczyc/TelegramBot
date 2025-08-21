@@ -28,8 +28,7 @@ class Commands:
         self.bot_state = bot_state
         self.users_df = stats_utils.read_df(USERS_PATH)
         self.users_map = stats_utils.get_users_map(self.users_df)
-        self.roulette = Roulette(self.users_df)
-
+        self.roulette = Roulette()
 
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = self.users_df['final_username'].tolist()
@@ -148,8 +147,6 @@ class Commands:
             message = text[:index]
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
             text = text[index:]
-
-
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
@@ -395,9 +392,19 @@ class Commands:
         message = self.roulette.show_credit_leaderboard(self.users_map)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
+    async def cmd_show_top_bet_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+
+        message = self.roulette.show_top_bet_leaderboard(self.users_map, command_args)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000, max_string_length=1000)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000,
+                                   max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
@@ -406,11 +413,10 @@ class Commands:
         bet_size = command_args.number
         bet_type_arg = command_args.string
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=stats_utils.escape_special_characters(f"The roulette is spinning..."), parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=stats_utils.escape_special_characters(f"The roulette is spinning..."),
+                                       parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
         await asyncio.sleep(5)
 
         message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-
-

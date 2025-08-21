@@ -65,6 +65,18 @@ cwel_schema = pa.DataFrameSchema({
     'value': pa.Column(int)  # string
 })
 
+# 6. Credit History ['timestamp', 'user_id', 'robbed_user_id','credit_change', 'action_type', 'bet_type', 'success']
+credit_history_schema = pa.DataFrameSchema({
+    'timestamp': pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),  # datetime64[ns]
+    'user_id': pa.Column(int),
+    'robbed_user_id': pa.Column(int),
+    'credit_change': pa.Column(int),
+    'action_type': pa.Column(str),
+    'bet_type': pa.Column(str),
+    'success': pa.Column(bool)
+})
+
+
 #
 # chat_history_schema = {
 #     'message_id': "int64",

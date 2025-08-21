@@ -3,14 +3,25 @@ import pickle
 from collections import defaultdict
 import random
 
-from definitions import CREDITS_PATH, LuckyScoreType, RouletteBetType
+import pandas as pd
+
+from definitions import CREDITS_PATH, LuckyScoreType, RouletteBetType, CREDIT_HISTORY_PATH, CreditActionType
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from src.models.command_args import CommandArgs
+
+pd.options.mode.chained_assignment = None
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.width', 1000)
+
+CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'robbed_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
 
 
 class Roulette:
-    def __init__(self, users_df):
+    def __init__(self):
         self.credits = self.load_credits()
+        self.credit_history_df = self.load_credit_history()
         self.all_numbers = range(37)
         self.roulette_colors = ["green", "red", "black", "red", "black", "red", "black", "red", "black", "red", "black", "black", "red", "black", "red", "black", "red", "black", "red", "red", "black",
                                 "red", "black", "red", "black", "red", "black", "red", "black", "black", "red", "black", "red", "black", "red", "black", "red"]
@@ -18,6 +29,8 @@ class Roulette:
     def save_credits(self):
         with open(CREDITS_PATH, 'wb') as f:
             pickle.dump(self.credits, f)
+
+        core_utils.save_df(self.credit_history_df, CREDIT_HISTORY_PATH)
 
     def load_credits(self):
         if not os.path.exists(CREDITS_PATH):
@@ -28,6 +41,17 @@ class Roulette:
                 return pickle.load(f)
             except EOFError:
                 return defaultdict(int)
+
+    def load_credit_history(self):
+        if not os.path.exists(CREDIT_HISTORY_PATH):
+            credits = self.load_credits()
+            data = [[stats_utils.get_dt_now(), user_id, None, credit, CreditActionType.GET.value, None, True] for user_id, credit in credits.items()]
+            df = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=data)
+            df.to_parquet(CREDIT_HISTORY_PATH)
+
+            print(df.head(15))
+
+        return pd.read_parquet(CREDIT_HISTORY_PATH)
 
     def update_credits(self, user_id):
         lucky_score_type, _ = core_utils.are_you_lucky(user_id, with_args=False)
@@ -45,6 +69,7 @@ class Roulette:
             case _:
                 new_credits = 0
         self.credits[user_id] += new_credits
+        self.update_credit_history(user_id, new_credits, CreditActionType.GET, None, None)
         message = f"Your luck today is: *{lucky_score_type.value}*, StaraBaba gives you *{new_credits} credits* today :). Now in total you have *{self.credits[user_id]} credits*."
         message = stats_utils.escape_special_characters(message)
         self.save_credits()
@@ -59,8 +84,7 @@ class Roulette:
                 username = users_map[user_id]
                 text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{credit}"
         text += "```"
-        text = stats_utils.escape_special_characters(text)
-        return text
+        return stats_utils.escape_special_characters(text)
 
     def play(self, user_id, bet_size, bet_type_arg: str) -> str:
         if user_id not in self.credits or self.credits[user_id] < bet_size:
@@ -89,14 +113,14 @@ class Roulette:
 
         rule = bet_type == result
         special_rule = bet_type == result and RouletteBetType.GREEN == result
-        return self.apply_bet(n, result, user_id, bet_size, rule, special_rule, payout_multiplier=35)
+        return self.apply_bet(n, result, user_id, bet_size, rule, bet_type, special_rule, payout_multiplier=35)
 
     def play_odd_even(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
         is_even = n % 2 == 0
         result = RouletteBetType.EVEN if is_even else RouletteBetType.ODD
         winning_rule = bet_type == result and n != 0
-        return self.apply_bet(n, result, user_id, bet_size, winning_rule)
+        return self.apply_bet(n, result, user_id, bet_size, winning_rule, bet_type)
 
     def play_high_low(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
@@ -104,19 +128,50 @@ class Roulette:
         if n == 0:
             result = RouletteBetType.NONE
         winning_rule = bet_type == result
-        return self.apply_bet(n, result, user_id, bet_size, winning_rule)
+        return self.apply_bet(n, result, user_id, bet_size, winning_rule, bet_type)
 
-    def apply_bet(self, n, result, user_id, bet_size, winning_rule, special_rule=False, payout_multiplier=1) -> str:
+    def apply_bet(self, n, result, user_id, bet_size, winning_rule, bet_type, special_rule=False, payout_multiplier=1) -> str:
         if special_rule:
-            self.credits[user_id] += bet_size * payout_multiplier
-            return f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size * payout_multiplier} credits* 🔥"
+            credit_change = bet_size * payout_multiplier
+            message = f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size * payout_multiplier} credits* 🔥"
         elif winning_rule:
-            self.credits[user_id] += bet_size
-            return f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size} credits* 🔥"
+            credit_change = bet_size
+            message = f"The ball fell on *{n}*, which is *{result.value}*. Congrats! You won *{bet_size} credits* 🔥"
         else:
-            self.credits[user_id] -= bet_size
-            return f"The ball fell on *{n}*, which is *{result.value}*. You lose your *{bet_size} credits* 🖕"
+            credit_change = -bet_size
+            message = f"The ball fell on *{n}*, which is *{result.value}*. You lose your *{bet_size} credits* 🖕"
+
+        self.credits[user_id] += credit_change
+        self.update_credit_history(user_id, credit_change, CreditActionType.BET, bet_type, winning_rule)
+
+        return message
+
+    def update_credit_history(self, user_id: int, credit_change: int, action_type: CreditActionType | None, bet_type: RouletteBetType | None, success: bool, robbed_user_id=None):
+        bet_type = bet_type.value if bet_type is not None else None
+        data = [stats_utils.get_dt_now(), user_id, robbed_user_id, credit_change, action_type.value, bet_type, success]
+        new_entry = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=[data])
+        self.credit_history_df = pd.concat([self.credit_history_df, new_entry], ignore_index=True)
 
     def parse_bet(self, bet_type_arg: str) -> RouletteBetType:
         exists = bet_type_arg in [bet_type.value for bet_type in list(RouletteBetType)]
         return RouletteBetType(bet_type_arg) if exists else RouletteBetType.NONE
+
+    def preprocess_credit_history(self, command_args):
+        filtered_credit_history_df = self.credit_history_df.copy(deep=True)
+        filtered_credit_history_df = stats_utils.filter_by_time_df(filtered_credit_history_df, command_args, 'timestamp')
+        if command_args.user_id is not None:
+            filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df['user_id'] == command_args.user_id]
+
+        return filtered_credit_history_df
+
+    def show_top_bet_leaderboard(self, users_map, command_args: CommandArgs):
+        filtered_credit_history_df = self.preprocess_credit_history(command_args)
+        filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df['action_type'] == CreditActionType.BET.value]
+        filtered_credit_history_df = filtered_credit_history_df.sort_values(by='credit_change', ascending=False)
+        text = f'``` Top bet leaderboard: \n'
+        max_len_username = core_utils.max_str_length_in_list(users_map.values())
+        for i, (index, row) in enumerate(filtered_credit_history_df.head(10).iterrows()):
+            username = users_map[row['user_id']]
+            text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['credit_change']}"
+        text += "```"
+        return stats_utils.escape_special_characters(text)
