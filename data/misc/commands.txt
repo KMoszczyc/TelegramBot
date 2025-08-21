@@ -1,7 +1,7 @@
-addnickname - (new_nickname) add a new nickname, so it's easier for you and others to use filtering
+addnickname - (new_nickname) add a new nickname
 all - ping all users
 bartosiak - text_filter or [regex] - Best of our favourite geopolitician Jacek Bartosiak
-bet - (bet_size[int], bet_type[red, black, green, even, odd, high, low..]) - european roulette, the wheel has 37 numbers [0-36], half black, half red, 1 green, choose your bet and roll the wheel!
+bet - (bet_size[int], bet_type[red, black, green, even, odd, high, low..]) - european roulette
 betleaderboard - show TOP bets leaderboard, either failed or successful
 boczek - username  - nasty epithets about Arnold Boczek, a character from Świat Według Kiepskich
 bible - (text_filter, --all, --num[int], --count[int]) - just a whole focking bible
@@ -24,7 +24,7 @@ lastmessages - (username, number[optional]) display last x messages from chat hi
 likechart - (username[optional], period[optional]) display number of reactions received per day per user
 monologuechart - (username[optional], period[optional], --acc) calculate monologue index
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
-play - (url, --full) play a song from youtube. By default its played to a random video note, but with --full you get the just the audio track.
+play - (url, --full) play a song from youtube. By default its played to a random video note
 relgraph - (period[optional], user[optional]) - Network graph of combined user reaction counts in chat
 remindme - (period, text) - remind me of something in the future
 remind - (period, user, text) - remind a given user of something in the future
@@ -35,12 +35,12 @@ spamchart - (username[optional], period[optional]) display number of messages pe
 starababa - from the current date f.e: 20240709 and your user_id your luck is determined
 steal - (amount[int], username) steal credits from another user, the more you try to steal, the lesser probability of success
 summary - (username[optional], period[optional]) summary of chat stats
-topaudio - (username[optional], period[optional]) top audio (and voice messages) sorted by a number of reactions
+topaudio - (username[optional], period[optional]) top audio (and voice messages)
 topcwel - (period[optional]) - display top cwels
-topgifs - (username[optional], period[optional]) top gifs sorted by a number of reactions
-topmemes - (username[optional], period[optional]) top memes (images) sorted by a number of reactions
-topmessages - (username[optional], period[optional], --text[string]) top messages sorted by a number of reactions
-topvideos - (username[optional], period[optional]) top videos (and video notes) sorted by a number of reactions
+topgifs - (username[optional], period[optional])
+topmemes - (username[optional], period[optional])
+topmessages - (username[optional], period[optional], --text[string]
+topvideos - (username[optional], period[optional]) ==
 tvp - text_filter or [regex] - all TVP headlines, from the past few years
 tvp_latest - text_filter or [regex] - latest TVP headlines
 tusk - text_filter or [regex] - epic TVP Tusk reference
