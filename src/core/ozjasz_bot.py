@@ -31,6 +31,7 @@ class OzjaszBot:
                             .token(TOKEN)
                             .read_timeout(30)
                             .write_timeout(30)
+                            .concurrent_updates(True)
                             .build()
                             )
 
