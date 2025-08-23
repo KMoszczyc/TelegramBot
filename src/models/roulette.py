@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 from collections import defaultdict
@@ -14,6 +15,7 @@ pd.options.mode.chained_assignment = None
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', 1000)
+log = logging.getLogger(__name__)
 
 CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'robbed_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
 
@@ -77,7 +79,7 @@ class Roulette:
         sorted_credits = sorted(self.credits.items(), key=lambda kv: kv[1], reverse=True)
         text = f'``` Credit score leaderboard: \n'
         if sorted_credits:
-            print(sorted_credits)
+            log.info(sorted_credits)
             max_len_username = max(len(users_map[user_id]) for user_id, _ in sorted_credits)
             for i, (user_id, credit) in enumerate(sorted_credits):
                 username = users_map[user_id]
