@@ -16,7 +16,11 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.width', 1000)
 
 CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'robbed_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
-
+#
+credits = {2081478325: 600, 1624688219: 200, 1217518595: 195, 5687961683: 115, 1479279190: 76, 803411658: 26, 393403838: 13, 1652077322: 5, 5802311794: 0, 5720646495: 0}
+def save_credits(credits):
+    with open('credits.pkl', 'wb') as f:
+        pickle.dump(credits, f)
 
 class Roulette:
     def __init__(self):
@@ -179,6 +183,11 @@ class Roulette:
         robbed_username = users_map[robbed_user_id]
         if amount > self.credits[robbed_user_id]:
             return f"*{robbed_username}* doesn't have that much credits. Steal less!"
+
+        richest_user_id = max(self.credits, key=self.credits.get)
+        if robbed_user_id == richest_user_id:
+            return "The rich don't pay taxes."
+
         p = self.calculate_steal_chance(robbed_user_id, amount)
         if random.random() < p:
             self.credits[user_id] += amount
