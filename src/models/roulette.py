@@ -77,6 +77,7 @@ class Roulette:
         sorted_credits = sorted(self.credits.items(), key=lambda kv: kv[1], reverse=True)
         text = f'``` Credit score leaderboard: \n'
         if sorted_credits:
+            print(sorted_credits)
             max_len_username = max(len(users_map[user_id]) for user_id, _ in sorted_credits)
             for i, (user_id, credit) in enumerate(sorted_credits):
                 username = users_map[user_id]
