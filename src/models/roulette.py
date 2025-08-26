@@ -184,6 +184,9 @@ class Roulette:
         if amount > self.credits[robbed_user_id]:
             return f"*{robbed_username}* doesn't have that much credits. Steal less!"
 
+        if self.credits[robbed_user_id] == 0:
+            return f"*{robbed_username}* doesn't have any credits left."
+
         richest_user_id = max(self.credits, key=self.credits.get)
         if robbed_user_id == richest_user_id:
             return "The rich don't pay taxes."
