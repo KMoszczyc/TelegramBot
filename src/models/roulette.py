@@ -184,11 +184,6 @@ class Roulette:
 
     def steal_credits(self, user_id, robbed_user_id, amount, users_map) -> str:
         robbed_username = users_map[robbed_user_id]
-        if amount > self.credits[robbed_user_id]:
-            return f"*{robbed_username}* doesn't have that much credits. Steal less!"
-
-        if self.credits[robbed_user_id] == 0:
-            return f"*{robbed_username}* doesn't have any credits left."
 
         p = self.calculate_steal_chance(robbed_user_id, amount)
         if random.random() < p:
@@ -199,6 +194,16 @@ class Roulette:
         else:
             self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, False, robbed_user_id)
             return f"You've *failed* to steal {amount} credits from *{robbed_username}*."
+
+    def validate_steal(self, robbed_user_id, amount, users_map):
+        robbed_username = users_map[robbed_user_id]
+        if self.credits[robbed_user_id] == 0:
+            return False, f"*{robbed_username}* doesn't have any credits left."
+
+        if amount > self.credits[robbed_user_id]:
+            return False, f"*{robbed_username}* doesn't have that much credits. Steal less!"
+
+        return True, ""
 
     def calculate_steal_chance(self, robbed_user_id, amount):
         target_credits = self.credits[robbed_user_id]

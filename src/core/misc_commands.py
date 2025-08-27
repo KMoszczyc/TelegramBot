@@ -439,6 +439,11 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
             return
 
+        success, message = self.roulette.validate_steal(robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
+        if not success:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
         p = self.roulette.calculate_steal_chance(robbed_user_id=command_args.user_id, amount=command_args.number)
         robbed_username = self.users_map[command_args.user_id]
         waiting_message = stats_utils.escape_special_characters(f"Attempting to steal *{command_args.number}* credits from *{robbed_username}* [*{p * 100:.1f}%* chance]..")
