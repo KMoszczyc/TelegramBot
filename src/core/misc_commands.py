@@ -520,5 +520,5 @@ class Commands:
         # credit payout for correct answer :)
         credit_payout = cached_quiz.get_credit_payout()
         user_credits, _ = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_payout, action_type=CreditActionType.QUIZ)
-        message = stats_utils.escape_special_characters(f"Answer: *{query.data}* is correct!, You receive *{credit_payout}* credits! [*{user_credits}* in total]")
+        message = stats_utils.escape_special_characters(f"Answer: *{query.data}* is correct! You receive *{credit_payout}* credits! [*{user_credits}* in total]")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
