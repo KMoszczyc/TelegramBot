@@ -16,6 +16,7 @@ class BotState:
         self.cwel_usage_daily_count_map = defaultdict(int)
         self.get_credits_daily_count_map = defaultdict(int)
         self.steal_credits_daily_count_map = defaultdict(int)
+        self.quiz_cache = {}
 
         self.run_schedules(job_queue)
 
@@ -56,6 +57,7 @@ class BotState:
         self.cwel_usage_daily_count_map = defaultdict(int)
         self.get_credits_daily_count_map = defaultdict(int)
         self.steal_credits_daily_count_map = defaultdict(int)
+        self.quiz_cache = {}
 
         log.info('Remindme, cwel, get_credits and steal_credits usage limits have been reset.')
 

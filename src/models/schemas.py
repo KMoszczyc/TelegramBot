@@ -76,6 +76,16 @@ credit_history_schema = pa.DataFrameSchema({
     'success': pa.Column(bool)
 })
 
+#  7. Trivia Schema
+trivia_schema = pa.DataFrameSchema({
+    'type': pa.Column(str),  # int64
+    'difficulty': pa.Column(str),  # string
+    'category': pa.Column(str),  # string boolean|multiple
+    'question': pa.Column(str),  # string
+    'answers': pa.Column(object),  # list
+    'solution': pa.Column(str),  # abcd
+    'correct_answer': pa.Column(str),  # string
+}, name="trivia")
 
 #
 # chat_history_schema = {

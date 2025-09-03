@@ -1,10 +1,11 @@
+import copy
 import logging
 from datetime import datetime
 import asyncio
 
 import pandas as pd
 import telegram
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
 from src.core.command_logger import CommandLogger
@@ -12,9 +13,10 @@ from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT, MAX_STEAL_CREDITS_DAILY
+    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT, MAX_STEAL_CREDITS_DAILY, quiz_df, MIN_QUIZ_TIME_TO_ANSWER_SECONDS, CreditActionType
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from src.models.quiz_model import QuizModel
 from src.models.roulette import Roulette
 from src.models.youtube_download import YoutubeDownload
 
@@ -142,7 +144,6 @@ class Commands:
 
         text = stats_utils.escape_special_characters(text)
         while len(text) > 1:
-            print(len(text))
             index = min(4096, len(text))
             message = text[:index]
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
@@ -385,7 +386,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
             return
 
-        message = self.roulette.update_credits(user_id)
+        message = self.roulette.get_daily_credits(user_id)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
     async def cmd_show_credit_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -452,4 +453,72 @@ class Commands:
 
         message = self.roulette.steal_credits(user_id=user_id, robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(message)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+    async def cmd_quiz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, available_named_args={'category': ArgType.STRING, 'type': ArgType.STRING, 'difficulty': ArgType.STRING})
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            return
+        filtered_quiz_df = copy.deepcopy(quiz_df)
+        if 'category' in command_args.named_args:
+            filtered_quiz_df = filtered_quiz_df[filtered_quiz_df['category'].str.contains(command_args.named_args['category'], case=False)]
+        if 'difficulty' in command_args.named_args:
+            filtered_quiz_df = filtered_quiz_df[filtered_quiz_df['difficulty'].str.contains(command_args.named_args['difficulty'])]
+        if 'type' in command_args.named_args:
+            filtered_quiz_df = filtered_quiz_df[filtered_quiz_df['type'].str.contains(command_args.named_args['type'])]
+
+        if filtered_quiz_df.empty:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='No questions in database with these parameters. :[')
+            return
+
+        random_quiz = filtered_quiz_df.sample(n=1).iloc[0]
+        buttons = []
+        for answer in random_quiz['answers']:
+            buttons.append(InlineKeyboardButton(answer, callback_data=answer))
+
+        if random_quiz['type'] == 'boolean':
+            buttons = [buttons]
+        else:
+            buttons = [[buttons[0], buttons[1]], [buttons[2], buttons[3]]]
+        reply_markup = telegram.InlineKeyboardMarkup(buttons)
+        message = stats_utils.escape_special_characters(f"*[{random_quiz['category']}, {random_quiz['difficulty']}]*\n\n{random_quiz['question']}")
+        reply = await update.message.reply_text(message, reply_markup=reply_markup, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
+        # Store quiz in cache for inline btn callbacks to work
+        seconds_to_answer = MIN_QUIZ_TIME_TO_ANSWER_SECONDS + len(random_quiz['question'].split()) * 0.5
+        quiz = QuizModel(user_id=update.effective_user.id, question=random_quiz['question'], difficulty=random_quiz['difficulty'], type=random_quiz['type'],
+                         correct_answer=random_quiz['correct_answer'], display_answer=random_quiz['display_answer'],
+                         start_dt=core_utils.get_dt_now(), seconds_to_answer=seconds_to_answer)
+        self.bot_state.quiz_cache[reply.message_id] = quiz
+
+    async def btn_quiz_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Parses the CallbackQuery and updates the message text."""
+        query = update.callback_query
+        cached_quiz = self.bot_state.quiz_cache[query.message.message_id]
+        dt_now = core_utils.get_dt_now()
+
+        if query.from_user.id != cached_quiz.user_id:  # prevent other people from answering someone else's quiz
+            return
+        await query.edit_message_reply_markup(reply_markup=None)  # remove answer buttons, as the quiz is over
+
+        time_elapsed = (dt_now - cached_quiz.start_dt).total_seconds()
+        if time_elapsed > cached_quiz.seconds_to_answer:
+            message = stats_utils.escape_special_characters(f"Time's out! You've had *{int(cached_quiz.seconds_to_answer)}s* to answer, yet it took you *{time_elapsed:.2f}s*, lol.")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
+        if cached_quiz.correct_answer != query.data: # apply penalty for incorrect answer
+            credit_penalty = cached_quiz.get_credit_penalty()
+            user_credits, success = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ)
+            message = f"Answer: *{query.data}* is incorrect. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :[" if success else f"Answer: *{query.data}* is incorrect, but because you're so poor you won't lose any credits for it :]"
+            message = stats_utils.escape_special_characters(message)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            return
+
+        # credit payout for correct answer :)
+        credit_payout = cached_quiz.get_credit_payout()
+        user_credits, _ = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_payout, action_type=CreditActionType.QUIZ)
+        message = stats_utils.escape_special_characters(f"Answer: *{query.data}* is correct!, You receive *{credit_payout}* credits! [*{user_credits}* in total]")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)

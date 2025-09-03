@@ -60,7 +60,7 @@ class Roulette:
 
         return pd.read_parquet(CREDIT_HISTORY_PATH)
 
-    def update_credits(self, user_id):
+    def get_daily_credits(self, user_id):
         lucky_score_type, _ = core_utils.are_you_lucky(user_id, with_args=False)
         match lucky_score_type:
             case LuckyScoreType.VERY_UNLUCKY:
@@ -78,7 +78,16 @@ class Roulette:
         self.credits[user_id] += new_credits
         self.update_credit_history(user_id, new_credits, CreditActionType.GET, None, True, None)
         message = f"Your luck today is: *{lucky_score_type.value}*, StaraBaba gives you *{new_credits} credits* today :). Now in total you have *{self.credits[user_id]} credits*."
+
         return stats_utils.escape_special_characters(message)
+
+    def update_credits(self, user_id, credit_change, action_type):
+        if self.credits[user_id] + credit_change < 0:
+            return 0, False
+        self.credits[user_id] += credit_change
+        self.update_credit_history(user_id, credit_change, action_type, None, True, None)
+
+        return self.credits[user_id], True
 
     def show_credit_leaderboard(self, users_map) -> str:
         sorted_credits = sorted(self.credits.items(), key=lambda kv: kv[1], reverse=True)

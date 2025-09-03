@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import logging
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 
 import src.core.misc_commands as commands
 from src.core.command_logger import CommandLogger
@@ -52,6 +52,7 @@ class OzjaszBot:
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
+        self.application.add_handler(CallbackQueryHandler(self.core_commands.btn_quiz_callback))
 
     def get_commands_map(self):
         return {
@@ -81,6 +82,7 @@ class OzjaszBot:
             'betleaderboard': self.core_commands.cmd_show_top_bet_leaderboard,
             'bet': self.core_commands.cmd_bet,
             'steal': self.core_commands.cmd_steal_credits,
+            'quiz': self.core_commands.cmd_quiz,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
             'topmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.ALL),

@@ -25,6 +25,7 @@ likechart - (username[optional], period[optional]) display number of reactions r
 monologuechart - (username[optional], period[optional], --acc) calculate monologue index
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
 play - (url, --full) play a song from youtube. By default its played to a random video note
+quiz - (--category, --type[boolean|multiple], --difficulty[easy|medium|hard]) using https://opentdb.com/ we've got few thousands of questions that give you credits (or take them away)
 relgraph - (period[optional], user[optional]) - Network graph of combined user reaction counts in chat
 remindme - (period, text) - remind me of something in the future
 remind - (period, user, text) - remind a given user of something in the future

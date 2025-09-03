@@ -40,6 +40,8 @@ MAX_GET_CREDITS_DAILY = 1
 MAX_STEAL_CREDITS_DAILY = 3
 LONG_MESSAGE_LIMIT = 1  # long texts spanning into multiple messages.
 STOPWORD_RATIO_THRESHOLD = 0.59
+MIN_QUIZ_TIME_TO_ANSWER_SECONDS = 10
+
 
 TIMEZONE = 'Europe/Warsaw'
 
@@ -83,6 +85,7 @@ EUROPEJSKAFIRMA_PATH = os.path.join(DATA_DIR, 'misc/europejskafirma.txt')
 BOCZEK_PATH = os.path.join(DATA_DIR, 'misc/boczek.txt')
 KIEPSCY_PATH = os.path.join(DATA_DIR, 'misc/kiepscy.parquet')
 WALESA_PATH = os.path.join(DATA_DIR, 'misc/walesa.txt')
+QUIZ_DATABASE_PATH = os.path.join(DATA_DIR, 'misc/quiz_database.parquet')
 
 # Load text files with funny phrases
 tvp_headlines = read_str_file(TVP_HEADLINES_PATH)
@@ -99,7 +102,7 @@ boczek_phrases = read_str_file(BOCZEK_PATH)
 kiepscy_df = pd.read_parquet(KIEPSCY_PATH)
 walesa_phrases = read_str_file(WALESA_PATH)
 polish_stopwords = read_str_file(POLISH_STOPWORDS_PATH)
-
+quiz_df = pd.read_parquet(QUIZ_DATABASE_PATH)
 
 class PeriodFilterMode(Enum):
     """Mode used for filtering the chat data for:
@@ -216,3 +219,4 @@ class CreditActionType(Enum):
     GET = 'get'  # get_credits()
     BET = 'bet'  # bet()
     STEAL = 'steal'  # steal()
+    QUIZ = 'quiz'
