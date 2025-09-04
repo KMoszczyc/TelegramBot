@@ -40,91 +40,91 @@ class Commands:
         for username, user_id in zip(usernames, user_ids):
             text += f"[{username}](tg://user?id={user_id}) "
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="Markdown")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="Markdown", message_thread_id=update.message.message_thread_id)
 
     async def cmd_ozjasz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiej wypowiedzi :(')
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_boczek(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED])
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         curse = core_utils.select_random_phrase(boczek_phrases, 'Nie ma takiej wypowiedzi :(')
         response = f"{command_args.string} to {curse}" if command_args.string != '' else curse
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_europejskafirma(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=europejskafirma_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiej wypowiedzi :(')
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_bartosiak(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=bartosiak_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiej wypowiedzi :(')
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tvp(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         merged_headlines = tvp_latest_headlines + tvp_headlines
         command_args = CommandArgs(args=context.args, phrases=merged_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego nagłówka :(')
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tvp_latest(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=tvp_latest_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego nagłówka :(')
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tusk(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         tusk_headlines = [headline for headline in tvp_headlines if 'tusk' in headline.lower()]
         command_args = CommandArgs(args=context.args, phrases=tusk_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego nagłówka :(')
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_walesa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, phrases=walesa_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiego przedmiotu :(').replace(r"\n", "\n")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_are_you_lucky_today(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, is_text_arg=True)
@@ -136,7 +136,7 @@ class Commands:
         lucky_input = user_id + lucky_text_number
 
         _, response = core_utils.are_you_lucky(lucky_input, args_provided)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "Existing commands:\n- /" + '\n- /'.join(commands)
@@ -146,7 +146,7 @@ class Commands:
         while len(text) > 1:
             index = min(4096, len(text))
             message = text[:index]
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             text = text[index:]
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
@@ -156,7 +156,7 @@ class Commands:
                                    available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'b': 'book', 'ch': 'chapter'})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         filter_phrase = command_args.joined_args_lower
@@ -184,17 +184,17 @@ class Commands:
             chapter = random_row['chapter']
             filtered_df = bible_df[(bible_df['book'] == book) & (bible_df['chapter'] == chapter)].head(command_args.named_args['chapter'])
             response += core_utils.display_holy_text_df(filtered_df, bot_state, HolyTextType.BIBLE, label=f'{len(filtered_df)} verses from chapter {chapter}', show_siglum=False)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
             return
         else:
             filtered_df = filtered_df.sample(frac=1)
 
         response, error = self.handle_holy_text_named_params(command_args, filtered_df, bible_df, bot_state, filter_phrase, HolyTextType.BIBLE)
         if error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
             return
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
@@ -203,7 +203,7 @@ class Commands:
                                    available_named_args_aliases={'p': 'prev', 'n': 'next', 'a': 'all', 'c': 'count', 'ch': 'chapter', 'num': 'num', 'v': 'verse'})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         filter_phrase = command_args.joined_args_lower
@@ -223,10 +223,10 @@ class Commands:
 
         response, error = self.handle_holy_text_named_params(command_args, filtered_df, quran_df, bot_state, filter_phrase, HolyTextType.QURAN)
         if error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
             return
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     def handle_holy_text_named_params(self, command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type):
         error = ''
@@ -276,13 +276,13 @@ class Commands:
 
         text += "```"
         text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_show_shopping_sundays(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, available_named_args={'all': ArgType.NONE})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         dt_now = datetime.now()
@@ -295,23 +295,23 @@ class Commands:
         else:
             response = 'Nie ma już handlowych niedzieli w tym roku :(('
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_remind_me(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.TEXT_MULTISPACED], optional=[False, False], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         dt, error = core_utils.period_offset_to_dt(command_args)
         if error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
             return
 
         self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, update.message.message_id, command_args.string])
         response = f"You're gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_kiepscy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED], min_string_length=1, max_string_length=1000)
@@ -320,7 +320,7 @@ class Commands:
         # await context.bot.send_message(chat_id=update.effective_chat.id, text='Temporarily disabled :(')
         # return
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         search_phrase = command_args.string
@@ -341,7 +341,7 @@ class Commands:
             random_row = merged_df.sample(frac=1).iloc[1]
             text = f"*{random_row['nr']}: {random_row['title']}* - {random_row['description']}\n"
             text = stats_utils.escape_special_characters(text)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
         text = f"Kiepscy episodes that match [{search_phrase}]:\n"
@@ -353,62 +353,62 @@ class Commands:
                 return
             if len(text) > 4096:
                 response = stats_utils.escape_special_characters(last_text)
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
                 text = ""
                 message_sent_count += 1
             last_text = text
         text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_kiepscyurl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], max_number=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         episode_nr = str(command_args.number)
         matching_episode_df = kiepscy_df[kiepscy_df['nr'] == episode_nr]
         if matching_episode_df.empty:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Nie ma takiego epizodu :(")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Nie ma takiego epizodu :(", message_thread_id=update.message.message_thread_id)
             return
         row = matching_episode_df.iloc[0]
         text = f"*{episode_nr}: {row['title']}* - {row['url']}"
 
         text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_get_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         can_get_credits = self.bot_state.update_get_credits_limits(user_id)
         if not can_get_credits:
             message = stats_utils.escape_special_characters("You already got your credits today :)")
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
         message = self.roulette.get_daily_credits(user_id)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_show_credit_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = self.roulette.show_credit_leaderboard(self.users_map)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_show_top_bet_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         message = self.roulette.show_top_bet_leaderboard(self.users_map, command_args)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000,
                                    max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         bet_size = command_args.number
@@ -420,46 +420,46 @@ class Commands:
 
         message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
         message = stats_utils.escape_special_characters(message)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_steal_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.USER], min_number=1, max_number=10000000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
         user_id = update.effective_user.id
         if user_id == command_args.user_id:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="You want to steal from yourself? lol xd")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="You want to steal from yourself? lol xd", message_thread_id=update.message.message_thread_id)
             return
 
         can_steal = self.bot_state.update_steal_credits_limits(user_id)
         if not can_steal:
             message = stats_utils.escape_special_characters("You have reached your daily steal quota, no more thieving today :(")
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
         success, message = self.roulette.validate_steal(robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         if not success:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
         p = self.roulette.calculate_steal_chance(robbed_user_id=command_args.user_id, amount=command_args.number)
         robbed_username = self.users_map[command_args.user_id]
         waiting_message = stats_utils.escape_special_characters(f"Attempting to steal *{command_args.number}* credits from *{robbed_username}* [*{p * 100:.1f}%* chance]..")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=waiting_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=waiting_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 
         message = self.roulette.steal_credits(user_id=user_id, robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(message)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_quiz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, available_named_args={'category': ArgType.STRING, 'type': ArgType.STRING, 'difficulty': ArgType.STRING})
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
         filtered_quiz_df = copy.deepcopy(quiz_df)
         if 'category' in command_args.named_args:
@@ -470,7 +470,7 @@ class Commands:
             filtered_quiz_df = filtered_quiz_df[filtered_quiz_df['type'].str.contains(command_args.named_args['type'])]
 
         if filtered_quiz_df.empty:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text='No questions in database with these parameters. :[')
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='No questions in database with these parameters. :[', message_thread_id=update.message.message_thread_id)
             return
 
         random_quiz = filtered_quiz_df.sample(n=1).iloc[0]
@@ -484,7 +484,7 @@ class Commands:
             buttons = [[buttons[0], buttons[1]], [buttons[2], buttons[3]]]
         reply_markup = telegram.InlineKeyboardMarkup(buttons)
         message = stats_utils.escape_special_characters(f"*[{random_quiz['category']}, {random_quiz['difficulty']}]*\n\n{random_quiz['question']}")
-        reply = await update.message.reply_text(message, reply_markup=reply_markup, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        reply = await update.message.reply_text(message, reply_markup=reply_markup, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
         # Store quiz in cache for inline btn callbacks to work
         seconds_to_answer = MIN_QUIZ_TIME_TO_ANSWER_SECONDS + len(random_quiz['question'].split()) * 0.5
@@ -506,7 +506,7 @@ class Commands:
         time_elapsed = (dt_now - cached_quiz.start_dt).total_seconds()
         if time_elapsed > cached_quiz.seconds_to_answer:
             message = stats_utils.escape_special_characters(f"Time's out! You've had *{int(cached_quiz.seconds_to_answer)}s* to answer, yet it took you *{time_elapsed:.2f}s*, lol.")
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
             return
 
         if cached_quiz.correct_answer != query.data: # apply penalty for incorrect answer
@@ -514,11 +514,11 @@ class Commands:
             user_credits, success = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ)
             message = f"Answer: *{query.data}* is incorrect. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :[" if success else f"Answer: *{query.data}* is incorrect, but because you're so poor you won't lose any credits for it :]"
             message = stats_utils.escape_special_characters(message)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
             return
 
         # credit payout for correct answer :)
         credit_payout = cached_quiz.get_credit_payout()
         user_credits, _ = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_payout, action_type=CreditActionType.QUIZ)
         message = stats_utils.escape_special_characters(f"Answer: *{query.data}* is correct! You receive *{credit_payout}* credits! [*{user_credits}* in total]")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
