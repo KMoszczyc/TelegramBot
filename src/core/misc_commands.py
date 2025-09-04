@@ -415,7 +415,7 @@ class Commands:
         bet_type_arg = command_args.string
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=stats_utils.escape_special_characters(f"The roulette is spinning..."),
-                                       parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+                                       parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 
         message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
