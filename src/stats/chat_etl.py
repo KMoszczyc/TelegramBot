@@ -55,7 +55,7 @@ class ChatETL:
         self.validate_data()
 
         # Cleanup
-        self.delete_bot_messages()
+        # self.delete_bot_messages() # with the introduction of topici, this is not needed
         self.cleanup_temp_dir()
 
     def download_chat_history(self, days):
