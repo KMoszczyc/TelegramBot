@@ -4,24 +4,25 @@ from datetime import datetime
 QUIZ_CREDIT_PAYOUT = {
     'easy': 15,
     'medium': 25,
-    'hard': 100
+    'hard': 50
 }
 
 MULTIPLE_QUIZ_CREDIT_PENALTY = {
     'easy': -5,
     'medium': -10,
-    'hard': -30
+    'hard': -20
 }
 
 BOOLEAN_QUIZ_CREDIT_PENALTY = {
     'easy': -15,
     'medium': -25,
-    'hard': -100
+    'hard': -50
 }
 
 
 @dataclass
 class QuizModel:
+    quiz_id: int
     user_id: str
     question: str
     correct_answer: str
@@ -30,7 +31,8 @@ class QuizModel:
     seconds_to_answer: int
     difficulty: str
 
-    def __init__(self, user_id, question, difficulty, type, correct_answer, display_answer, start_dt, seconds_to_answer):
+    def __init__(self, quiz_id, user_id, question, difficulty, type, correct_answer, display_answer, start_dt, seconds_to_answer):
+        self.quiz_id = quiz_id
         self.user_id = user_id
         self.question = question
         self.difficulty = difficulty

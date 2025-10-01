@@ -32,6 +32,8 @@ class Commands:
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.roulette = Roulette()
 
+        bot_state.init_quiz_map(self.users_df)
+
     async def cmd_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = self.users_df['final_username'].tolist()
         user_ids = self.users_df.index.tolist()
@@ -473,7 +475,8 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='No questions in database with these parameters. :[', message_thread_id=update.message.message_thread_id)
             return
 
-        random_quiz = filtered_quiz_df.sample(n=1).iloc[0]
+        random_quiz_id = self.bot_state.get_random_quiz_id(update.effective_user.id)
+        random_quiz = filtered_quiz_df[filtered_quiz_df['quiz_id'] == random_quiz_id].iloc[0]
         buttons = []
         for answer in random_quiz['answers']:
             buttons.append(InlineKeyboardButton(answer, callback_data=answer))
@@ -487,8 +490,8 @@ class Commands:
         reply = await update.message.reply_text(message, reply_markup=reply_markup, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
         # Store quiz in cache for inline btn callbacks to work
-        seconds_to_answer = MIN_QUIZ_TIME_TO_ANSWER_SECONDS + len(random_quiz['question'].split()) * 0.5
-        quiz = QuizModel(user_id=update.effective_user.id, question=random_quiz['question'], difficulty=random_quiz['difficulty'], type=random_quiz['type'],
+        seconds_to_answer = MIN_QUIZ_TIME_TO_ANSWER_SECONDS + len(random_quiz['question'].split())
+        quiz = QuizModel(quiz_id=random_quiz_id, user_id=update.effective_user.id, question=random_quiz['question'], difficulty=random_quiz['difficulty'], type=random_quiz['type'],
                          correct_answer=random_quiz['correct_answer'], display_answer=random_quiz['display_answer'],
                          start_dt=core_utils.get_dt_now(), seconds_to_answer=seconds_to_answer)
         self.bot_state.quiz_cache[reply.message_id] = quiz

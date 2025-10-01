@@ -1,9 +1,10 @@
 import logging
+import random
 from collections import defaultdict
 import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import TIMEZONE, MAX_REMINDERS_DAILY_USAGE, HolyTextType, MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY, MAX_STEAL_CREDITS_DAILY
+from definitions import TIMEZONE, MAX_REMINDERS_DAILY_USAGE, HolyTextType, MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY, MAX_STEAL_CREDITS_DAILY, quiz_df
 
 log = logging.getLogger(__name__)
 
@@ -17,8 +18,20 @@ class BotState:
         self.get_credits_daily_count_map = defaultdict(int)
         self.steal_credits_daily_count_map = defaultdict(int)
         self.quiz_cache = {}
+        self.available_quiz_id_map = {}
 
         self.run_schedules(job_queue)
+
+    def init_quiz_map(self, users_df):
+        for user_id in users_df.index:
+            self.available_quiz_id_map[user_id] = quiz_df['quiz_id'].tolist()
+
+    def get_random_quiz_id(self, user_id):
+        if user_id in self.available_quiz_id_map:
+            index = random.randint(0, len(self.available_quiz_id_map[user_id]) - 1)
+            return self.available_quiz_id_map[user_id].pop(index)
+        else:
+            self.available_quiz_id_map[user_id] = quiz_df['quiz_id'].tolist()  # reset the quizes for the user
 
     def update_cwel_usage_map(self, cwel_giver_id, cwel_value) -> [bool, str]:
         if cwel_giver_id in self.cwel_usage_daily_count_map and self.cwel_usage_daily_count_map[cwel_giver_id] + cwel_value > MAX_CWEL_USAGE_DAILY:

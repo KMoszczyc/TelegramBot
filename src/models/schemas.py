@@ -78,6 +78,7 @@ credit_history_schema = pa.DataFrameSchema({
 
 #  7. Trivia Schema
 trivia_schema = pa.DataFrameSchema({
+    'quiz_id': pa.Column(int),
     'type': pa.Column(str),  # int64
     'difficulty': pa.Column(str),  # string
     'category': pa.Column(str),  # string boolean|multiple
