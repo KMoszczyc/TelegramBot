@@ -26,12 +26,18 @@ class BotState:
         for user_id in users_df.index:
             self.available_quiz_id_map[user_id] = quiz_df['quiz_id'].tolist()
 
-    def get_random_quiz_id(self, user_id):
-        if user_id in self.available_quiz_id_map:
-            index = random.randint(0, len(self.available_quiz_id_map[user_id]) - 1)
-            return self.available_quiz_id_map[user_id].pop(index)
-        else:
-            self.available_quiz_id_map[user_id] = quiz_df['quiz_id'].tolist()  # reset the quizes for the user
+    def get_random_quiz_id(self, quiz_df, user_id):
+        if user_id not in self.available_quiz_id_map or not self.available_quiz_id_map[user_id]:  # reset the quizes for the user
+            self.available_quiz_id_map[user_id] = quiz_df['quiz_id'].tolist()
+
+        quiz_ids = quiz_df['quiz_id'].tolist()
+        joined_quiz_ids = list(set(self.available_quiz_id_map[user_id]) & set(quiz_ids))
+        if not joined_quiz_ids:
+            return -1
+
+        quiz_id = random.choice(joined_quiz_ids)
+        self.available_quiz_id_map[user_id].remove(quiz_id)
+        return quiz_id
 
     def update_cwel_usage_map(self, cwel_giver_id, cwel_value) -> [bool, str]:
         if cwel_giver_id in self.cwel_usage_daily_count_map and self.cwel_usage_daily_count_map[cwel_giver_id] + cwel_value > MAX_CWEL_USAGE_DAILY:

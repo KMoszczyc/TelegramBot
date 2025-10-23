@@ -463,6 +463,7 @@ class Commands:
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
+
         filtered_quiz_df = copy.deepcopy(quiz_df)
         if 'category' in command_args.named_args:
             filtered_quiz_df = filtered_quiz_df[filtered_quiz_df['category'].str.contains(command_args.named_args['category'], case=False)]
@@ -475,7 +476,12 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='No questions in database with these parameters. :[', message_thread_id=update.message.message_thread_id)
             return
 
-        random_quiz_id = self.bot_state.get_random_quiz_id(update.effective_user.id)
+        random_quiz_id = self.bot_state.get_random_quiz_id(filtered_quiz_df, update.effective_user.id)
+        if random_quiz_id == -1:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='There are questions in the database with these parameters, but you have already answered them.',
+                                           message_thread_id=update.message.message_thread_id)
+            return
+
         random_quiz = filtered_quiz_df[filtered_quiz_df['quiz_id'] == random_quiz_id].iloc[0]
         buttons = []
         for answer in random_quiz['answers']:
@@ -512,7 +518,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
             return
 
-        if cached_quiz.correct_answer != query.data: # apply penalty for incorrect answer
+        if cached_quiz.correct_answer != query.data:  # apply penalty for incorrect answer
             credit_penalty = cached_quiz.get_credit_penalty()
             user_credits, success = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ)
             message = f"Answer: *{query.data}* is incorrect. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :[" if success else f"Answer: *{query.data}* is incorrect, but because you're so poor you won't lose any credits for it :]"
