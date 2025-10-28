@@ -8,7 +8,7 @@ from datetime import timezone, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, TIMEZONE, DatetimeFormat, CWEL_STATS_PATH
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, TIMEZONE, DatetimeFormat, CWEL_STATS_PATH, CHAT_ETL_LOCK_PATH
 from src.core.utils import create_dir, read_df
 
 log = logging.getLogger(__name__)
@@ -308,3 +308,35 @@ def get_random_media_path(directory):
     files = os.listdir(directory)
     filename = random.choice(files)
     return os.path.join(directory, filename)
+
+def is_chat_etl_locked():
+    return os.path.exists(CHAT_ETL_LOCK_PATH)
+
+def lock_chat_etl():
+    log.info('Locking Chat ETL process.')
+    with open(CHAT_ETL_LOCK_PATH, 'w') as f:
+        f.write('')
+
+def remove_chat_etl_lock():
+    if os.path.exists(CHAT_ETL_LOCK_PATH):
+        log.info('Chat ETL lock removed.')
+        os.remove(CHAT_ETL_LOCK_PATH)
+
+def chat_etl_lock_decorator(func):
+    """Due to possible overlaps of chat ETL processes, we need to lock it."""
+    def wrapper(*args, **kwargs):
+        if is_chat_etl_locked():
+            log.info('Chat ETL is locked by a different process, skipping.')
+            return
+
+        lock_chat_etl()
+        try:
+            result = func(*args, **kwargs)
+        except Exception as e:
+            log.error(f"Chat ETL failed: {e}")
+            result = None
+
+        remove_chat_etl_lock()
+        return result
+
+    return wrapper

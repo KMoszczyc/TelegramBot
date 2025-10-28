@@ -50,6 +50,7 @@ DATA_DIR = "/data" if RUNTIME_ENV == 'docker' else os.path.join(ROOT_DIR, 'data'
 TEMP_DIR = os.path.join(DATA_DIR, 'temp')
 
 # Chat data
+CHAT_ETL_LOCK_PATH = os.path.join(DATA_DIR, 'chat/chat_etl.lock')
 METADATA_PATH = os.path.join(DATA_DIR, 'chat/metadata.pickle')
 UPDATE_REQUIRED_PATH = os.path.join(DATA_DIR, 'chat/update_required.lock')
 CHAT_HISTORY_PATH = os.path.join(DATA_DIR, 'chat/chat_history.parquet')

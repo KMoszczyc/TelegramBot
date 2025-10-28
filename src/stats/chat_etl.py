@@ -8,7 +8,7 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE, MessageType
+from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE, MessageType, CHAT_ETL_LOCK_PATH
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
 from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema
@@ -35,6 +35,7 @@ class ChatETL:
         self.client_api_handler = client_api_handler
         self.word_stats = WordStats()
 
+    @stats_utils.chat_etl_lock_decorator
     def update(self, days: int, bulk_word_stats=False, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
 
@@ -43,7 +44,7 @@ class ChatETL:
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
-        # self.word_stats.update_ngrams(latest_chat_df)
+        self.word_stats.update_ngrams(latest_chat_df)
 
         if bulk_ocr:
             self.perform_bulk_ocr()
@@ -57,6 +58,7 @@ class ChatETL:
         # Cleanup
         # self.delete_bot_messages() # with the introduction of topici, this is not needed
         self.cleanup_temp_dir()
+        stats_utils.remove_chat_etl_lock()
 
     def download_chat_history(self, days):
         old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
