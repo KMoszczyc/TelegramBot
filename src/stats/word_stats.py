@@ -122,6 +122,32 @@ class WordStats:
         # for ngram, df in self.ngram_dfs.items():
         self.ngram_dfs[n].to_parquet(self.get_ngram_path(n))
 
+    def filter_by_text(self, filtered_ngrams_df, command_args):
+        text_filter = command_args.named_args['text'].lower()
+        n = command_args.named_args['ngram'] if 'ngram' in command_args.named_args else None
+        exact_match = 'exact_match' in command_args.named_args
+
+        if exact_match:
+            filter_ngram = len(text_filter.split())
+            ngram_df = filtered_ngrams_df[filter_ngram]
+            filter_ngram_df = ngram_df[ngram_df['ngrams'].str.lower().str.fullmatch(text_filter)]
+            ngram_counts_df = filter_ngram_df.groupby(['final_username', 'ngrams']).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
+        else:
+            dfs = [df[df['ngrams'].str.lower().str.contains(text_filter)] for df in filtered_ngrams_df.values()] if n is None else [filtered_ngrams_df[n][filtered_ngrams_df[n]['ngrams'].str.lower().str.contains(text_filter)]]
+            merged_df = pd.concat(dfs)
+            ngram_counts_df = merged_df.groupby(['ngrams']).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
+
+        text = core_utils.generate_response_headline(command_args, label='``` Word stats')
+        max_len_username = core_utils.max_str_length_in_col(ngram_counts_df['final_username']) if exact_match else 0
+        max_len_ngram = core_utils.max_str_length_in_col(ngram_counts_df['ngrams'])
+        for i, (index, row) in enumerate(ngram_counts_df.head(10).iterrows()):
+            if exact_match:
+                text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(max_len_username + 5) + f"{row['counts']}"
+            else:
+                text += f"\n{i + 1}.".ljust(4) + f" {row['ngrams']}:".ljust(max_len_ngram + 5) + f"{row['counts']}"
+
+        return text
+
     def count_ngrams(self, df):
         return df['ngrams'].value_counts()
 
@@ -141,15 +167,17 @@ class WordStats:
         filename = f'ngram_{n}.parquet'
         return os.path.join(CHAT_WORD_STATS_DIR_PATH, filename)
 
-    def filter_ngrams(self, command_args: CommandArgs):
+    def filter_ngrams(self, command_args: CommandArgs, text_filter=None):
         """Filter ngrams by time and user"""
 
         fitlered_ngram_dfs = {}
         for n, df in self.ngram_dfs.items():
             if command_args.user is not None:
                 df = df[df['final_username'] == command_args.user]
-
-            fitlered_ngram_dfs[n] = stats_utils.filter_by_time_df(df, command_args)
+            df = stats_utils.filter_by_time_df(df, command_args)
+            if text_filter is not None:
+                df = df[df['ngrams'].str.contains(text_filter)]
+            fitlered_ngram_dfs[n] = df
 
         return fitlered_ngram_dfs
 

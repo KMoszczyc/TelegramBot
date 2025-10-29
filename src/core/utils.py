@@ -728,3 +728,10 @@ def get_random_id():
 def calculate_skewed_probability(value, max_value):
     """Get a probability [0, 1], "0%" of the value should happen 50% of the time, "100%" of the value should happen 0% of the time (never)."""
     return (1 - ((value / max_value) ** 0.5))/2 if max_value > 0 else 0
+
+def generate_response_headline(command_args, label):
+    text = label
+    text += f' of "{command_args.string}"' if command_args.string != '' else ''
+    text += f" for {command_args.user}" if command_args.user is not None else " "
+    text += f" ({generate_period_headline(command_args)}):"
+    return text

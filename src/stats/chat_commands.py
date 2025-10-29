@@ -194,7 +194,7 @@ class ChatCommands:
             chat_df = chat_df[chat_df['text'].str.lower().str.contains(filter_phrase)]
 
         label = stats_utils.emoji_sentiment_to_label(emoji_type)
-        text = self.generate_response_headline(command_args, label=f"{label} Cinco messages")
+        text = core_utils.generate_response_headline(command_args, label=f"{label} Cinco messages")
 
         for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
             if row['reactions_num'] == 0:
@@ -214,7 +214,7 @@ class ChatCommands:
             return
 
         label = stats_utils.emoji_sentiment_to_label(emoji_type)
-        text = self.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
+        text = core_utils.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
@@ -354,7 +354,7 @@ class ChatCommands:
             return
 
         fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
-        text = self.generate_response_headline(command_args, label='Funmeter')
+        text = core_utils.generate_response_headline(command_args, label='Funmeter')
 
         for i, (index, row) in enumerate(fun_ratios.iterrows()):
             text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
@@ -373,7 +373,7 @@ class ChatCommands:
 
         wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
 
-        text = self.generate_response_headline(command_args, label='``` Wholesome meter')
+        text = core_utils.generate_response_headline(command_args, label='``` Wholesome meter')
 
         for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
             text += f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}" if command_args.user is None else f"\n{i + 1}."
@@ -389,7 +389,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        text = self.generate_response_headline(command_args, label='Funmeter chart')
+        text = core_utils.generate_response_headline(command_args, label='Funmeter chart')
 
         users = [command_args.user]
         if command_args.user is None:
@@ -408,7 +408,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        text = self.generate_response_headline(command_args, label='Spamchart')
+        text = core_utils.generate_response_headline(command_args, label='Spamchart')
 
         users = [command_args.user]
         if command_args.user is None:
@@ -429,7 +429,7 @@ class ChatCommands:
             return
 
         label = 'Monologue index chart accumulated' if 'acc' in command_args.named_args else 'Monologue index chart daily'
-        text = self.generate_response_headline(command_args, label=label)
+        text = core_utils.generate_response_headline(command_args, label=label)
 
         users = [command_args.user]
         if command_args.user is None:
@@ -453,7 +453,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        text = self.generate_response_headline(command_args, label='Likechart')
+        text = core_utils.generate_response_headline(command_args, label='Likechart')
 
         users = [command_args.user]
         if command_args.user is None:
@@ -477,7 +477,7 @@ class ChatCommands:
         command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
         command_counts_df = command_usage_df.groupby('command_name').size().reset_index(name='count').sort_values('count', ascending=False)
 
-        text = self.generate_response_headline(command_args, label='``` Command usage')
+        text = core_utils.generate_response_headline(command_args, label='``` Command usage')
         for index, row in command_counts_df.iterrows():
             text += f"\n {row['command_name']}:".ljust(20) + f"{row['count']}"
 
@@ -497,7 +497,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        text = self.generate_response_headline(command_args, label='Command usage chart')
+        text = core_utils.generate_response_headline(command_args, label='Command usage chart')
         command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
 
         commands = command_usage_df['command_name'].unique() if command == '' else command
@@ -525,7 +525,7 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='No data from that period, sorry :(', message_thread_id=update.message.message_thread_id)
             return
 
-        text = self.generate_response_headline(command_args, label='Relationship Graph')
+        text = core_utils.generate_response_headline(command_args, label='Relationship Graph')
         path = charts.create_relationship_graph(reactions_df)
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
@@ -596,7 +596,7 @@ class ChatCommands:
 
         filtered_df = stats_utils.filter_by_time_df(self.cwel_stats_df, command_args)
         processed_cwel_stats_df = filtered_df.groupby('receiver_username')['value'].sum().sort_values(ascending=False).reset_index()
-        text = self.generate_response_headline(command_args, label='``` Top Cwel')
+        text = core_utils.generate_response_headline(command_args, label='``` Top Cwel')
 
         for i, (index, row) in enumerate(processed_cwel_stats_df.iterrows()):
             text += f"\n{i + 1}.".ljust(4) + f" {row['receiver_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['value']}" if command_args.user is None else f"\n{i + 1}."
@@ -606,7 +606,7 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_wordstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT},
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT, 'exact_match': ArgType.NONE},
                                    min_number=1, max_number=6, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         filtered_ngrams_df = self.word_stats.filter_ngrams(command_args)
@@ -615,29 +615,22 @@ class ChatCommands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
         if 'text' in command_args.named_args:  # for a specific phrase like "
-            filter_phrase = command_args.named_args['text'].lower()
-            filter_ngram = len(filter_phrase.split())
+            filter_ngram = len(command_args.named_args['text'].split())
             if filter_ngram not in self.word_stats.ngram_range:
                 await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{filter_phrase}" is {filter_ngram}-gram.', message_thread_id=update.message.message_thread_id)
-                return
-            ngram_df = filtered_ngrams_df[filter_ngram]
-            filter_ngram_df = ngram_df[ngram_df['ngrams'].str.lower().str.fullmatch(filter_phrase)]
-            ngram_counts_df = filter_ngram_df.groupby(['final_username', 'ngrams']).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
-            text = self.generate_response_headline(command_args, label=f'``` Word stats')
-            max_len_ngram = core_utils.max_str_length_in_col(ngram_counts_df['final_username'])
-            for i, (index, row) in enumerate(ngram_counts_df.iterrows()):
-                text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(max_len_ngram + 5) + f"{row['counts']}"
+                                               text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args['text']}" is {filter_ngram}-gram.',
+                                               message_thread_id=update.message.message_thread_id)
+            text = self.word_stats.filter_by_text(filtered_ngrams_df, command_args)
         elif 'ngram' in command_args.named_args:  # for a specific ngram value like (3, 3) etc
             n = command_args.named_args['ngram']
             ngram_df = filtered_ngrams_df[command_args.named_args['ngram']]
             ngram_counts = self.word_stats.count_ngrams(ngram_df)[:10]
-            text = self.generate_response_headline(command_args, label=f'``` Word stats {n}-gram')
+            text = core_utils.generate_response_headline(command_args, label=f'``` Word stats {n}-gram')
             max_len_ngram = core_utils.max_str_length_in_col(ngram_counts.index)
             for i, (ngram_text, ngram_count) in enumerate(ngram_counts.items()):
                 text += f"\n{i + 1}.".ljust(4) + f" {ngram_text}:".ljust(max_len_ngram + 5) + f"{ngram_count}"
         else:  # for all ngram values <1, 2.. 5>
-            text = self.generate_response_headline(command_args, label='``` Word stats')
+            text = core_utils.generate_response_headline(command_args, label='``` Word stats')
             top_counts, top_ngram_texts, ngram_nums = [], [], []
             for ngram_num, ngram_df in filtered_ngrams_df.items():
                 counts_df = self.word_stats.count_ngrams(ngram_df)
@@ -652,13 +645,6 @@ class ChatCommands:
         text += "```"
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
-
-    def generate_response_headline(self, command_args, label):
-        text = label
-        text += f' of "{command_args.string}"' if command_args.string != '' else ''
-        text += f" for {command_args.user}" if command_args.user is not None else " "
-        text += f" ({core_utils.generate_period_headline(command_args)}):"
-        return text
 
     def calculate_fun_metric(self, chat_df, reactions_df):
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='reaction_count')
