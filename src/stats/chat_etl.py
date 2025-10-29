@@ -33,24 +33,18 @@ class ChatETL:
 
     def __init__(self, client_api_handler):
         self.client_api_handler = client_api_handler
-        self.word_stats = WordStats()
 
     @stats_utils.chat_etl_lock_decorator
-    def update(self, days: int, bulk_word_stats=False, bulk_ocr=False):
+    def update(self, days: int, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
 
         # ETL
-        latest_chat_df = self.download_chat_history(days)
         self.extract_users()
         self.clean_chat_history()
         self.generate_reactions_df()
-        self.word_stats.update_ngrams(latest_chat_df)
 
         if bulk_ocr:
             self.perform_bulk_ocr()
-
-        if bulk_word_stats:
-            self.word_stats.full_update()
 
         # Validate
         self.validate_data()
@@ -89,10 +83,10 @@ class ChatETL:
                 continue
 
             image_text = ''
-            if message_type == MessageType.IMAGE and (old_chat_df is None or old_chat_df[old_chat_df['message_id'] == message.id].empty):
-                path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
-                image_text = OCR.extract_text_from_image(path)
-                ocr_count += 1
+            # if message_type == MessageType.IMAGE and (old_chat_df is None or old_chat_df[old_chat_df['message_id'] == message.id].empty):
+            #     path = core_utils.message_id_to_path(message.id, MessageType.IMAGE)
+            #     image_text = OCR.extract_text_from_image(path)
+            #     ocr_count += 1
 
             single_message_data = [int(message.id),
                                    message.date,
