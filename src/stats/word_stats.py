@@ -139,7 +139,7 @@ class WordStats:
 
         text = core_utils.generate_response_headline(command_args, label='``` Word stats')
         max_len_username = core_utils.max_str_length_in_col(ngram_counts_df['final_username']) if exact_match else 0
-        max_len_ngram = core_utils.max_str_length_in_col(ngram_counts_df['ngrams'])
+        max_len_ngram = core_utils.max_str_length_in_col(ngram_counts_df['ngrams'].head(10))
         for i, (index, row) in enumerate(ngram_counts_df.head(10).iterrows()):
             if exact_match:
                 text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(max_len_username + 5) + f"{row['counts']}"
