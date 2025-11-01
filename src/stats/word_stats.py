@@ -163,11 +163,11 @@ class WordStats:
 
         for i, (index, row) in enumerate(df.head(10).iterrows()):
             if user_col and ngram_col and count_col:
-                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 2) + f"{row[ngram_col]}".ljust(max_len_ngram + 2) + f"{row[count_col]}"
+                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 3) + f"{row[ngram_col]}".ljust(max_len_ngram + 3) + f"{row[count_col]}"
             elif user_col and count_col:
-                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 2) + f"{row[count_col]}"
+                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 3) + f"{row[count_col]}"
             elif ngram_col and count_col:
-                text += f"\n{i + 1}.".ljust(4) + f" {row[ngram_col]}:".ljust(max_len_ngram + 2) + f"{row[count_col]}"
+                text += f"\n{i + 1}.".ljust(4) + f" {row[ngram_col]}:".ljust(max_len_ngram + 3) + f"{row[count_col]}"
 
         text += "```"
         return stats_utils.escape_special_characters(text)
