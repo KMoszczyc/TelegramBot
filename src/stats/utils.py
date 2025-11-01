@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import traceback
 
+import unidecode
+
 from definitions import CHAT_HISTORY_PATH, USERS_PATH, METADATA_PATH, CLEANED_CHAT_HISTORY_PATH, EmojiType, PeriodFilterMode, TIMEZONE, DatetimeFormat, CWEL_STATS_PATH, CHAT_ETL_LOCK_PATH
 from src.core.utils import create_dir, read_df
 
@@ -342,3 +344,7 @@ def chat_etl_lock_decorator(func):
         return result
 
     return wrapper
+
+def remove_diactric_accents(text):
+    return unidecode.unidecode(text, errors='ignore')
+

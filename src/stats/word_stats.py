@@ -122,31 +122,55 @@ class WordStats:
         # for ngram, df in self.ngram_dfs.items():
         self.ngram_dfs[n].to_parquet(self.get_ngram_path(n))
 
-    def filter_by_text(self, filtered_ngrams_df, command_args):
-        text_filter = command_args.named_args['text'].lower()
+    def wordstats_cmd_handler(self, filtered_ngram_dfs, command_args, text_filter):
         n = command_args.named_args['ngram'] if 'ngram' in command_args.named_args else None
         exact_match = 'exact_match' in command_args.named_args
-
-        if exact_match:
+        groupby_user = 'user' in command_args.named_args
+        if text_filter is not None and exact_match:
             filter_ngram = len(text_filter.split())
-            ngram_df = filtered_ngrams_df[filter_ngram]
-            filter_ngram_df = ngram_df[ngram_df['ngrams'].str.lower().str.fullmatch(text_filter)]
-            ngram_counts_df = filter_ngram_df.groupby(['final_username', 'ngrams']).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
-        else:
-            dfs = [df[df['ngrams'].str.lower().str.contains(text_filter)] for df in filtered_ngrams_df.values()] if n is None else [filtered_ngrams_df[n][filtered_ngrams_df[n]['ngrams'].str.lower().str.contains(text_filter)]]
+            ngram_df = filtered_ngram_dfs[filter_ngram]
+            merged_df = ngram_df[ngram_df['ngrams'].str.lower().str.fullmatch(text_filter)]
+            groupby_cols = ['final_username', 'ngrams']
+        elif text_filter is not None:  # partial match
+            dfs = [df[df['ngrams'].str.lower().str.contains(text_filter)] for df in filtered_ngram_dfs.values()] if n is None else [
+                filtered_ngram_dfs[n][filtered_ngram_dfs[n]['ngrams'].str.contains(text_filter)]]
             merged_df = pd.concat(dfs)
-            ngram_counts_df = merged_df.groupby(['ngrams']).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
+            groupby_cols = ['final_username', 'ngrams'] if groupby_user else ['ngrams']
+        elif groupby_user is not None:
+            merged_df = pd.concat(filtered_ngram_dfs)
+            groupby_cols = ['final_username', 'ngrams']
+        else:
+            merged_df = pd.concat(filtered_ngram_dfs)
+            groupby_cols = ['ngrams']
+
+        ngram_counts_df = merged_df.groupby(groupby_cols).size().reset_index(name="counts").sort_values(by='counts', ascending=False)
+        return self.display_ngram_counts(command_args, ngram_counts_df, groupby_cols)
+
+    def decode_diacritic_accents(self, dfs):
+        for n, df in dfs.items():
+            df['ngrams'] = df['ngrams'].apply(stats_utils.remove_diactric_accents)
+            dfs[n] = df
+        return dfs
+
+    def display_ngram_counts(self, command_args, df, groupby_cols):
+        user_col = 'final_username' if 'final_username' in groupby_cols else None
+        ngram_col = 'ngrams' if 'ngrams' in groupby_cols else None
+        count_col = 'counts'
 
         text = core_utils.generate_response_headline(command_args, label='``` Word stats')
-        max_len_username = core_utils.max_str_length_in_col(ngram_counts_df['final_username']) if exact_match else 0
-        max_len_ngram = core_utils.max_str_length_in_col(ngram_counts_df['ngrams'].head(10))
-        for i, (index, row) in enumerate(ngram_counts_df.head(10).iterrows()):
-            if exact_match:
-                text += f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(max_len_username + 5) + f"{row['counts']}"
-            else:
-                text += f"\n{i + 1}.".ljust(4) + f" {row['ngrams']}:".ljust(max_len_ngram + 5) + f"{row['counts']}"
+        max_len_username = core_utils.max_str_length_in_col(df[user_col]) if user_col is not None else -1
+        max_len_ngram = core_utils.max_str_length_in_col(df['ngrams'].head(10)) if ngram_col is not None else -1
 
-        return text
+        for i, (index, row) in enumerate(df.head(10).iterrows()):
+            if user_col and ngram_col and count_col:
+                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 2) + f"{row[ngram_col]}".ljust(max_len_ngram + 2) + f"{row[count_col]}"
+            elif user_col and count_col:
+                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 2) + f"{row[count_col]}"
+            elif ngram_col and count_col:
+                text += f"\n{i + 1}.".ljust(4) + f" {row[ngram_col]}:".ljust(max_len_ngram + 2) + f"{row[count_col]}"
+
+        text += "```"
+        return stats_utils.escape_special_characters(text)
 
     def count_ngrams(self, df):
         return df['ngrams'].value_counts()

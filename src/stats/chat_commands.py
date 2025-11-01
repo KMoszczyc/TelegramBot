@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 import telegram
 import pandas as pd
+import unidecode
 
 from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE, PeriodFilterMode, \
     ChartType, MAX_CWEL_USAGE_DAILY, CHAT_VIDEO_NOTES_DIR_PATH
@@ -606,44 +607,35 @@ class ChatCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_wordstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True], available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT, 'exact_match': ArgType.NONE},
+        # TODO: -u - group by user, but with partial filter_text match
+        # -d - make diacritical marks irrevelant like: ą, ę etc..
+        # -a (adjusted) - divide number of ngram_counts by number of all words said by user
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True],
+                                   available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT, 'exact_match': ArgType.NONE, 'diacritical': ArgType.NONE, 'adjusted': ArgType.NONE, 'user': ArgType.NONE},
                                    min_number=1, max_number=6, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
-        filtered_ngrams_df = self.word_stats.filter_ngrams(command_args)
+        filtered_ngram_dfs = self.word_stats.filter_ngrams(command_args)
 
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
-        if 'text' in command_args.named_args:  # for a specific phrase like "
-            filter_ngram = len(command_args.named_args['text'].split())
-            if filter_ngram not in self.word_stats.ngram_range:
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args['text']}" is {filter_ngram}-gram.',
-                                               message_thread_id=update.message.message_thread_id)
-            text = self.word_stats.filter_by_text(filtered_ngrams_df, command_args)
-        elif 'ngram' in command_args.named_args:  # for a specific ngram value like (3, 3) etc
+
+        text_filter = command_args.named_args['text'] if 'text' in command_args.named_args else None
+        ngram_num = len(command_args.named_args['text'].split()) if 'text' in command_args.named_args else -1
+        if 'text' in command_args.named_args and ngram_num not in self.word_stats.ngram_range:
+            await context.bot.send_message(chat_id=update.effective_chat.id,
+                                           text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args['text']}" is {ngram_num}-gram.',
+                                           message_thread_id=update.message.message_thread_id)
+        if 'diacritical' in command_args.named_args:
+            self.word_stats.decode_diacritic_accents(filtered_ngram_dfs)
+        if 'diacritical' in command_args.named_args and 'text' in command_args.named_args:
+            text_filter = stats_utils.remove_diactric_accents(text_filter)
+
+        if 'ngram' in command_args.named_args:
             n = command_args.named_args['ngram']
-            ngram_df = filtered_ngrams_df[command_args.named_args['ngram']]
-            ngram_counts = self.word_stats.count_ngrams(ngram_df)[:10]
-            text = core_utils.generate_response_headline(command_args, label=f'``` Word stats {n}-gram')
-            max_len_ngram = core_utils.max_str_length_in_col(ngram_counts.index)
-            for i, (ngram_text, ngram_count) in enumerate(ngram_counts.items()):
-                text += f"\n{i + 1}.".ljust(4) + f" {ngram_text}:".ljust(max_len_ngram + 5) + f"{ngram_count}"
-        else:  # for all ngram values <1, 2.. 5>
-            text = core_utils.generate_response_headline(command_args, label='``` Word stats')
-            top_counts, top_ngram_texts, ngram_nums = [], [], []
-            for ngram_num, ngram_df in filtered_ngrams_df.items():
-                counts_df = self.word_stats.count_ngrams(ngram_df)
-                top_counts.append(counts_df.iloc[0])
-                top_ngram_texts.append(counts_df.index[0])
-                ngram_nums.append(ngram_num)
+            filtered_ngram_dfs = {n: filtered_ngram_dfs[command_args.named_args['ngram']]}
 
-            max_len_ngram = max(len(ngram) for ngram in top_ngram_texts)
-            for ngram_num, top_ngram_text, top_count in zip(ngram_nums, top_ngram_texts, top_counts):
-                text += f"\n[{ngram_num}] - ".ljust(4) + f" {top_ngram_text}:".ljust(max_len_ngram + 5) + f"{top_count}"
-
-        text += "```"
-        text = stats_utils.escape_special_characters(text)
+        text = self.word_stats.wordstats_cmd_handler(filtered_ngram_dfs, command_args, text_filter)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     def calculate_fun_metric(self, chat_df, reactions_df):
