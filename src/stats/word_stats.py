@@ -136,7 +136,7 @@ class WordStats:
                 filtered_ngram_dfs[n][filtered_ngram_dfs[n]['ngrams'].str.contains(text_filter)]]
             merged_df = pd.concat(dfs)
             groupby_cols = ['final_username', 'ngrams'] if groupby_user else ['ngrams']
-        elif groupby_user is not None:
+        elif groupby_user:
             merged_df = pd.concat(filtered_ngram_dfs)
             groupby_cols = ['final_username', 'ngrams']
         else:
@@ -155,25 +155,37 @@ class WordStats:
     def display_ngram_counts(self, command_args, df, groupby_cols):
         user_col = 'final_username' if 'final_username' in groupby_cols else None
         ngram_col = 'ngrams' if 'ngrams' in groupby_cols else None
+        adjusted_counts = 'adjusted' in command_args.named_args
         count_col = 'counts'
 
         text = core_utils.generate_response_headline(command_args, label='``` Word stats')
         max_len_username = core_utils.max_str_length_in_col(df[user_col]) if user_col is not None else -1
         max_len_ngram = core_utils.max_str_length_in_col(df['ngrams'].head(10)) if ngram_col is not None else -1
-
+        total_word_counts_by_user_map = self.user_word_counts(self.ngram_dfs[1])
         for i, (index, row) in enumerate(df.head(10).iterrows()):
+            username = row[user_col] if user_col else None
+            count = self.get_adjusted_word_counts(row[count_col], username, total_word_counts_by_user_map) if adjusted_counts else f"{row[count_col]}"
             if user_col and ngram_col and count_col:
-                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 3) + f"{row[ngram_col]}".ljust(max_len_ngram + 3) + f"{row[count_col]}"
+                text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 3) + f"{row[ngram_col]}".ljust(max_len_ngram + 3) + count
             elif user_col and count_col:
-                text += f"\n{i + 1}.".ljust(4) + f" {row[user_col]}:".ljust(max_len_username + 3) + f"{row[count_col]}"
+                text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 3) + count
             elif ngram_col and count_col:
-                text += f"\n{i + 1}.".ljust(4) + f" {row[ngram_col]}:".ljust(max_len_ngram + 3) + f"{row[count_col]}"
+                text += f"\n{i + 1}.".ljust(4) + f" {row[ngram_col]}:".ljust(max_len_ngram + 3) + count
 
         text += "```"
         return stats_utils.escape_special_characters(text)
 
     def count_ngrams(self, df):
         return df['ngrams'].value_counts()
+
+    def get_adjusted_word_counts(self, word_count, final_username, total_word_counts_by_user_map):
+        # total_word_count = sum(total_word_counts_by_user_map.values()) if final_username is None else total_word_counts_by_user_map[final_username] # TODO: make this better, now its not sorted by it
+        total_word_count = sum(total_word_counts_by_user_map.values())
+        return f"{(word_count / total_word_count * 1000):.2f} ‰"
+
+    def user_word_counts(self, df):
+        counts_df = df.groupby('final_username')['ngrams'].size().reset_index(name="counts")
+        return dict(zip(counts_df['final_username'], counts_df['counts']))
 
     def stopword_filter(self, text, n):
         if self.is_nan(text):
