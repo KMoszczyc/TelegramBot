@@ -141,8 +141,18 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        text = "Existing commands:\n- /" + '\n- /'.join(commands)
-        text += "\n\n *Arguments*:\n" + "\n".join(arguments_help)
+        command_infos = commands + arguments_help
+        command_args = CommandArgs(args=context.args, phrases=command_infos, is_text_arg=True)
+        filtered_commands, command_args = core_utils.preprocess_input(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
+            return
+
+        if command_args.joined_args != '' and filtered_commands:
+            text = "Existing commands:\n- /" + '\n- /'.join(filtered_commands)
+        else:
+            text = "Existing commands:\n- /" + '\n- /'.join(commands)
+            text += "\n\n *Arguments*:\n" + "\n".join(arguments_help)
 
         text = stats_utils.escape_special_characters(text)
         while len(text) > 1:
@@ -150,6 +160,7 @@ class Commands:
             message = text[:index]
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             text = text[index:]
+
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
@@ -198,6 +209,7 @@ class Commands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
+
     async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
         command_args = CommandArgs(args=context.args, is_text_arg=True,
                                    available_named_args={'prev': ArgType.POSITIVE_INT, 'next': ArgType.POSITIVE_INT, 'all': ArgType.NONE, 'num': ArgType.POSITIVE_INT, 'count': ArgType.NONE,
@@ -229,6 +241,7 @@ class Commands:
             return
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
+
 
     def handle_holy_text_named_params(self, command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type):
         error = ''
@@ -264,6 +277,7 @@ class Commands:
 
         return response, error
 
+
     async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         bible_stats_df = bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
         bible_stats_df['chapter_count'] = bible_df.drop_duplicates(['abbreviation', 'chapter'])[['abbreviation', 'chapter']].set_index('abbreviation').groupby('abbreviation').size()
@@ -279,6 +293,7 @@ class Commands:
         text += "```"
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
+
 
     async def cmd_show_shopping_sundays(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, available_named_args={'all': ArgType.NONE})
@@ -299,6 +314,7 @@ class Commands:
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
+
     async def cmd_remind_me(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.TEXT_MULTISPACED], optional=[False, False], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
@@ -314,6 +330,7 @@ class Commands:
         self.job_persistance.save_job(job_queue=context.job_queue, dt=dt, func=core_utils.send_response_message, args=[update.effective_chat.id, update.message.message_id, command_args.string])
         response = f"You're gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
+
 
     async def cmd_kiepscy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED], min_string_length=1, max_string_length=1000)
@@ -362,6 +379,7 @@ class Commands:
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
+
     async def cmd_kiepscyurl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], max_number=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
@@ -380,6 +398,7 @@ class Commands:
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
+
     async def cmd_get_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         can_get_credits = self.bot_state.update_get_credits_limits(user_id)
@@ -391,9 +410,11 @@ class Commands:
         message = self.roulette.get_daily_credits(user_id)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
+
     async def cmd_show_credit_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = self.roulette.show_credit_leaderboard(self.users_map)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
+
 
     async def cmd_show_top_bet_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
@@ -404,6 +425,7 @@ class Commands:
 
         message = self.roulette.show_top_bet_leaderboard(self.users_map, command_args)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
+
 
     async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000,
@@ -423,6 +445,7 @@ class Commands:
         message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
+
 
     async def cmd_steal_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.USER], min_number=1, max_number=10000000)
@@ -456,6 +479,7 @@ class Commands:
         message = self.roulette.steal_credits(user_id=user_id, robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
+
 
     async def cmd_quiz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, available_named_args={'category': ArgType.STRING, 'type': ArgType.STRING, 'difficulty': ArgType.STRING})
@@ -501,6 +525,7 @@ class Commands:
                          correct_answer=random_quiz['correct_answer'], display_answer=random_quiz['display_answer'],
                          start_dt=core_utils.get_dt_now(), seconds_to_answer=seconds_to_answer)
         self.bot_state.quiz_cache[reply.message_id] = quiz
+
 
     async def btn_quiz_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Parses the CallbackQuery and updates the message text."""
