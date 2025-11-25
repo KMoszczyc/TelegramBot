@@ -716,7 +716,7 @@ class ChatCommands:
             await self.send_message(update, context, MessageType.VOICE, audio_path, '')
             return
 
-        reply_message_id = update.message.reply_to_message.message_id
+        reply_message_id = update.message.reply_to_message.message_id if update.message.reply_to_message is not None else None
         reply_message_type = self.get_reply_message_type(reply_message_id)
         if reply_message_type is not None and reply_message_type in [MessageType.VIDEO, MessageType.VIDEO_NOTE, MessageType.GIF]:
             video_path = core_utils.message_id_to_path(reply_message_id, reply_message_type)
