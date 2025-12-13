@@ -140,7 +140,7 @@ def create_relationship_graph(reactions_df, col_1, col_2):
     max_edge_width = 30
 
     reaction_map_df = reactions_df.groupby([col_1, col_2]).size().reset_index().rename(columns={0: 'count'})
-    reaction_map_df = reaction_map_df[reaction_map_df[col_1] != reaction_map_df[col_2]].copy() # Remove self-likes
+    reaction_map_df = reaction_map_df[reaction_map_df[col_1] != reaction_map_df[col_2]].copy()  # Remove self-likes
 
     # Combine bi-directional edges into one, sum their counts
     reaction_map_df['pair'] = reaction_map_df.apply(lambda row: tuple(sorted([row[col_1], row[col_2]])), axis=1)
@@ -219,6 +219,7 @@ def create_relationship_graph(reactions_df, col_1, col_2):
 
     return path
 
+
 def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
     def edge_width_from_weight(weight):
         return min_edge_width + (weight / max_weight) * (max_edge_width - min_edge_width)
@@ -229,12 +230,14 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
     max_edge_width = 30
 
     reaction_map_df = reactions_df.groupby([col_1, col_2]).size().reset_index().rename(columns={0: 'count'})
-    reaction_map_df = reaction_map_df[reaction_map_df[col_1] != reaction_map_df[col_2]].copy() # Remove self-likes
+    reaction_map_df = reaction_map_df[reaction_map_df[col_1] != reaction_map_df[col_2]].copy()  # Remove self-likes
     reaction_map_df = reaction_map_df.rename(columns={col_1: 'node1', col_2: 'node2'})
 
     # --- Build Graph ---
     # G = nx.Graph()
     G = nx.DiGraph()
+    all_nodes = pd.unique(reaction_map_df[['node1', 'node2']].values.ravel())
+    G.add_nodes_from(all_nodes)
     for _, row in reaction_map_df.iterrows():
         G.add_edge(row['node1'], row['node2'], weight=row['count'])
 
@@ -303,7 +306,11 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
     # # Draw node labels (slightly above nodes)
     for node, (x, y) in pos.items():
         # Get the degree or total weight of the node (number of reactions)w
-        reaction_count = sum([d['weight'] for u, v, d in G.edges(node, data=True)]) if G.has_node(node) else 0
+        reaction_count = (
+                sum(d['weight'] for _, _, d in G.in_edges(node, data=True)) +
+                sum(d['weight'] for _, _, d in G.out_edges(node, data=True))
+        )
+
         label = f"{node}\n[{reaction_count}]"  # Display both node name and reaction count
         ax.text(x, y + 0.035, label, fontsize=13, fontweight='bold', color='white', ha='center', va='center')
 
@@ -353,7 +360,7 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
         mx = xa + (xb - xa) * t + ox
         my = ya + (yb - ya) * t + oy
 
-        label = f"{d['weight']} →" if x2 > x1 else f"← {d['weight']}"
+        label = f"{d['weight']} →" if x2 >= x1 else f"← {d['weight']}"
 
         angle = math.degrees(math.atan2(dy, dx))
         if angle < -90 or angle > 90:
@@ -388,6 +395,7 @@ def preprocess_df_for_ploting(df, grouping_col: str, selected_for_grouping: list
     filtered_df.index = filtered_df.index.to_timestamp()
     return filtered_df
 
+
 def generate_plot(df, selected_for_grouping: list, grouping_col: str, x_col: str, y_col: str, title: str, x_label='time', y_label='value', chart_type=ChartType.MIXED):
     preprocessed_df = preprocess_df_for_ploting(df, grouping_col, selected_for_grouping, x_col)
     if len(selected_for_grouping) == 1:
@@ -408,6 +416,7 @@ def generate_plot(df, selected_for_grouping: list, grouping_col: str, x_col: str
 
     return path
 
+
 def generate_mean_plot(df, y_col):
     cmap = plt.get_cmap("tab10")
     df.plot(y=y_col, kind='line', figsize=(10, 5), label='value', color=cmap(6))
@@ -421,6 +430,7 @@ def generate_mean_plot(df, y_col):
     monthly_data = df[y_col].resample('M').mean()
     monthly_data.index = monthly_data.index - pd.offsets.Day(15)
     monthly_data.plot(kind='line', figsize=(10, 5), label='monthly avg', color=cmap(3))
+
 
 def generate_grouped_plot(df, x_col, y_col, grouping_col, chart_type):
     cmap = plt.get_cmap("tab20")

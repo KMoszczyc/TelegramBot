@@ -527,7 +527,7 @@ class ChatCommands:
             return
 
         text = core_utils.generate_response_headline(command_args, label='Relationship Graph')
-        path = charts.create_bidirectional_relationship_graph(reactions_df,'reacted_to_username', 'reacting_username')
+        path = charts.create_bidirectional_relationship_graph(reactions_df, 'reacting_username', 'reacted_to_username')
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
 
@@ -611,7 +611,8 @@ class ChatCommands:
         # -d - make diacritical marks irrevelant like: ą, ę etc..
         # -a (adjusted) - divide number of ngram_counts by number of all words said by user
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True],
-                                   available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT, 'exact_match': ArgType.NONE, 'diacritical': ArgType.NONE, 'adjusted': ArgType.NONE, 'user': ArgType.NONE},
+                                   available_named_args={'ngram': ArgType.POSITIVE_INT, 'text': ArgType.TEXT, 'exact_match': ArgType.NONE, 'diacritical': ArgType.NONE, 'adjusted': ArgType.NONE,
+                                                         'user': ArgType.NONE},
                                    min_number=1, max_number=6, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         filtered_ngram_dfs = self.word_stats.filter_ngrams(command_args)
