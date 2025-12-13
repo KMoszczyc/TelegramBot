@@ -527,7 +527,7 @@ class ChatCommands:
             return
 
         text = core_utils.generate_response_headline(command_args, label='Relationship Graph')
-        path = charts.create_bidirectional_relationship_graph(reactions_df, 'reacting_username', 'reacted_to_username')
+        path = charts.create_bidirectional_relationship_graph(reactions_df,'reacted_to_username', 'reacting_username')
         current_message_type = MessageType.IMAGE
         await self.send_message(update, context, current_message_type, path, text)
 
