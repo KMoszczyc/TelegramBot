@@ -9,7 +9,7 @@ pytest
 pytest-mock
 pytesseract
 opencv-python
-pandera
+pandera[pandas]
 kaleido==0.1.0
 plotly==5.24.1
 great-tables
