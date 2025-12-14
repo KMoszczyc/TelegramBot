@@ -735,3 +735,21 @@ def generate_response_headline(command_args, label):
     text += f" for {command_args.user}" if command_args.user is not None else " "
     text += f" ({generate_period_headline(command_args)}):"
     return text
+
+async def send_message(update, context, message_type: MessageType, path, text):
+    log.info(f'Sending message: {text} with media type: {message_type} and media path: {path}')
+    match message_type:
+        case MessageType.GIF:
+            await context.bot.send_animation(chat_id=update.effective_chat.id, animation=path, caption=text, message_thread_id=update.message.message_thread_id)
+        case MessageType.VIDEO:
+            await context.bot.send_video(chat_id=update.effective_chat.id, video=path, caption=text, message_thread_id=update.message.message_thread_id)
+        case MessageType.VIDEO_NOTE:
+            await context.bot.send_video_note(chat_id=update.effective_chat.id, video_note=path, message_thread_id=update.message.message_thread_id)
+            if text != '':
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+        case MessageType.IMAGE:
+            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=path, caption=text, message_thread_id=update.message.message_thread_id)
+        case MessageType.AUDIO:
+            await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text, message_thread_id=update.message.message_thread_id)
+        case MessageType.VOICE:
+            await context.bot.send_voice(chat_id=update.effective_chat.id, voice=path, caption=text, message_thread_id=update.message.message_thread_id)

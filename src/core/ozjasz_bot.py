@@ -82,6 +82,7 @@ class OzjaszBot:
             'betleaderboard': self.core_commands.cmd_show_top_bet_leaderboard,
             'bet': self.core_commands.cmd_bet,
             'steal': self.core_commands.cmd_steal_credits,
+            'stealgraph': self.core_commands.cmd_steal_graph,
             'quiz': self.core_commands.cmd_quiz,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),

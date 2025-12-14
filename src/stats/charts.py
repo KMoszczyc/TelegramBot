@@ -220,7 +220,7 @@ def create_relationship_graph(reactions_df, col_1, col_2):
     return path
 
 
-def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
+def create_bidirectional_relationship_graph(reactions_df, col_1, col_2, label):
     def edge_width_from_weight(weight):
         return min_edge_width + (weight / max_weight) * (max_edge_width - min_edge_width)
 
@@ -306,10 +306,7 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
     # # Draw node labels (slightly above nodes)
     for node, (x, y) in pos.items():
         # Get the degree or total weight of the node (number of reactions)w
-        reaction_count = (
-                sum(d['weight'] for _, _, d in G.in_edges(node, data=True)) +
-                sum(d['weight'] for _, _, d in G.out_edges(node, data=True))
-        )
+        reaction_count = (sum(d['weight'] for _, _, d in G.in_edges(node, data=True)) + sum(d['weight'] for _, _, d in G.out_edges(node, data=True)))
 
         label = f"{node}\n[{reaction_count}]"  # Display both node name and reaction count
         ax.text(x, y + 0.035, label, fontsize=13, fontweight='bold', color='white', ha='center', va='center')
@@ -379,7 +376,7 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2):
             zorder=2
         )
 
-    ax.set_title("Relationship Network", fontsize=20, color='white', pad=20)
+    ax.set_title(label, fontsize=20, color='white', pad=20)
     plt.tight_layout(pad=5)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))

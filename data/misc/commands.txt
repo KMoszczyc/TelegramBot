@@ -35,6 +35,7 @@ setusername - (new_username) set your new username
 spamchart - (username[optional], period[optional]) display number of messages per day per user
 starababa - from the current date f.e: 20240709 and your user_id your luck is determined
 steal - (amount[int], username) steal credits from another user, the more you try to steal, the lesser probability of success
+stealgraph - (username[optional], period[optional], --all_attempts) - Network graph of combined user steal counts in chat, the arrow label with counts points from the robber to the robbed user.
 summary - (username[optional], period[optional]) summary of chat stats
 topaudio - (username[optional], period[optional]) top audio (and voice messages)
 topcwel - (period[optional]) - display top cwels
