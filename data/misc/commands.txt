@@ -6,46 +6,46 @@ betleaderboard - show TOP bets leaderboard, either failed or successful
 boczek - username  - nasty epithets about Arnold Boczek, a character from Świat Według Kiepskich
 bible - (text_filter, --all, --num[int], --count[int]) - just a whole focking bible
 biblestats - show bible data
-commands - username[optional], period[optional]) - display OzjaszBot's command usage
+commands - username[?], period[?]) - display OzjaszBot's command usage
 commandschart - (--command, --period, --user) - display OzjaszBot's command usage chart
 creditleaderboard - show credit leaderboard
 cwel - reply to someone to cwel them
 displayusers - just display all existing users on the chat and their nicknames
 europejskafirma - text_filter or [regex] - Best of our favourite twitter shitposter @europejskafirma (Jerzy Krajewski)
-fun - (period[optional]) fun metric for all users
-funchart - (username[optional], period[optional]) fun metric chart
+fun - (period[?]) fun metric for all users
+funchart - (username[?], period[?]) fun metric chart
 getcredits - get your daily credits depending on /starababa decision
 handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description
 kiepscyurl - (number) Get a Kiepscy episode url by the episode number
 koran - (text_filter, --all, --verse[chapter:verse_nr], --num[int], --count[int], --next[int], --prev[int], --chapter) - just a whole focking Koran book
-lastmessages - (username, number[optional]) display last x messages from chat history
-likechart - (username[optional], period[optional]) display number of reactions received per day per user
-monologuechart - (username[optional], period[optional], --acc) calculate monologue index
+lastmessages - (username, number[?]) display last x messages from chat history
+likechart - (username[?], period[?]) display number of reactions received per day per user
+monologuechart - (username[?], period[?], --acc) calculate monologue index
 ozjasz - text_filter or [regex] - Best of Cyborg aus der Zukunft
 play - (url, --full) play a song from youtube. By default its played to a random video note
 quiz - (--category, --type[boolean|multiple], --difficulty[easy|medium|hard]) using https://opentdb.com/ we've got few thousands of questions that give you credits (or take them away)
-relgraph - (period[optional], user[optional]) - Network graph of combined user reaction counts in chat
+relgraph - (period[?], user[?]) - Network graph of combined user reaction counts in chat
 remindme - (period, text) - remind me of something in the future
 remind - (period, user, text) - remind a given user of something in the future
-sadmemes - (username[optional], period[optional]) top sad memes (images) sorted by a number of reactions
-sadmessages - (username[optional], period[optional]) top sad messages sorted by a number of reactions, filtered on negative_emojis
+sadmemes - (username[?], period[?]) top sad memes (images) sorted by a number of reactions
+sadmessages - (username[?], period[?]) top sad messages sorted by a number of reactions, filtered on negative_emojis
 setusername - (new_username) set your new username
-spamchart - (username[optional], period[optional]) display number of messages per day per user
+spamchart - (username[?], period[?]) display number of messages per day per user
 starababa - from the current date f.e: 20240709 and your user_id your luck is determined
 steal - (amount[int], username) steal credits from another user, the more you try to steal, the lesser probability of success
-stealgraph - (username[optional], period[optional], --all_attempts) - Network graph of combined user steal counts in chat, the arrow label with counts points from the robber to the robbed user.
-summary - (username[optional], period[optional]) summary of chat stats
-topaudio - (username[optional], period[optional]) top audio (and voice messages)
-topcwel - (period[optional]) - display top cwels
-topgifs - (username[optional], period[optional])
-topmemes - (username[optional], period[optional])
-topmessages - (username[optional], period[optional], --text[string]
-topvideos - (username[optional], period[optional]) ==
+stealgraph - (username[?], period[?], --all_attempts) - Network graph of combined user steal counts in chat.
+summary - (username[?], period[?]) summary of chat stats
+topaudio - (username[?], period[?]) top audio (and voice messages)
+topcwel - (period[?]) - display top cwels
+topgifs - (username[?], period[?])
+topmemes - (username[?], period[?])
+topmessages - (username[?], period[?], --text[string]
+topvideos - (username[?], period[?]) ==
 tvp - text_filter or [regex] - all TVP headlines, from the past few years
 tvp_latest - text_filter or [regex] - latest TVP headlines
 tusk - text_filter or [regex] - epic TVP Tusk reference
 walesa - text_filter or [regex] - epic gifts by Lech Wałęsa for Jasna Góra church
-wholesome - (period[optional]) summary metric for all users
-wordstats - (username[optional], period[optional], --ngram[<1, 5>], --text[string], --exact_match[for --text param], --user[groupby], --diacritical, --adjusted[‰]) ngram counts for all users and periods.
+wholesome - (period[?]) summary metric for all users
+wordstats - (username[?], period[?], --ngram[<1, 5>], --text[string], --exact_match[for --text param], --user[groupby], --diacritical, --adjusted[‰]) ngram counts for all users and periods.
