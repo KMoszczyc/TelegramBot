@@ -551,6 +551,7 @@ class Commands:
             return
 
         filtered_credits_df = self.roulette.credit_history_df[self.roulette.credit_history_df['action_type'] == CreditActionType.STEAL.value]
+        filtered_credits_df = stats_utils.filter_by_time_df(filtered_credits_df, command_args, 'timestamp')
         if 'all_attempts' not in command_args.named_args:
             filtered_credits_df = filtered_credits_df[filtered_credits_df['success'] == True]
 
