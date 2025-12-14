@@ -220,7 +220,7 @@ def create_relationship_graph(reactions_df, col_1, col_2):
     return path
 
 
-def create_bidirectional_relationship_graph(reactions_df, col_1, col_2, label):
+def create_bidirectional_relationship_graph(reactions_df, col_1, col_2, graph_label):
     def edge_width_from_weight(weight):
         return min_edge_width + (weight / max_weight) * (max_edge_width - min_edge_width)
 
@@ -376,7 +376,7 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2, label):
             zorder=2
         )
 
-    ax.set_title(label, fontsize=20, color='white', pad=20)
+    ax.set_title(graph_label, fontsize=20, color='white', pad=20)
     plt.tight_layout(pad=5)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
