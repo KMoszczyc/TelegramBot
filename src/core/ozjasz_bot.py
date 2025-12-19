@@ -80,6 +80,7 @@ class OzjaszBot:
             'getcredits': self.core_commands.cmd_get_credits,
             'creditleaderboard': self.core_commands.cmd_show_credit_leaderboard,
             'betleaderboard': self.core_commands.cmd_show_top_bet_leaderboard,
+            'stealleaderboard': self.core_commands.cmd_show_steal_leaderboard,
             'bet': self.core_commands.cmd_bet,
             'steal': self.core_commands.cmd_steal_credits,
             'stealgraph': self.core_commands.cmd_steal_graph,

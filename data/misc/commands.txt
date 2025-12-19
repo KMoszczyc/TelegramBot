@@ -36,6 +36,7 @@ spamchart - (username[?], period[?]) display number of messages per day per user
 starababa - from the current date f.e: 20240709 and your user_id your luck is determined
 steal - (amount[int], username) steal credits from another user, the more you try to steal, the lesser probability of success
 stealgraph - (username[?], period[?], --all_attempts) - Network graph of combined user steal counts in chat.
+stealleaderboard - (username[?], period[?]) - show summed up successful steals leaderboard
 summary - (username[?], period[?]) summary of chat stats
 topaudio - (username[?], period[?]) top audio (and voice messages)
 topcwel - (period[?]) - display top cwels

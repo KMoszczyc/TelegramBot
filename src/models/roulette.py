@@ -191,6 +191,21 @@ class Roulette:
         text += "```"
         return stats_utils.escape_special_characters(text)
 
+    def show_steal_leaderboard(self, users_map, command_args: CommandArgs):
+        filtered_credit_history_df = self.preprocess_credit_history(command_args)
+        steal_history_df = filtered_credit_history_df[filtered_credit_history_df['action_type'] == CreditActionType.STEAL.value]
+        steal_history_df = steal_history_df[filtered_credit_history_df['success'] == True]
+        steal_history_df['steal_amount'] = steal_history_df['credit_change'].abs()
+        steal_history_grouped_df = steal_history_df.groupby('user_id').agg({'steal_amount': 'sum'}).reset_index()
+        steal_history_grouped_df = steal_history_grouped_df.sort_values(by='steal_amount', ascending=False)
+        text = f'``` TOTAL steal leaderboard: \n'
+        max_len_username = core_utils.max_str_length_in_list(users_map.values())
+        for i, (index, row) in enumerate(steal_history_grouped_df.head(10).iterrows()):
+            username = users_map[row['user_id']]
+            text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['steal_amount']}"
+        text += "```"
+        return stats_utils.escape_special_characters(text)
+
     def steal_credits(self, user_id, robbed_user_id, amount, users_map) -> str:
         robbed_username = users_map[robbed_user_id]
 
