@@ -426,7 +426,6 @@ class Commands:
         message = self.roulette.show_steal_leaderboard(self.users_map, command_args)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
-
     async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000,
                                    max_string_length=1000)
@@ -447,7 +446,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_steal_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.USER], min_number=1, max_number=10000000)
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.POSITIVE_INT], min_number=1, max_number=10000000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
@@ -464,19 +463,36 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
-        success, message = self.roulette.validate_steal(robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
+        success, message = self.roulette.validate_steal(target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         if not success:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
-        p = self.roulette.calculate_steal_chance(robbed_user_id=command_args.user_id, amount=command_args.number)
+        p = self.roulette.calculate_steal_chance(target_user_id=command_args.user_id, amount=command_args.number)
         robbed_username = self.users_map[command_args.user_id]
         waiting_message = stats_utils.escape_special_characters(f"Attempting to steal *{command_args.number}* credits from *{robbed_username}* [*{p * 100:.1f}%* chance]..")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=waiting_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 
-        message = self.roulette.steal_credits(user_id=user_id, robbed_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
+        message = self.roulette.steal_credits(user_id=user_id, target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(message)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
+
+    async def cmd_gift_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.POSITIVE_INT], min_number=1, max_number=10000000)
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != '':
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
+            return
+
+        source_user_id = update.effective_user.id
+        target_user_id = command_args.user_id
+        if source_user_id == command_args.user_id:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="You can't gift credits to yourself!", message_thread_id=update.message.message_thread_id)
+            return
+
+        result = self.roulette.gift_credits(source_user_id=source_user_id, target_user_id=target_user_id, amount=command_args.number, users_map=self.users_map)
+        message = stats_utils.escape_special_characters(result)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_quiz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -567,7 +583,7 @@ class Commands:
             filtered_credits_df = filtered_credits_df[filtered_credits_df['success'] == True]
 
         filtered_credits_df['robbing_username'] = filtered_credits_df['user_id'].apply(lambda x: self.users_map[x])
-        filtered_credits_df['robbed_username'] = filtered_credits_df['robbed_user_id'].apply(lambda x: self.users_map[x])
+        filtered_credits_df['robbed_username'] = filtered_credits_df['target_user_id'].apply(lambda x: self.users_map[x])
 
         text = core_utils.generate_response_headline(command_args, label='Steal Graph')
         path = charts.create_bidirectional_relationship_graph(filtered_credits_df, 'robbing_username', 'robbed_username', 'Steal Network')

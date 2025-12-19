@@ -15,6 +15,7 @@ europejskafirma - text_filter or [regex] - Best of our favourite twitter shitpos
 fun - (period[?]) fun metric for all users
 funchart - (username[?], period[?]) fun metric chart
 getcredits - get your daily credits depending on /starababa decision
+gift - (amount[int], username) give credits to another user
 handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description

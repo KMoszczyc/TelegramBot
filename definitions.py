@@ -221,3 +221,4 @@ class CreditActionType(Enum):
     BET = 'bet'  # bet()
     STEAL = 'steal'  # steal()
     QUIZ = 'quiz'
+    GIFT = 'gift'

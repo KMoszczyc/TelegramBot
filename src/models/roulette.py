@@ -15,7 +15,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', 1000)
 
-CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'robbed_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
+CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'target_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
 #
 credits = {2081478325: 600, 1624688219: 200, 1217518595: 195, 5687961683: 115, 1479279190: 76, 803411658: 26, 393403838: 13, 1652077322: 5, 5802311794: 0, 5720646495: 0}
 
@@ -159,9 +159,9 @@ class Roulette:
 
         return message
 
-    def update_credit_history(self, user_id: int, credit_change: int, action_type: CreditActionType | None, bet_type: RouletteBetType | None, success: bool, robbed_user_id=None):
+    def update_credit_history(self, user_id: int, credit_change: int, action_type: CreditActionType | None, bet_type: RouletteBetType | None, success: bool, target_user_id=None):
         bet_type = bet_type.value if bet_type is not None else None
-        data = [stats_utils.get_dt_now(), user_id, robbed_user_id, credit_change, action_type.value, bet_type, success]
+        data = [stats_utils.get_dt_now(), user_id, target_user_id, credit_change, action_type.value, bet_type, success]
         new_entry = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=[data])
         self.credit_history_df = pd.concat([self.credit_history_df, new_entry], ignore_index=True)
         self.save_credits()
@@ -206,29 +206,50 @@ class Roulette:
         text += "```"
         return stats_utils.escape_special_characters(text)
 
-    def steal_credits(self, user_id, robbed_user_id, amount, users_map) -> str:
-        robbed_username = users_map[robbed_user_id]
+    def gift_credits(self, source_user_id, target_user_id, amount, users_map):
+        if self.credits[source_user_id] - amount < 0:
+            return "You don't have enough credits to gift this amount."
 
-        p = self.calculate_steal_chance(robbed_user_id, amount)
+        self.credits[source_user_id] -= amount
+        self.credits[target_user_id] += amount
+        self.update_credit_history(source_user_id, amount, CreditActionType.GIFT, None, True, target_user_id)
+
+        gifter_username = users_map[source_user_id]
+        target_username = users_map[target_user_id]
+        if amount > 1000:
+            return f"{gifter_username} gifted *{amount} credits* to *{target_username}*! A HUUUGE gift!"
+        elif amount > 300:
+            return f"{gifter_username} gifted *{amount} credits* to *{target_username}*! A really nice gift."
+        elif amount > 100:
+            return f"{gifter_username} gifted *{amount} credits* to *{target_username}*! A decent gift, could be better though."
+        elif amount > 20:
+            return f"{gifter_username} gifted only *{amount} credits* to *{target_username}*. This much credits lie on the street in Berlin and nobody picks it up."
+        else:
+            return f"A pathetic amount. You call that a gift? You should be ashamed of yourself."
+
+    def steal_credits(self, user_id, target_user_id, amount, users_map) -> str:
+        robbed_username = users_map[target_user_id]
+
+        p = self.calculate_steal_chance(target_user_id, amount)
         if random.random() < p:
             self.credits[user_id] += amount
-            self.credits[robbed_user_id] -= amount
-            self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, True, robbed_user_id)
+            self.credits[target_user_id] -= amount
+            self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, True, target_user_id)
             return f"You've *successfully* stolen {amount} credits from *{robbed_username}*!!"
         else:
-            self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, False, robbed_user_id)
+            self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, False, target_user_id)
             return f"You've *failed* to steal {amount} credits from *{robbed_username}*."
 
-    def validate_steal(self, robbed_user_id, amount, users_map):
-        robbed_username = users_map[robbed_user_id]
-        if self.credits[robbed_user_id] == 0:
+    def validate_steal(self, target_user_id, amount, users_map):
+        robbed_username = users_map[target_user_id]
+        if self.credits[target_user_id] == 0:
             return False, f"*{robbed_username}* doesn't have any credits left."
 
-        if amount > self.credits[robbed_user_id]:
+        if amount > self.credits[target_user_id]:
             return False, f"*{robbed_username}* doesn't have that much credits. Steal less!"
 
         return True, ""
 
-    def calculate_steal_chance(self, robbed_user_id, amount):
-        target_credits = self.credits[robbed_user_id]
+    def calculate_steal_chance(self, target_user_id, amount):
+        target_credits = self.credits[target_user_id]
         return core_utils.calculate_skewed_probability(amount, target_credits)

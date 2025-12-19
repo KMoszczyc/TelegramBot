@@ -78,6 +78,7 @@ class OzjaszBot:
             'kiepscy': self.core_commands.cmd_kiepscy,
             'kiepscyurl': self.core_commands.cmd_kiepscyurl,
             'getcredits': self.core_commands.cmd_get_credits,
+            'gift': self.core_commands.cmd_gift_credits,
             'creditleaderboard': self.core_commands.cmd_show_credit_leaderboard,
             'betleaderboard': self.core_commands.cmd_show_top_bet_leaderboard,
             'stealleaderboard': self.core_commands.cmd_show_steal_leaderboard,
