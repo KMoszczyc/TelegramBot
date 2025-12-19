@@ -15,7 +15,7 @@ europejskafirma - text_filter or [regex] - Best of our favourite twitter shitpos
 fun - (period[?]) fun metric for all users
 funchart - (username[?], period[?]) fun metric chart
 getcredits - get your daily credits depending on /starababa decision
-gift - (amount[int], username) give credits to another user
+gift - (username, amount[int]) give credits to another user
 handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description
@@ -35,7 +35,7 @@ sadmessages - (username[?], period[?]) top sad messages sorted by a number of re
 setusername - (new_username) set your new username
 spamchart - (username[?], period[?]) display number of messages per day per user
 starababa - from the current date f.e: 20240709 and your user_id your luck is determined
-steal - (amount[int], username) steal credits from another user, the more you try to steal, the lesser probability of success
+steal - (username, amount[int]) steal credits from another user, the more you try to steal, the lesser probability of success
 stealgraph - (username[?], period[?], --all_attempts) - Network graph of combined user steal counts in chat.
 stealleaderboard - (username[?], period[?]) - show summed up successful steals leaderboard
 summary - (username[?], period[?]) summary of chat stats
