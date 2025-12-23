@@ -1,7 +1,7 @@
 addnickname - (new_nickname) add a new nickname
 all - ping all users
 bartosiak - text_filter or [regex] - Best of our favourite geopolitician Jacek Bartosiak
-bet - (bet_size[int], bet_type[red, black, green, even, odd, high, low..]) - european roulette
+bet - (bet_type[red, black, green, even, odd, high, low..], bet_size[int]) - european roulette
 betleaderboard - show TOP bets leaderboard, either failed or successful
 boczek - username  - nasty epithets about Arnold Boczek, a character from Świat Według Kiepskich
 bible - (text_filter, --all, --num[int], --count[int]) - just a whole focking bible

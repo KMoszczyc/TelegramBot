@@ -1,26 +1,13 @@
-import os
 import pickle
-from collections import defaultdict
 import random
-
 import pandas as pd
 
-from definitions import CREDITS_PATH, LuckyScoreType, RouletteBetType, CREDIT_HISTORY_PATH, CreditActionType
-import src.core.utils as core_utils
-import src.stats.utils as stats_utils
-from src.models.command_args import CommandArgs
+from definitions import RouletteBetType, CreditActionType
 
 pd.options.mode.chained_assignment = None
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', 1000)
-
-#
-
-
-def save_credits(credits):
-    with open('credits.pkl', 'wb') as f:
-        pickle.dump(credits, f)
 
 
 class Roulette:

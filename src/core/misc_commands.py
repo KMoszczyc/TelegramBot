@@ -429,7 +429,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT, ArgType.TEXT_MULTISPACED], optional=[False, False], min_number=1, max_number=10000000,
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT, ArgType.POSITIVE_INT], optional=[False, False], min_number=1, max_number=10000000,
                                    max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != '':
