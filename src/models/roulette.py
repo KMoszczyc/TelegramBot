@@ -31,7 +31,7 @@ class Roulette:
         self.credits = credits_obj
 
     def play(self, user_id, bet_size, bet_type_arg: str) -> str:
-        if user_id not in self.credits or self.credits[user_id] < bet_size:
+        if user_id not in self.credits.credits or self.credits.credits[user_id] < bet_size:
             return "You don't have enough credits for that bet, fuck off."
 
         bet_type = self.parse_bet(bet_type_arg)
@@ -84,7 +84,7 @@ class Roulette:
             credit_change = -bet_size
             message = f"The ball fell on *{n}*, which is *{result.value}*. You lose your *{bet_size} credits* 🖕"
 
-        self.credits[user_id] += credit_change
+        self.credits.credits[user_id] += credit_change
         self.credits.update_credit_history(user_id, credit_change, CreditActionType.BET, bet_type, winning_rule)
 
         return message
