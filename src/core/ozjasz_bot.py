@@ -12,6 +12,7 @@ import src.core.misc_commands as commands
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
+from src.models.credits import Credits
 from src.stats.chat_commands import ChatCommands
 from definitions import EmojiType, MessageType, SCHEDULED_JOBS_PATH
 import src.core.utils as core_utils
@@ -37,9 +38,10 @@ class OzjaszBot:
 
         self.bot_state = BotState(self.application.job_queue)
         self.job_persistance = JobPersistance(self.application.job_queue)
+        self.credits = Credits()
 
         self.command_logger = CommandLogger(self.bot_state)
-        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state)
+        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state, self.credits)
         self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state)
 
         self.add_commands()

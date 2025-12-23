@@ -41,6 +41,7 @@ MAX_STEAL_CREDITS_DAILY = 3
 LONG_MESSAGE_LIMIT = 1  # long texts spanning into multiple messages.
 STOPWORD_RATIO_THRESHOLD = 0.59
 MIN_QUIZ_TIME_TO_ANSWER_SECONDS = 10
+CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'target_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
 
 
 TIMEZONE = 'Europe/Warsaw'

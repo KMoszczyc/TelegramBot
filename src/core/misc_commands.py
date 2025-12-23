@@ -17,6 +17,7 @@ from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_la
     MessageType, EmojiType
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from src.models.credits import Credits
 from src.models.quiz_model import QuizModel
 from src.models.roulette import Roulette
 from src.stats import charts
@@ -25,13 +26,14 @@ log = logging.getLogger(__name__)
 
 
 class Commands:
-    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState):
+    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, credits: Credits):
         self.command_logger = command_logger
         self.job_persistance = job_persistance
         self.bot_state = bot_state
         self.users_df = stats_utils.read_df(USERS_PATH)
         self.users_map = stats_utils.get_users_map(self.users_df)
-        self.roulette = Roulette()
+        self.credits = credits
+        self.roulette = Roulette(self.credits)
 
         bot_state.init_quiz_map(self.users_df)
 
@@ -399,11 +401,11 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
-        message = self.roulette.get_daily_credits(user_id)
+        message = self.credits.get_daily_credits(user_id)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_show_credit_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        message = self.roulette.show_credit_leaderboard(self.users_map)
+        message = self.credits.show_credit_leaderboard(self.users_map)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_show_top_bet_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -413,7 +415,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        message = self.roulette.show_top_bet_leaderboard(self.users_map, command_args)
+        message = self.credits.show_top_bet_leaderboard(self.users_map, command_args)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_show_steal_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -423,7 +425,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        message = self.roulette.show_steal_leaderboard(self.users_map, command_args)
+        message = self.credits.show_steal_leaderboard(self.users_map, command_args)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_bet(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -463,18 +465,18 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
-        success, message = self.roulette.validate_steal(target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
+        success, message = self.credits.validate_steal(target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         if not success:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
             return
 
-        p = self.roulette.calculate_steal_chance(target_user_id=command_args.user_id, amount=command_args.number)
+        p = self.credits.calculate_steal_chance(target_user_id=command_args.user_id, amount=command_args.number)
         robbed_username = self.users_map[command_args.user_id]
         waiting_message = stats_utils.escape_special_characters(f"Attempting to steal *{command_args.number}* credits from *{robbed_username}* [*{p * 100:.1f}%* chance]..")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=waiting_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 
-        message = self.roulette.steal_credits(user_id=user_id, target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
+        message = self.credits.steal_credits(user_id=user_id, target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
@@ -491,7 +493,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="You can't gift credits to yourself!", message_thread_id=update.message.message_thread_id)
             return
 
-        result = self.roulette.gift_credits(source_user_id=source_user_id, target_user_id=target_user_id, amount=command_args.number, users_map=self.users_map)
+        result = self.credits.gift_credits(source_user_id=source_user_id, target_user_id=target_user_id, amount=command_args.number, users_map=self.users_map)
         message = stats_utils.escape_special_characters(result)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
@@ -558,7 +560,7 @@ class Commands:
 
         if cached_quiz.correct_answer != query.data:  # apply penalty for incorrect answer
             credit_penalty = cached_quiz.get_credit_penalty()
-            user_credits, success = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ)
+            user_credits, success = self.credits.update_credits(user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ)
             message = f"Answer: *{query.data}* is incorrect. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :[" if success else f"Answer: *{query.data}* is incorrect, but because you're so poor you won't lose any credits for it :]"
             message = stats_utils.escape_special_characters(message)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
@@ -566,7 +568,7 @@ class Commands:
 
         # credit payout for correct answer :)
         credit_payout = cached_quiz.get_credit_payout()
-        user_credits, _ = self.roulette.update_credits(user_id=cached_quiz.user_id, credit_change=credit_payout, action_type=CreditActionType.QUIZ)
+        user_credits, _ = self.credits.update_credits(user_id=cached_quiz.user_id, credit_change=credit_payout, action_type=CreditActionType.QUIZ)
         message = stats_utils.escape_special_characters(f"Answer: *{query.data}* is correct! You receive *{credit_payout}* credits! [*{user_credits}* in total]")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
 
@@ -577,7 +579,7 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        filtered_credits_df = self.roulette.credit_history_df[self.roulette.credit_history_df['action_type'] == CreditActionType.STEAL.value]
+        filtered_credits_df = self.credits.credit_history_df[self.credits.credit_history_df['action_type'] == CreditActionType.STEAL.value]
         filtered_credits_df = stats_utils.filter_by_time_df(filtered_credits_df, command_args, 'timestamp')
         if 'all_attempts' not in command_args.named_args:
             filtered_credits_df = filtered_credits_df[filtered_credits_df['success'] == True]
