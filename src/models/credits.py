@@ -63,11 +63,11 @@ class Credits:
 
         return stats_utils.escape_special_characters(message)
 
-    def update_credits(self, user_id, credit_change, action_type):
+    def update_credits(self, user_id, credit_change, action_type, bet_type=None, success=None, target_user_id=None):
         if self.credits[user_id] + credit_change < 0:
             return 0, False
         self.credits[user_id] += credit_change
-        self.update_credit_history(user_id, credit_change, action_type, None, True, None)
+        self.update_credit_history(user_id, credit_change, action_type, bet_type, success, target_user_id)
 
         return self.credits[user_id], True
 
@@ -145,6 +145,11 @@ class Credits:
             return f"{gifter_username} gifted only *{amount} credits* to *{target_username}*. This much credits lie on the street in Berlin and nobody picks it up."
         else:
             return f"A pathetic amount. You call that a gift? You should be ashamed of yourself."
+
+    def give_credits_to_all(self, amount):
+        for user_id in self.credits.keys():
+            self.update_credits(user_id, amount, CreditActionType.GIFT, None, True, None)
+        return
 
     def steal_credits(self, user_id, target_user_id, amount, users_map) -> str:
         robbed_username = users_map[target_user_id]

@@ -53,6 +53,7 @@ class Commands:
         if command_args.error != '':
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
+        log.info(update.message)
 
         response = core_utils.select_random_phrase(filtered_phrases, 'Nie ma takiej wypowiedzi :(')
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
