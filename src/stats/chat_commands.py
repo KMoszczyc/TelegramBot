@@ -98,8 +98,6 @@ class ChatCommands:
         sad_reactions_df = stats_utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, 'emoji')
         text_only_chat_df = chat_df[chat_df['text'] != '']
 
-        self.calculate_monologue_index_metric_periodized(chat_df)
-
         # Calculate message and reaction count
         images_num = len(chat_df[chat_df['message_type'] == 'image'])
         reactions_received_counts = reactions_df.groupby('reacted_to_username').size().reset_index(name='count').sort_values('count', ascending=False)
@@ -642,6 +640,8 @@ class ChatCommands:
             word_count=('word_count', 'sum'),
             message_count=('text', 'size')
         ).reset_index()
+        user_stats[['word_count', 'message_count']] = (user_stats[['word_count', 'message_count']].astype('int64'))
+
         user_stats['word_count_acc'] = user_stats.groupby('final_username')['word_count'].cumsum()
         user_stats['message_count_acc'] = user_stats.groupby('final_username')['message_count'].cumsum()
 
