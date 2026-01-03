@@ -113,7 +113,13 @@ class ChatCommands:
             word_length=('word_length', 'sum'),
             message_count=('text', 'size')
         ).reset_index()
-        user_stats[['word_count', 'word_length','message_count']] = (user_stats[['word_count', 'word_length', 'message_count']].astype('int64'))
+        numeric_cols = ['word_count', 'word_length', 'message_count']
+        user_stats[numeric_cols] = (
+            user_stats[numeric_cols]
+            .apply(pd.to_numeric, errors='coerce')
+            .fillna(0)
+            .astype('int64')
+        )
 
         # Ratios
         fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
