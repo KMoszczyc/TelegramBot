@@ -115,6 +115,7 @@ class ChatCommands:
             word_length=('word_length', 'sum'),
             message_count=('text', 'size')
         ).reset_index()
+        user_stats[['word_count', 'message_count']] = (user_stats[['word_count', 'message_count']].astype('int64'))
 
         # Ratios
         fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
@@ -238,7 +239,6 @@ class ChatCommands:
             current_message_type = MessageType(row['message_type'])
             path = core_utils.message_id_to_path(str(row['message_id']), current_message_type)
             await core_utils.send_message(update, context, current_message_type, path, text)
-
 
     async def cmd_last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last n messages from chat history"""
@@ -513,7 +513,6 @@ class ChatCommands:
         path = charts.create_bidirectional_relationship_graph(reactions_df, 'reacting_username', 'reacted_to_username', 'Relationship Network')
         current_message_type = MessageType.IMAGE
         await core_utils.send_message(update, context, current_message_type, path, text)
-
 
     async def cmd_remind(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD, ArgType.USER, ArgType.TEXT_MULTISPACED], optional=[False, False, False], min_string_length=1,
