@@ -116,7 +116,7 @@ class ChatCommands:
         numeric_cols = ['word_count', 'word_length', 'message_count']
         user_stats[numeric_cols] = (
             user_stats[numeric_cols]
-            .apply(pd.to_numeric, errors='coerce')
+            .apply(pd.to_numeric)
             .fillna(0)
             .astype('int64')
         )
@@ -127,7 +127,7 @@ class ChatCommands:
         user_stats['monologue_ratio'] = (user_stats['word_count'] / user_stats['message_count']).round(2)
         user_stats['avg_word_length'] = (user_stats['word_length'] / user_stats['word_count']).round(2)
 
-        print(user_stats.head(100))
+        log.info(user_stats.head(100))
 
 
         # Calculate message and reaction count changes
