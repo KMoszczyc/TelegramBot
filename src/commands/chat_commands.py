@@ -1,14 +1,12 @@
 import os.path
 import logging
 
-from matplotlib import pyplot as plt
 from telegram import Update
 from telegram.ext import ContextTypes
 import telegram
 import pandas as pd
-import unidecode
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TEMP_DIR, TIMEZONE, PeriodFilterMode, \
+from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TIMEZONE, \
     ChartType, MAX_CWEL_USAGE_DAILY, CHAT_VIDEO_NOTES_DIR_PATH
 import src.stats.utils as stats_utils
 import src.core.utils as core_utils
@@ -17,7 +15,6 @@ from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
-import src.stats.charts
 from src.models.youtube_download import YoutubeDownload
 from src.stats import charts
 from src.stats.word_stats import WordStats
