@@ -12,7 +12,7 @@ from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
 from src.models.critical_roll import CriticalRoll
 from src.models.event_manager import EventManager
-from definitions import ArgType, CreditActionType, MessageType, STEAL_EVENTS, BET_EVENTS, QUIZ_EVENTS, USERS_PATH
+from definitions import ArgType, CreditActionType, MessageType, STEAL_EVENTS, BET_EVENTS, QUIZ_EVENTS, USERS_PATH, quiz_df, MIN_QUIZ_TIME_TO_ANSWER_SECONDS
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.stats.charts import create_bidirectional_relationship_graph as charts
