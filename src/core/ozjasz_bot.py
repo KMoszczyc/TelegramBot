@@ -8,13 +8,14 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 
-import src.core.misc_commands as commands
+import src.commands.misc_commands as commands
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.credits import Credits
 from src.models.holidays import Holidays
-from src.stats.chat_commands import ChatCommands
+from src.commands.chat_commands import ChatCommands
+from src.commands.credit_commands import CreditCommands
 from definitions import EmojiType, MessageType, SCHEDULED_JOBS_PATH
 import src.core.utils as core_utils
 
@@ -43,8 +44,9 @@ class OzjaszBot:
         self.holidays = Holidays(self.application.job_queue, self.credits)
 
         self.command_logger = CommandLogger(self.bot_state)
-        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state, self.credits)
+        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state)
         self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state)
+        self.credit_commands = CreditCommands(self.command_logger, self.job_persistance, self.bot_state, self.credits)
 
         self.add_commands()
         self.application.run_polling()
@@ -56,7 +58,7 @@ class OzjaszBot:
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
-        self.application.add_handler(CallbackQueryHandler(self.core_commands.btn_quiz_callback))
+        self.application.add_handler(CallbackQueryHandler(self.credit_commands.btn_quiz_callback))
 
     def get_commands_map(self):
         return {
@@ -81,15 +83,15 @@ class OzjaszBot:
             'summary': self.chat_commands.cmd_summary,
             'kiepscy': self.core_commands.cmd_kiepscy,
             'kiepscyurl': self.core_commands.cmd_kiepscyurl,
-            'getcredits': self.core_commands.cmd_get_credits,
-            'gift': self.core_commands.cmd_gift_credits,
-            'creditleaderboard': self.core_commands.cmd_show_credit_leaderboard,
-            'betleaderboard': self.core_commands.cmd_show_top_bet_leaderboard,
-            'stealleaderboard': self.core_commands.cmd_show_steal_leaderboard,
-            'bet': self.core_commands.cmd_bet,
-            'steal': self.core_commands.cmd_steal_credits,
-            'stealgraph': self.core_commands.cmd_steal_graph,
-            'quiz': self.core_commands.cmd_quiz,
+            'getcredits': self.credit_commands.cmd_get_credits,
+            'gift': self.credit_commands.cmd_gift_credits,
+            'creditleaderboard': self.credit_commands.cmd_show_credit_leaderboard,
+            'betleaderboard': self.credit_commands.cmd_show_top_bet_leaderboard,
+            'stealleaderboard': self.credit_commands.cmd_show_steal_leaderboard,
+            'bet': self.credit_commands.cmd_bet,
+            'steal': self.credit_commands.cmd_steal_credits,
+            'stealgraph': self.credit_commands.cmd_steal_graph,
+            'quiz': self.credit_commands.cmd_quiz,
             'topmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             'sadmessages': lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
             'topmemes': lambda update, context: self.chat_commands.cmd_media_by_reactions(update, context, MessageType.IMAGE, EmojiType.ALL),
