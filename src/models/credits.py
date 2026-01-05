@@ -2,6 +2,8 @@ import os
 import pickle
 import random
 from collections import defaultdict
+from typing import Tuple
+
 import pandas as pd
 
 from definitions import LuckyScoreType, CreditActionType, CREDITS_PATH, CREDIT_HISTORY_PATH, RouletteBetType, CREDIT_HISTORY_COLUMNS
@@ -151,7 +153,7 @@ class Credits:
             self.update_credits(user_id, amount, CreditActionType.GIFT, None, True, None)
         return
 
-    def steal_credits(self, user_id, target_user_id, amount, users_map) -> str:
+    def steal_credits(self, user_id, target_user_id, amount, users_map) -> Tuple[str, str]:
         robbed_username = users_map[target_user_id]
 
         p = self.calculate_steal_chance(target_user_id, amount)
@@ -159,10 +161,10 @@ class Credits:
             self.credits[user_id] += amount
             self.credits[target_user_id] -= amount
             self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, True, target_user_id)
-            return f"You've *successfully* stolen {amount} credits from *{robbed_username}*!!"
+            return f"You've *successfully* stolen {amount} credits from *{robbed_username}*!!", True
         else:
             self.update_credit_history(user_id, amount, CreditActionType.STEAL, None, False, target_user_id)
-            return f"You've *failed* to steal {amount} credits from *{robbed_username}*."
+            return f"You've *failed* to steal {amount} credits from *{robbed_username}*.", False
 
     def validate_steal(self, target_user_id, amount, users_map):
         robbed_username = users_map[target_user_id]
