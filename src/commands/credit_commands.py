@@ -10,9 +10,9 @@ from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
-from src.models.critical_roll import CriticalRoll
 from src.models.event_manager import EventManager
-from definitions import ArgType, CreditActionType, MessageType, STEAL_EVENTS, BET_EVENTS, QUIZ_EVENTS, USERS_PATH, quiz_df, MIN_QUIZ_TIME_TO_ANSWER_SECONDS
+from definitions import ArgType, CreditActionType, MessageType, STEAL_EVENTS, BET_EVENTS, QUIZ_EVENTS, USERS_PATH, quiz_df, MIN_QUIZ_TIME_TO_ANSWER_SECONDS, CRITICAL_FAILURE_CHANCE, \
+    CRITICAL_SUCCESS_CHANCE
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.stats.charts import create_bidirectional_relationship_graph as charts
@@ -32,7 +32,6 @@ class CreditCommands:
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.credits = credits
         self.roulette = Roulette(self.credits)
-        self.critical_roll = CriticalRoll()
         self.event_manager = EventManager()
 
         for event in STEAL_EVENTS:
@@ -94,23 +93,15 @@ class CreditCommands:
                                        parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 
-        message = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
-
-        roll_result = self.critical_roll.roll()
-        if "lost" in message.lower():
-            if roll_result.is_critical_failure:
-                event = self.event_manager.get_random_event('bet', 'failure')
-                if event:
-                    effect = event.apply_effect(amount=bet_size, user_id=update.effective_user.id)
-                    self.credits.update_credits(update.effective_user.id, effect.credit_change, CreditActionType.BET)
-                    message += f"\n\n**Critical Failure!** {effect.message}"
-        else:
-            if roll_result.is_critical_success:
-                event = self.event_manager.get_random_event('bet', 'success')
-                if event:
-                    effect = event.apply_effect(amount=bet_size, user_id=update.effective_user.id)
-                    self.credits.update_credits(update.effective_user.id, effect.credit_change, CreditActionType.BET)
-                    message += f"\n\n**Critical Success!** {effect.message}"
+        message, success = self.roulette.play(update.effective_user.id, bet_size, bet_type_arg)
+        if success and core_utils.roll(CRITICAL_SUCCESS_CHANCE) and (event := self.event_manager.get_random_event('bet', 'success')):
+            effect = event.apply_effect(amount=bet_size)
+            self.credits.update_credits(update.effective_user.id, effect.credit_change, CreditActionType.BET)
+            message += f"\n\n**Critical Success!** {effect.message}"
+        elif not success and core_utils.roll(CRITICAL_FAILURE_CHANCE) and (event := self.event_manager.get_random_event('bet', 'failure')):
+            effect = event.apply_effect(amount=bet_size)
+            self.credits.update_credits(update.effective_user.id, effect.credit_change, CreditActionType.BET)
+            message += f"\n\n**Critical Failure!** {effect.message}"
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
@@ -144,23 +135,15 @@ class CreditCommands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=waiting_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 
-        message = self.credits.steal_credits(user_id=user_id, target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
-
-        roll_result = self.critical_roll.roll()
-        if "failed" in message.lower() or "unsuccessful" in message.lower():
-            if roll_result.is_critical_failure:
-                event = self.event_manager.get_random_event('steal', 'failure')
-                if event:
-                    effect = event.apply_effect(amount=command_args.number, user_id=user_id)
-                    self.credits.update_credits(user_id, effect.credit_change, CreditActionType.STEAL)
-                    message += f"\n\n**Critical Failure!** {effect.message}"
-        else:
-            if roll_result.is_critical_success:
-                event = self.event_manager.get_random_event('steal', 'success')
-                if event:
-                    effect = event.apply_effect(amount=command_args.number, user_id=user_id)
-                    self.credits.update_credits(user_id, effect.credit_change, CreditActionType.STEAL)
-                    message += f"\n\n**Critical Success!** {effect.message}"
+        message, success = self.credits.steal_credits(user_id=user_id, target_user_id=command_args.user_id, amount=command_args.number, users_map=self.users_map)
+        if success and core_utils.roll(CRITICAL_SUCCESS_CHANCE) and (event := self.event_manager.get_random_event('steal', 'success')):
+            effect = event.apply_effect(amount=command_args.number)
+            self.credits.update_credits(user_id, effect.credit_change, CreditActionType.STEAL)
+            message += f"\n\n**Critical Success!** {effect.message}"
+        elif not success and core_utils.roll(CRITICAL_FAILURE_CHANCE) and (event := self.event_manager.get_random_event('steal', 'failure')):
+            effect = event.apply_effect(amount=command_args.number)
+            self.credits.update_credits(user_id, effect.credit_change, CreditActionType.STEAL)
+            message += f"\n\n**Critical Failure!** {effect.message}"
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
@@ -246,14 +229,10 @@ class CreditCommands:
             credit_penalty = cached_quiz.get_credit_penalty()
             user_credits, success = self.credits.update_credits(user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ)
             message = f"Answer: *{query.data}* is incorrect. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :[" if success else f"Answer: *{query.data}* is incorrect, but because you're so poor you won't lose any credits for it :]"
-
-            roll_result = self.critical_roll.roll()
-            if roll_result.is_critical_failure:
-                event = self.event_manager.get_random_event('quiz', 'failure')
-                if event:
-                    effect = event.apply_effect()
-                    self.credits.update_credits(cached_quiz.user_id, effect.credit_change, CreditActionType.QUIZ)
-                    message += f"\n\n**Critical Failure!** {effect.message}"
+            if core_utils.roll(CRITICAL_FAILURE_CHANCE) and (event := self.event_manager.get_random_event('quiz', 'failure')):
+                effect = event.apply_effect(amount=credit_penalty)
+                self.credits.update_credits(cached_quiz.user_id, effect.credit_change, CreditActionType.QUIZ)
+                message += f"\n\n**Critical Failure!** {effect.message}"
             message = stats_utils.escape_special_characters(message)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)
             return
@@ -262,14 +241,10 @@ class CreditCommands:
         credit_payout = cached_quiz.get_credit_payout()
         user_credits, _ = self.credits.update_credits(user_id=cached_quiz.user_id, credit_change=credit_payout, action_type=CreditActionType.QUIZ)
         message = f"Answer: *{query.data}* is correct! You receive *{credit_payout}* credits! [*{user_credits}* in total]"
-
-        roll_result = self.critical_roll.roll()
-        if roll_result.is_critical_success:
-            event = self.event_manager.get_random_event('quiz', 'success')
-            if event:
-                effect = event.apply_effect()
-                self.credits.update_credits(cached_quiz.user_id, effect.credit_change, CreditActionType.QUIZ)
-                message += f"\n\n**Critical Success!** {effect.message}"
+        if core_utils.roll(CRITICAL_FAILURE_CHANCE) and (event := self.event_manager.get_random_event('quiz', 'success')):
+            effect = event.apply_effect(amount=credit_payout)
+            self.credits.update_credits(cached_quiz.user_id, effect.credit_change, CreditActionType.QUIZ)
+            message += f"\n\n**Critical Success!** {effect.message}"
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=query.message.message_thread_id)

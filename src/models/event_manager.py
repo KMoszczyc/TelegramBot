@@ -1,6 +1,6 @@
 import random
 from typing import Optional, Dict, List
-from random_event import RandomEvent
+from src.models.random_event import RandomEvent
 
 
 class EventManager:

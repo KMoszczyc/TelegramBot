@@ -1,7 +1,7 @@
 import os
 import logging
 from enum import Enum
-
+import sys
 import pandas as pd
 from src.models.random_event import RandomFailureEvent, RandomSuccessEvent
 
@@ -38,10 +38,12 @@ MAX_NICKNAMES_NUM = 5
 MAX_REMINDERS_DAILY_USAGE = 10
 MAX_CWEL_USAGE_DAILY = 25
 MAX_GET_CREDITS_DAILY = 1
-MAX_STEAL_CREDITS_DAILY = 3
+MAX_STEAL_CREDITS_DAILY = 50
 LONG_MESSAGE_LIMIT = 1  # long texts spanning into multiple messages.
 STOPWORD_RATIO_THRESHOLD = 0.59
 MIN_QUIZ_TIME_TO_ANSWER_SECONDS = 10
+CRITICAL_FAILURE_CHANCE = 0.3
+CRITICAL_SUCCESS_CHANCE = 0.3
 CREDIT_HISTORY_COLUMNS = ['timestamp', 'user_id', 'target_user_id', 'credit_change', 'action_type', 'bet_type', 'success']
 
 TIMEZONE = 'Europe/Warsaw'

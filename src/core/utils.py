@@ -719,15 +719,19 @@ def max_str_length_in_col(series):
 
     return -1 if len(strings) == 0 else max(len(ngram) for ngram in strings)
 
+
 def max_str_length_in_list(strings):
     return -1 if len(strings) == 0 else max(len(ngram) for ngram in strings)
+
 
 def get_random_id():
     return str(uuid.uuid4())
 
+
 def calculate_skewed_probability(value, max_value):
     """Get a probability [0, 1], "0%" of the value should happen 50% of the time, "100%" of the value should happen 0% of the time (never)."""
-    return (1 - ((value / max_value) ** 0.5))/2 if max_value > 0 else 0
+    return (1 - ((value / max_value) ** 0.5)) / 2 if max_value > 0 else 0
+
 
 def generate_response_headline(command_args, label):
     text = label
@@ -735,6 +739,7 @@ def generate_response_headline(command_args, label):
     text += f" for {command_args.user}" if command_args.user is not None else " "
     text += f" ({generate_period_headline(command_args)}):"
     return text
+
 
 async def send_message(update, context, message_type: MessageType, path, text):
     log.info(f'Sending message: {text} with media type: {message_type} and media path: {path}')
@@ -753,3 +758,8 @@ async def send_message(update, context, message_type: MessageType, path, text):
             await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text, message_thread_id=update.message.message_thread_id)
         case MessageType.VOICE:
             await context.bot.send_voice(chat_id=update.effective_chat.id, voice=path, caption=text, message_thread_id=update.message.message_thread_id)
+
+
+def roll(probability):
+    """Roll a probability dice and return True if the hit is successful. The range of random() is [0, 1], so.. yeah it works."""
+    return random.random() < probability

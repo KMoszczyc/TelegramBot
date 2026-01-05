@@ -1,5 +1,7 @@
 import pickle
 import random
+from typing import Tuple
+
 import pandas as pd
 
 from definitions import RouletteBetType, CreditActionType
@@ -17,7 +19,7 @@ class Roulette:
                                 "red", "black", "red", "black", "red", "black", "red", "black", "black", "red", "black", "red", "black", "red", "black", "red"]
         self.credits = credits_obj
 
-    def play(self, user_id, bet_size, bet_type_arg: str) -> str:
+    def play(self, user_id, bet_size, bet_type_arg: str) -> Tuple[str, str]:
         if user_id not in self.credits.credits or self.credits.credits[user_id] < bet_size:
             return "You don't have enough credits for that bet, fuck off."
 
@@ -26,16 +28,17 @@ class Roulette:
             return "Invalid bet type."
 
         message = ''
+        success = False
         match bet_type:
             case RouletteBetType.RED | RouletteBetType.BLACK | RouletteBetType.GREEN:
-                message = self.play_red_black(user_id, bet_size, bet_type)
+                message, success = self.play_red_black(user_id, bet_size, bet_type)
             case RouletteBetType.ODD | RouletteBetType.EVEN:
-                message = self.play_odd_even(user_id, bet_size, bet_type)
+                message, success = self.play_odd_even(user_id, bet_size, bet_type)
             case RouletteBetType.HIGH | RouletteBetType.LOW:
-                message = self.play_high_low(user_id, bet_size, bet_type)
-            case RouletteBetType.NONE:
-                message = "Invalid bet type."
-        return message
+                message, success = self.play_high_low(user_id, bet_size, bet_type)
+            case RouletteBetType.NONE | _:
+                message, success = "Invalid bet type.", False
+        return message, success
 
     def play_red_black(self, user_id, bet_size, bet_type) -> str:
         n = random.choice(self.all_numbers)
@@ -73,8 +76,8 @@ class Roulette:
 
         self.credits.credits[user_id] += credit_change
         self.credits.update_credit_history(user_id, credit_change, CreditActionType.BET, bet_type, winning_rule)
-
-        return message
+        success = credit_change > 0
+        return message, success
 
     def parse_bet(self, bet_type_arg: str) -> RouletteBetType:
         exists = bet_type_arg in [bet_type.value for bet_type in list(RouletteBetType)]
