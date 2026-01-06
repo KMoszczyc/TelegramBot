@@ -1,11 +1,9 @@
 import os
 import random
-from datetime import timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 from dotenv import load_dotenv
 import telegram
-from sympy.physics.units import minute
 
 from definitions import polish_holidays_df, TIMEZONE, USERS_PATH, CLEANED_CHAT_HISTORY_PATH
 import src.core.utils as core_utils
@@ -55,7 +53,7 @@ class Holidays:
         dfs = []
         for year in years:
             df = raw_holidays_df.copy(deep=True)
-            df['date'] = df['date'].apply(lambda x: x.replace(year=year, hour=22, minute=18))
+            df['date'] = df['date'].apply(lambda x: x.replace(year=year, hour=22, minute=24))
             dfs.append(df)
 
         merged_df = pd.concat(dfs, ignore_index=True)
