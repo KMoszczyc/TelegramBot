@@ -21,11 +21,11 @@ class Roulette:
 
     def play(self, user_id, bet_size, bet_type_arg: str) -> Tuple[str, str]:
         if user_id not in self.credits.credits or self.credits.credits[user_id] < bet_size:
-            return "You don't have enough credits for that bet, fuck off."
+            return "You don't have enough credits for that bet, fuck off.", False
 
         bet_type = self.parse_bet(bet_type_arg)
         if bet_type == RouletteBetType.NONE:
-            return "Invalid bet type."
+            return "Invalid bet type.", False
 
         message = ''
         success = False
