@@ -55,7 +55,7 @@ class Holidays:
         dfs = []
         for year in years:
             df = raw_holidays_df.copy(deep=True)
-            df['date'] = df['date'].apply(lambda x: x.replace(year=year, hour=22, minute=13))
+            df['date'] = df['date'].apply(lambda x: x.replace(year=year, hour=22, minute=18))
             dfs.append(df)
 
         merged_df = pd.concat(dfs, ignore_index=True)
