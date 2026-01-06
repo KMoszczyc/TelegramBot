@@ -34,7 +34,9 @@ class Holidays:
         df = self.preprocess_holidays()
         for index, row in df.iterrows():
             date, holiday_name, holiday_info = row['date'], row['holiday_name'], row['message']
-            self.job_queue.run_once(callback=lambda context: self.gift_credits_to_all_users(context, holiday_name, holiday_info), when=date)
+            self.job_queue.run_once(callback=lambda context, hn=holiday_name, hi=holiday_info: self.gift_credits_to_all_users(context, hn, hi),
+                                    when=date,
+                                    name=f"{holiday_name} - {date}")
 
     async def gift_credits_to_all_users(self, context, holiday_name, holiday_info):
         amount = random.randint(500, 3000)
@@ -53,7 +55,7 @@ class Holidays:
         dfs = []
         for year in years:
             df = raw_holidays_df.copy(deep=True)
-            df['date'] = df['date'].apply(lambda x: x.replace(year=year, hour=22, minute=24))
+            df['date'] = df['date'].apply(lambda x: x.replace(year=year, hour=22, minute=57))
             dfs.append(df)
 
         merged_df = pd.concat(dfs, ignore_index=True)
