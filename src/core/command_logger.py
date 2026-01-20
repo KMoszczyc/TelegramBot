@@ -1,17 +1,14 @@
-import time
 from datetime import datetime
 from functools import wraps
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from definitions import COMMANDS_USAGE_PATH, TIMEZONE
 from src.core.utils import read_df, save_df
 from src.models.command_args import CommandArgs
-from src.models.schemas import commands_usage_schema
-from src.stats.utils import filter_by_time_df, validate_schema
-from definitions import COMMANDS_USAGE_PATH, TIMEZONE
+from src.stats.utils import filter_by_time_df
 
 
 class CommandLogger:

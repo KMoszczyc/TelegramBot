@@ -1,14 +1,14 @@
-import os
 import logging
-from datetime import datetime, timezone, timedelta
+import os
+from datetime import UTC, datetime, timedelta
 
+from dotenv import load_dotenv
 from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
-from dotenv import load_dotenv
 
-from definitions import CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_VIDEO_NOTES_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from definitions import CHAT_AUDIO_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_IMAGES_DIR_PATH, CHAT_VIDEO_NOTES_DIR_PATH, CHAT_VIDEOS_DIR_PATH
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class ClientAPIHandler:
             chat_history = []
             message_types = []
             count = 0
-            offset_dt = datetime.now(tz=timezone.utc) - timedelta(days=days)
+            offset_dt = datetime.now(tz=UTC) - timedelta(days=days)
             offset_timestamp = offset_dt.timestamp()
             async with self.client:
                 async for msg in self.client.iter_messages(CHAT_ID, offset_date=offset_timestamp, reverse=True):

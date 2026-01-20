@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from definitions import PeriodFilterMode, ArgType, DatetimeFormat
+from definitions import ArgType, DatetimeFormat, PeriodFilterMode
 
 
 @dataclass

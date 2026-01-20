@@ -6,14 +6,32 @@ import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
 
+import src.core.utils as core_utils
+import src.stats.utils as stats_utils
+from definitions import (
+    LONG_MESSAGE_LIMIT,
+    USERS_PATH,
+    ArgType,
+    HolyTextType,
+    SiglumType,
+    arguments_help,
+    bartosiak_phrases,
+    bible_df,
+    boczek_phrases,
+    commands,
+    europejskafirma_phrases,
+    kiepscy_df,
+    ozjasz_phrases,
+    quran_df,
+    shopping_sundays,
+    tvp_headlines,
+    tvp_latest_headlines,
+    walesa_phrases,
+)
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
-from definitions import ozjasz_phrases, bartosiak_phrases, tvp_headlines, tvp_latest_headlines, commands, bible_df, ArgType, shopping_sundays, USERS_PATH, arguments_help, europejskafirma_phrases, \
-    boczek_phrases, kiepscy_df, walesa_phrases, HolyTextType, SiglumType, quran_df, LONG_MESSAGE_LIMIT
-import src.core.utils as core_utils
-import src.stats.utils as stats_utils
 
 log = logging.getLogger(__name__)
 
@@ -375,7 +393,7 @@ class Commands:
         episode_nr = str(command_args.number)
         matching_episode_df = kiepscy_df[kiepscy_df['nr'] == episode_nr]
         if matching_episode_df.empty:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Nie ma takiego epizodu :(", message_thread_id=update.message.message_thread_id)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="Nie ma takiego epizodu :(", message_thread_id=update.message.message_thread_id)
             return
         row = matching_episode_df.iloc[0]
         text = f"*{episode_nr}: {row['title']}* - {row['url']}"

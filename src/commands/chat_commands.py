@@ -1,15 +1,27 @@
-import os.path
 import logging
+import os.path
 
+import pandas as pd
+import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
-import telegram
-import pandas as pd
 
-from definitions import USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, EmojiType, ArgType, MessageType, MAX_USERNAME_LENGTH, TIMEZONE, \
-    ChartType, MAX_CWEL_USAGE_DAILY, CHAT_VIDEO_NOTES_DIR_PATH
-import src.stats.utils as stats_utils
 import src.core.utils as core_utils
+import src.stats.utils as stats_utils
+from definitions import (
+    CHAT_VIDEO_NOTES_DIR_PATH,
+    CLEANED_CHAT_HISTORY_PATH,
+    MAX_CWEL_USAGE_DAILY,
+    MAX_USERNAME_LENGTH,
+    REACTIONS_PATH,
+    TIMEZONE,
+    UPDATE_REQUIRED_PATH,
+    USERS_PATH,
+    ArgType,
+    ChartType,
+    EmojiType,
+    MessageType,
+)
 from src.core.client_api_handler import BOT_ID
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance

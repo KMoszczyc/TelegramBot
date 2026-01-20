@@ -1,8 +1,9 @@
-import os
 import logging
+import os
 from enum import Enum
-import sys
+
 import pandas as pd
+
 from src.models.random_event import RandomFailureEvent, RandomSuccessEvent
 
 
@@ -19,7 +20,7 @@ def is_docker():
 
 
 def read_str_file(path):
-    with open(path, 'r') as f:
+    with open(path) as f:
         lines = f.read().splitlines()
     return lines
 

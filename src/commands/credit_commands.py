@@ -1,24 +1,35 @@
+import asyncio
 import copy
 import logging
-import asyncio
 
 import telegram
-from telegram import Update, InlineKeyboardButton
+from telegram import InlineKeyboardButton, Update
 from telegram.ext import ContextTypes
 
+import src.core.utils as core_utils
+import src.stats.utils as stats_utils
+from definitions import (
+    BET_EVENTS,
+    CRITICAL_FAILURE_CHANCE,
+    CRITICAL_SUCCESS_CHANCE,
+    MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
+    QUIZ_EVENTS,
+    STEAL_EVENTS,
+    USERS_PATH,
+    ArgType,
+    CreditActionType,
+    MessageType,
+    quiz_df,
+)
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.command_args import CommandArgs
-from src.models.event_manager import EventManager
-from definitions import ArgType, CreditActionType, MessageType, STEAL_EVENTS, BET_EVENTS, QUIZ_EVENTS, USERS_PATH, quiz_df, MIN_QUIZ_TIME_TO_ANSWER_SECONDS, CRITICAL_FAILURE_CHANCE, \
-    CRITICAL_SUCCESS_CHANCE
-import src.core.utils as core_utils
-import src.stats.utils as stats_utils
-from src.stats import charts
 from src.models.credits import Credits
+from src.models.event_manager import EventManager
 from src.models.quiz_model import QuizModel
 from src.models.roulette import Roulette
+from src.stats import charts
 
 log = logging.getLogger(__name__)
 
@@ -89,7 +100,7 @@ class CreditCommands:
         bet_size = command_args.number
         bet_type_arg = command_args.string
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=stats_utils.escape_special_characters(f"The roulette is spinning..."),
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=stats_utils.escape_special_characters("The roulette is spinning..."),
                                        parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
         await asyncio.sleep(5)
 

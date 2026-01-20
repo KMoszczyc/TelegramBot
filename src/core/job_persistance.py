@@ -1,9 +1,8 @@
 import os
 import pickle
-from functools import wraps
 
-from definitions import SCHEDULED_JOBS_PATH
 import src.core.utils as core_utils
+from definitions import SCHEDULED_JOBS_PATH
 
 
 class JobPersistance:

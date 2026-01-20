@@ -1,13 +1,19 @@
 import logging
 import os
 
-from nltk import ngrams
 import pandas as pd
+from nltk import ngrams
 
-from definitions import CLEANED_CHAT_HISTORY_PATH, STOPWORD_RATIO_THRESHOLD, polish_stopwords, CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH, PeriodFilterMode
-
-import src.stats.utils as stats_utils
 import src.core.utils as core_utils
+import src.stats.utils as stats_utils
+from definitions import (
+    CHAT_WORD_STATS_DIR_PATH,
+    CLEANED_CHAT_HISTORY_PATH,
+    STOPWORD_RATIO_THRESHOLD,
+    WORD_STATS_UPDATE_LOCK_PATH,
+    PeriodFilterMode,
+    polish_stopwords,
+)
 from src.models.command_args import CommandArgs
 
 pd.set_option('display.max_columns', None)

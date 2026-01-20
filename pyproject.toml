@@ -1,0 +1,32 @@
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes (real bugs)
+    "W",      # warnings
+    "I",      # import sorting
+    "B",      # flake8-bugbear
+    "UP",     # pyupgrade (Python 3.12 aware)
+    "ASYNC",  # async correctness (important for bots)
+    "SIM",    # simplifications (safe & helpful)
+]
+
+ignore = [
+    "E501",   # handled by formatter
+]
+
+fixable = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.isort]
+combine-as-imports = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"

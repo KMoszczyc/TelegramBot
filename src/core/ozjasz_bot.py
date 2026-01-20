@@ -1,23 +1,21 @@
+import logging
 import os
-import pickle
 from functools import wraps
 
 from dotenv import load_dotenv
-import logging
-
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
 
 import src.commands.misc_commands as commands
+import src.core.utils as core_utils
+from definitions import EmojiType, MessageType
+from src.commands.chat_commands import ChatCommands
+from src.commands.credit_commands import CreditCommands
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.credits import Credits
 from src.models.holidays import Holidays
-from src.commands.chat_commands import ChatCommands
-from src.commands.credit_commands import CreditCommands
-from definitions import EmojiType, MessageType, SCHEDULED_JOBS_PATH
-import src.core.utils as core_utils
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')

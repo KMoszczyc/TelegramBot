@@ -1,15 +1,15 @@
-import cv2
-import pandas as pd
-from great_tables import GT, md
-import matplotlib.pyplot as plt
-import os
-import plotly.graph_objects as go
-import networkx as nx
-import numpy as np
 import math
+import os
 
-from definitions import TEMP_DIR, DatetimeFormat, PeriodFilterMode, ChartType
+import cv2
+import matplotlib.pyplot as plt
+import networkx as nx
+import pandas as pd
+import plotly.graph_objects as go
+from great_tables import GT, md
+
 import src.stats.utils as stats_utils
+from definitions import TEMP_DIR, ChartType, PeriodFilterMode
 
 
 def create_table_plt(df, title, columns):

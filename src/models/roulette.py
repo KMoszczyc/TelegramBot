@@ -1,10 +1,8 @@
-import pickle
 import random
-from typing import Tuple
 
 import pandas as pd
 
-from definitions import RouletteBetType, CreditActionType
+from definitions import CreditActionType, RouletteBetType
 
 pd.options.mode.chained_assignment = None
 pd.set_option('display.max_columns', None)
@@ -19,7 +17,7 @@ class Roulette:
                                 "red", "black", "red", "black", "red", "black", "red", "black", "black", "red", "black", "red", "black", "red", "black", "red"]
         self.credits = credits_obj
 
-    def play(self, user_id, bet_size, bet_type_arg: str) -> Tuple[str, str]:
+    def play(self, user_id, bet_size, bet_type_arg: str) -> tuple[str, str]:
         if user_id not in self.credits.credits or self.credits.credits[user_id] < bet_size:
             return "You don't have enough credits for that bet, fuck off.", False
 
@@ -45,7 +43,7 @@ class Roulette:
         result = RouletteBetType(self.roulette_colors[n])
 
         rule = bet_type == result
-        special_rule = bet_type == result and RouletteBetType.GREEN == result
+        special_rule = bet_type == result and result == RouletteBetType.GREEN
         return self.apply_bet(n, result, user_id, bet_size, rule, bet_type, special_rule, payout_multiplier=35)
 
     def play_odd_even(self, user_id, bet_size, bet_type) -> str:

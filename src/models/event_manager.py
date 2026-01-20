@@ -1,11 +1,12 @@
 import random
-from typing import Optional, Dict, List
+from typing import Optional
+
 from src.models.random_event import RandomEvent
 
 
 class EventManager:
     def __init__(self):
-        self.events: Dict[str, Dict[str, List['RandomEvent']]] = {}
+        self.events: dict[str, dict[str, list[RandomEvent]]] = {}
 
     def add_event(self, command_name: str, event):
         if command_name not in self.events:

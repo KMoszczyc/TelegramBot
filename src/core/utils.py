@@ -1,7 +1,7 @@
 import copy
 import locale
-import os
 import logging
+import os
 import random
 import re
 import string
@@ -12,8 +12,22 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from definitions import ArgType, MessageType, CHAT_IMAGES_DIR_PATH, CHAT_VIDEOS_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_AUDIO_DIR_PATH, PeriodFilterMode, TIMEZONE, DatetimeFormat, HolyTextType, SiglumType, \
-    quran_df, LuckyScoreType, CHAT_VIDEO_NOTES_DIR_PATH
+from definitions import (
+    CHAT_AUDIO_DIR_PATH,
+    CHAT_GIFS_DIR_PATH,
+    CHAT_IMAGES_DIR_PATH,
+    CHAT_VIDEO_NOTES_DIR_PATH,
+    CHAT_VIDEOS_DIR_PATH,
+    TIMEZONE,
+    ArgType,
+    DatetimeFormat,
+    HolyTextType,
+    LuckyScoreType,
+    MessageType,
+    PeriodFilterMode,
+    SiglumType,
+    quran_df,
+)
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -25,7 +39,7 @@ else:
 
 
 def read_str_file(path):
-    with open(path, 'r') as f:
+    with open(path) as f:
         lines = f.read().splitlines()
     return lines
 

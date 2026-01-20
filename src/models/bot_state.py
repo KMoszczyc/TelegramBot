@@ -1,10 +1,18 @@
+import datetime
 import logging
 import random
 from collections import defaultdict
-import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import TIMEZONE, MAX_REMINDERS_DAILY_USAGE, HolyTextType, MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY, MAX_STEAL_CREDITS_DAILY, quiz_df
+from definitions import (
+    MAX_CWEL_USAGE_DAILY,
+    MAX_GET_CREDITS_DAILY,
+    MAX_REMINDERS_DAILY_USAGE,
+    MAX_STEAL_CREDITS_DAILY,
+    TIMEZONE,
+    HolyTextType,
+    quiz_df,
+)
 
 log = logging.getLogger(__name__)
 

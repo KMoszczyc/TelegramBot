@@ -2,13 +2,12 @@ import os
 import pickle
 import random
 from collections import defaultdict
-from typing import Tuple
 
 import pandas as pd
 
-from definitions import LuckyScoreType, CreditActionType, CREDITS_PATH, CREDIT_HISTORY_PATH, RouletteBetType, CREDIT_HISTORY_COLUMNS
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from definitions import CREDIT_HISTORY_COLUMNS, CREDIT_HISTORY_PATH, CREDITS_PATH, CreditActionType, LuckyScoreType, RouletteBetType
 from src.models.command_args import CommandArgs
 
 
@@ -75,7 +74,7 @@ class Credits:
 
     def show_credit_leaderboard(self, users_map) -> str:
         sorted_credits = sorted(self.credits.items(), key=lambda kv: kv[1], reverse=True)
-        text = f'``` Credit score leaderboard: \n'
+        text = '``` Credit score leaderboard: \n'
         if sorted_credits:
             max_len_username = max(len(users_map[user_id]) for user_id, _ in sorted_credits)
             for i, (user_id, credit) in enumerate(sorted_credits):
@@ -104,7 +103,7 @@ class Credits:
         filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df['action_type'] == CreditActionType.BET.value]
         filtered_credit_history_df['credit_change'] = filtered_credit_history_df['credit_change'].abs()
         filtered_credit_history_df = filtered_credit_history_df.sort_values(by='credit_change', ascending=False)
-        text = f'``` TOP bet leaderboard: \n'
+        text = '``` TOP bet leaderboard: \n'
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
         for i, (index, row) in enumerate(filtered_credit_history_df.head(10).iterrows()):
             username = users_map[row['user_id']]
@@ -119,7 +118,7 @@ class Credits:
         steal_history_df['steal_amount'] = steal_history_df['credit_change'].abs()
         steal_history_grouped_df = steal_history_df.groupby('user_id').agg({'steal_amount': 'sum'}).reset_index()
         steal_history_grouped_df = steal_history_grouped_df.sort_values(by='steal_amount', ascending=False)
-        text = f'``` TOTAL steal leaderboard: \n'
+        text = '``` TOTAL steal leaderboard: \n'
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
         for i, (index, row) in enumerate(steal_history_grouped_df.head(10).iterrows()):
             username = users_map[row['user_id']]
@@ -146,14 +145,14 @@ class Credits:
         elif amount > 20:
             return f"{gifter_username} gifted only *{amount} credits* to *{target_username}*. This much credits lie on the street in Berlin and nobody picks it up."
         else:
-            return f"A pathetic amount. You call that a gift? You should be ashamed of yourself."
+            return "A pathetic amount. You call that a gift? You should be ashamed of yourself."
 
     def give_credits_to_all(self, amount):
         for user_id in self.credits.keys():
             self.update_credits(user_id, amount, CreditActionType.GIFT, None, True, None)
         return
 
-    def steal_credits(self, user_id, target_user_id, amount, users_map) -> Tuple[str, str]:
+    def steal_credits(self, user_id, target_user_id, amount, users_map) -> tuple[str, str]:
         robbed_username = users_map[target_user_id]
 
         p = self.calculate_steal_chance(target_user_id, amount)

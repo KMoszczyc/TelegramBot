@@ -1,9 +1,10 @@
 import os.path
 
-import yt_dlp
 import ffmpeg
-from definitions import TEMP_DIR
+import yt_dlp
+
 import src.core.utils as core_utils
+from definitions import TEMP_DIR
 
 
 class YoutubeDownload:

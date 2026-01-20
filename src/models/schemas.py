@@ -1,5 +1,6 @@
 import pandera.pandas as pa
 from pandera.engines import pandas_engine
+
 from definitions import TIMEZONE
 
 chat_history_schema = pa.DataFrameSchema({

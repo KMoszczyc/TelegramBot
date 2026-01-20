@@ -1,25 +1,45 @@
 """Tests for core utility functions."""
-import pytest
-import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from definitions import (
-    PeriodFilterMode, ArgType, DatetimeFormat, TIMEZONE, MessageType
-)
+import pandas as pd
+import pytest
+
+from definitions import TIMEZONE, ArgType, DatetimeFormat, MessageType, PeriodFilterMode
 from src.core.utils import (
-    parse_period, parse_int, is_inside_square_brackets, select_random_phrase,
-    generate_unique_number, is_prime, has_numbers, text_to_number,
-    get_username, match_substr_to_list_of_texts, x_to_light_years_str,
-    datetime_to_ms, remove_punctuation, max_str_length_in_list,
-    max_str_length_in_col, calculate_skewed_probability, merge_spaced_args,
-    is_word_in_list_of_multiple_words, parse_date, parse_date_range,
-    parse_string, dt_to_pretty_str, regexify_multiword_filter,
-    generate_period_headline, parse_user, is_named_arg, is_normal_named_arg,
-    is_aliased_named_arg, parse_number, get_error, message_id_to_path
+    calculate_skewed_probability,
+    datetime_to_ms,
+    dt_to_pretty_str,
+    generate_period_headline,
+    generate_unique_number,
+    get_error,
+    get_username,
+    has_numbers,
+    is_aliased_named_arg,
+    is_inside_square_brackets,
+    is_named_arg,
+    is_normal_named_arg,
+    is_prime,
+    is_word_in_list_of_multiple_words,
+    match_substr_to_list_of_texts,
+    max_str_length_in_col,
+    max_str_length_in_list,
+    merge_spaced_args,
+    message_id_to_path,
+    parse_date,
+    parse_date_range,
+    parse_int,
+    parse_number,
+    parse_period,
+    parse_string,
+    parse_user,
+    regexify_multiword_filter,
+    remove_punctuation,
+    select_random_phrase,
+    text_to_number,
+    x_to_light_years_str,
 )
 from src.models.command_args import CommandArgs
-
 
 # Test constants
 TEST_DT_2024_01_15 = datetime(2024, 1, 15, tzinfo=ZoneInfo(TIMEZONE))
@@ -255,7 +275,7 @@ def test_calculate_skewed_probability(value, max_value, expected):
     pytest.param(['arg1', '"spaced', 'arg"', 'arg2'], ['arg1', 'spaced arg', 'arg2'], id="quoted_args"),
     pytest.param(['arg1', 'arg2', 'arg3'], ['arg1', 'arg2', 'arg3'], id="no_quotes"),
     pytest.param(['arg1', '"single"'], ['arg1', 'single'], id="single_quoted"),
-    pytest.param(['"first', 'quoted"', 'middle', '"second', 'quoted"'], 
+    pytest.param(['"first', 'quoted"', 'middle', '"second', 'quoted"'],
                  ['first quoted', 'middle', 'second quoted'], id="multiple_quoted"),
     pytest.param([], [], id="empty_args"),
 ])
@@ -336,7 +356,7 @@ def test_parse_string(text, min_len, max_len, should_succeed, has_separator):
     """Test parsing and validating strings."""
     command_args = CommandArgs(min_string_length=min_len, max_string_length=max_len, label='Test')
     result_text, result_args, error = parse_string(command_args, text)
-    
+
     assert result_text == text
     if should_succeed:
         assert error == ''
@@ -425,7 +445,7 @@ def test_parse_user(user_str, should_succeed, expected_user, expected_user_id):
     """Test parsing user from string."""
     command_args = CommandArgs()
     result_args, error = parse_user(TEST_USERS_DF, command_args, user_str)
-    
+
     if should_succeed:
         assert error == ''
         assert result_args.user == expected_user
@@ -490,7 +510,7 @@ def test_parse_number(num_str, min_num, max_num, positive_only, should_succeed, 
     """Test parsing and validating numbers."""
     command_args = CommandArgs(min_number=min_num, max_number=max_num)
     num, result_args, error = parse_number(command_args, num_str, positive_only)
-    
+
     if should_succeed:
         if num_str:  # Not empty string
             assert num is not None

@@ -1,13 +1,17 @@
 import re
-import string
-import time
-import pandas as pd
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, POLISH_STOPWORDS_PATH, TIMEZONE
-import src.stats.utils as stats_utils
+
 import src.core.utils as core_utils
+import src.stats.utils as stats_utils
+from definitions import (
+    CLEANED_CHAT_HISTORY_PATH,
+    POLISH_STOPWORDS_PATH,
+    TIMEZONE,
+)
+
 
 def generate_chat_plots(self):
     chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)

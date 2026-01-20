@@ -1,19 +1,28 @@
 import logging
+import os
 import shutil
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
-import os
 
 import pandas as pd
 from dotenv import load_dotenv
 
-from definitions import CHAT_HISTORY_PATH, USERS_PATH, CLEANED_CHAT_HISTORY_PATH, REACTIONS_PATH, UPDATE_REQUIRED_PATH, TEMP_DIR, COMMANDS_USAGE_PATH, TIMEZONE, MessageType, CHAT_ETL_LOCK_PATH
-import src.stats.utils as stats_utils
 import src.core.utils as core_utils
-from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, reactions_schema, users_schema, commands_usage_schema
+import src.stats.utils as stats_utils
+from definitions import (
+    CHAT_HISTORY_PATH,
+    CLEANED_CHAT_HISTORY_PATH,
+    COMMANDS_USAGE_PATH,
+    REACTIONS_PATH,
+    TEMP_DIR,
+    TIMEZONE,
+    UPDATE_REQUIRED_PATH,
+    USERS_PATH,
+    MessageType,
+)
+from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, commands_usage_schema, reactions_schema, users_schema
 from src.stats.ocr import OCR
-from src.stats.word_stats import WordStats
 
 load_dotenv()
 BOT_ID = os.getenv('BOT_ID')
@@ -246,7 +255,7 @@ class ChatETL:
             log.info('No chat history, no bot messages to delete.')
             return
 
-        filter_dt = datetime.now(timezone.utc) - timedelta(minutes=BOT_MESSAGE_RETENION_IN_MINUTES)
+        filter_dt = datetime.now(UTC) - timedelta(minutes=BOT_MESSAGE_RETENION_IN_MINUTES)
 
         bot_messages_df = chat_df[chat_df['user_id'] == int(BOT_ID)]
         old_bot_messages_df = bot_messages_df[bot_messages_df['timestamp'] < filter_dt]

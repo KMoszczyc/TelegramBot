@@ -1,32 +1,47 @@
 """Tests for stats utility functions."""
 import os
-import random
-import tempfile
-from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from datetime import datetime
+from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
 
-from definitions import EmojiType, PeriodFilterMode, TIMEZONE, DatetimeFormat
-from src.core.utils import parse_user
+from definitions import TIMEZONE, DatetimeFormat, EmojiType, PeriodFilterMode
 from src.models.command_args import CommandArgs
 from src.stats.utils import (
-    escape_special_characters, contains_stopwords,
-    is_ngram_contaminated_by_stopwords, is_ngram_valid,
-    filter_df_in_range, filter_by_time_df, filter_by_shifted_time_df,
-    filter_emojis_by_emoji_type, filter_emoji_by_emoji_type,
-    emoji_sentiment_to_label, dt_to_str, check_bot_messages,
-    check_new_username, are_text_characters_allowed, is_alpha_numeric,
-    enum_to_list, get_forbidden_usernames, generate_random_file_id,
-    generate_random_filename, username_to_user_id, is_list_column,
-    is_string_column, validate_schema, get_last_message_id_of_a_user,
-    text_to_word_length_sum, get_users_map, get_random_media_path,
-    is_chat_etl_locked, lock_chat_etl, remove_chat_etl_lock,
-    remove_diactric_accents, negative_emojis
+    are_text_characters_allowed,
+    check_bot_messages,
+    check_new_username,
+    contains_stopwords,
+    dt_to_str,
+    emoji_sentiment_to_label,
+    enum_to_list,
+    escape_special_characters,
+    filter_by_shifted_time_df,
+    filter_by_time_df,
+    filter_df_in_range,
+    filter_emoji_by_emoji_type,
+    filter_emojis_by_emoji_type,
+    generate_random_file_id,
+    generate_random_filename,
+    get_forbidden_usernames,
+    get_last_message_id_of_a_user,
+    get_random_media_path,
+    get_users_map,
+    is_alpha_numeric,
+    is_chat_etl_locked,
+    is_list_column,
+    is_ngram_contaminated_by_stopwords,
+    is_ngram_valid,
+    is_string_column,
+    lock_chat_etl,
+    remove_chat_etl_lock,
+    remove_diactric_accents,
+    text_to_word_length_sum,
+    username_to_user_id,
+    validate_schema,
 )
-
 
 # Mock constants
 MOCK_DT_2023_10_10 = datetime(2023, 10, 10, 1, 18, 0).replace(tzinfo=ZoneInfo(TIMEZONE))
@@ -381,7 +396,7 @@ def test_generate_random_file_id():
     """Test generating random file ID."""
     file_id1 = generate_random_file_id()
     file_id2 = generate_random_file_id()
-    
+
     assert isinstance(file_id1, str)
     assert len(file_id1) == 11
     assert file_id1.isdigit()
@@ -413,7 +428,7 @@ def test_is_list_column():
     """Test checking if column contains lists."""
     list_series = pd.Series([[1, 2], [3, 4], [5]])
     non_list_series = pd.Series([1, 2, 3])
-    
+
     assert is_list_column(list_series) == True
     assert is_list_column(non_list_series) == False
 
@@ -423,7 +438,7 @@ def test_is_string_column():
     """Test checking if column contains strings."""
     string_series = pd.Series(['a', 'b', 'c'])
     non_string_series = pd.Series([1, 2, 3])
-    
+
     assert is_string_column(string_series) == True
     assert is_string_column(non_string_series) == False
 
@@ -434,7 +449,7 @@ def test_validate_schema(mocker):
     mock_schema = MagicMock()
     mock_schema.name = 'test_schema'
     df = pd.DataFrame({'col1': [1, 2, 3]})
-    
+
     validate_schema(df, mock_schema)
     mock_schema.assert_called_once_with(df)
 
@@ -444,7 +459,7 @@ def test_validate_schema_empty_df(mocker):
     mock_schema = MagicMock()
     mock_schema.name = 'test_schema'
     df = pd.DataFrame()
-    
+
     validate_schema(df, mock_schema)
     mock_schema.assert_not_called()
 
@@ -458,7 +473,7 @@ def test_validate_schema_empty_df(mocker):
 def test_get_last_message_id_of_a_user(user_id, expected_message_id, should_succeed):
     """Test getting last message ID of a user."""
     message_id, error = get_last_message_id_of_a_user(mock_chat_df, user_id)
-    
+
     if should_succeed:
         assert message_id == expected_message_id
         assert error == ''
@@ -484,7 +499,7 @@ def test_text_to_word_length_sum(text, expected):
 def test_get_users_map():
     """Test creating users map."""
     users_map = get_users_map(mock_users_df)
-    
+
     assert isinstance(users_map, dict)
     assert 0 in users_map
     assert users_map[0] == 'user1'
@@ -497,9 +512,9 @@ def test_get_random_media_path(mocker):
     """Test getting random media path."""
     mock_listdir = mocker.patch('os.listdir', return_value=['file1.jpg', 'file2.png', 'file3.mp4'])
     mock_choice = mocker.patch('random.choice', return_value='file2.png')
-    
+
     result = get_random_media_path('/test/directory')
-    
+
     mock_listdir.assert_called_once_with('/test/directory')
     assert result == os.path.join('/test/directory', 'file2.png')
 
@@ -509,7 +524,7 @@ def test_is_chat_etl_locked(mocker):
     """Test checking if chat ETL is locked."""
     mocker.patch('os.path.exists', return_value=True)
     assert is_chat_etl_locked() == True
-    
+
     mocker.patch('os.path.exists', return_value=False)
     assert is_chat_etl_locked() == False
 
@@ -525,7 +540,7 @@ def test_remove_chat_etl_lock(mocker):
     """Test removing chat ETL lock."""
     mocker.patch('os.path.exists', return_value=True)
     mock_remove = mocker.patch('os.remove')
-    
+
     remove_chat_etl_lock()
     mock_remove.assert_called_once()
 

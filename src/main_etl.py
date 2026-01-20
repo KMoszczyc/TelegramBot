@@ -1,7 +1,7 @@
 import argparse
 
-from src.stats.chat_etl import ChatETL
 from src.core.client_api_handler import ClientAPIHandler
+from src.stats.chat_etl import ChatETL
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download and preprocess telegram chat messages and images.')
