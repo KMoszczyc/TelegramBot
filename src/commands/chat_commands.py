@@ -221,7 +221,7 @@ class ChatCommands:
             text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
 
     async def cmd_media_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL):
         """Top or sad 5 media (images, videos, video notes, audio, gifs) from selected time period by number of reactions. Videos and video notes are merged into one."""
@@ -234,7 +234,7 @@ class ChatCommands:
         label = stats_utils.emoji_sentiment_to_label(emoji_type)
         text = core_utils.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
 
         if message_type == MessageType.VIDEO:
             chat_df = chat_df[chat_df['message_type'].isin([MessageType.VIDEO.value, MessageType.VIDEO_NOTE.value])]
