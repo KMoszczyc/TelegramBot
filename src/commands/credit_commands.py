@@ -15,7 +15,7 @@ from definitions import ArgType, CreditActionType, MessageType, STEAL_EVENTS, BE
     CRITICAL_SUCCESS_CHANCE
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from src.stats.charts import create_bidirectional_relationship_graph as charts
+from src.stats import charts
 from src.models.credits import Credits
 from src.models.quiz_model import QuizModel
 from src.models.roulette import Roulette
