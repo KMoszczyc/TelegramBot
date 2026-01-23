@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from great_tables import GT, md
 
 import src.stats.utils as stats_utils
+import src.core.utils as core_utils
 from definitions import TEMP_DIR, ChartType, PeriodFilterMode
 
 
@@ -31,7 +32,7 @@ def create_table_plt(df, title, columns):
     bbox_inches = bbox.transformed(fig.dpi_scale_trans.inverted())
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
-    stats_utils.create_dir(TEMP_DIR)
+    core_utils.create_dir(TEMP_DIR)
     # fig.savefig(path, bbox_inches='tight')
     fig.savefig(path, bbox_inches=bbox_inches)
 
@@ -72,7 +73,7 @@ def create_table_plotly(df, command_args, columns):
         layout=layout)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
-    stats_utils.create_dir(TEMP_DIR)
+    core_utils.create_dir(TEMP_DIR)
 
     fig.write_image(path, engine='kaleido')
 
@@ -89,7 +90,7 @@ def create_table(df, title, columns, source_notes):
     # gt.show()
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('png')))
-    stats_utils.create_dir(TEMP_DIR)
+    core_utils.create_dir(TEMP_DIR)
     gt.save(path)
     print('path', path)
     cut_excess_white_space_from_image(path)
@@ -214,7 +215,7 @@ def create_relationship_graph(reactions_df, col_1, col_2):
     plt.tight_layout(pad=5)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
-    stats_utils.create_dir(TEMP_DIR)
+    core_utils.create_dir(TEMP_DIR)
     plt.savefig(path, dpi=250, facecolor=fig.get_facecolor())
 
     return path
@@ -380,7 +381,7 @@ def create_bidirectional_relationship_graph(reactions_df, col_1, col_2, graph_la
     plt.tight_layout(pad=5)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
-    stats_utils.create_dir(TEMP_DIR)
+    core_utils.create_dir(TEMP_DIR)
     plt.savefig(path, dpi=250, facecolor=fig.get_facecolor())
 
     return path
@@ -408,7 +409,7 @@ def generate_plot(df, selected_for_grouping: list, grouping_col: str, x_col: str
     plt.legend(loc="upper left", ncol=5)
 
     path = os.path.abspath(os.path.join(TEMP_DIR, stats_utils.generate_random_filename('jpg')))
-    stats_utils.create_dir(TEMP_DIR)
+    core_utils.create_dir(TEMP_DIR)
     plt.savefig(path, bbox_inches='tight')
 
     return path
