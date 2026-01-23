@@ -267,7 +267,7 @@ class ChatETL:
         self.client_api_handler.delete_messages(message_ids)
 
     def cleanup_temp_dir(self):
-        stats_utils.create_dir(TEMP_DIR)
+        core_utils.create_dir(TEMP_DIR)
         files_num = len(os.listdir(TEMP_DIR))
         if os.path.exists(TEMP_DIR):
             log.info(f'Removing {files_num} files from temp dir...')

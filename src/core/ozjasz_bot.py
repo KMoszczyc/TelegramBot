@@ -19,6 +19,7 @@ from src.models.holidays import Holidays
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
+TEST_TOKEN = os.getenv('TEST_TOKEN')
 CHAT_ID = int(os.getenv('CHAT_ID'))
 TEST_CHAT_ID = int(os.getenv('TEST_CHAT_ID'))
 
@@ -26,10 +27,12 @@ log = logging.getLogger(__name__)
 
 
 class OzjaszBot:
-    def __init__(self):
-        log.info('Starting Ozjasz bot...')
+    def __init__(self, test=False):
+        token = TEST_TOKEN if test else TOKEN
+        init_message = 'Starting Ozjasz in test mode' if test else 'Starting Ozjasz in prod mode'
+        log.info(init_message)
         self.application = (ApplicationBuilder()
-                            .token(TOKEN)
+                            .token(token)
                             .read_timeout(30)
                             .write_timeout(30)
                             .concurrent_updates(True)
