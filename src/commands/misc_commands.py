@@ -308,13 +308,16 @@ class Commands:
             await context.bot.send_message(chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id)
             return
 
-        dt_now = datetime.now()
-        sundays_dt = [datetime.strptime(date, '%d-%m-%Y') for date in shopping_sundays]
-        filtered_sundays = [sunday for sunday in sundays_dt if sunday >= dt_now]
+        dt_now = datetime.now().date()
+        sundays_dt = [datetime.strptime(date, '%d-%m-%Y').date() for date in shopping_sundays]
+        filtered_shopping_sundays = [sunday for sunday in sundays_dt if sunday >= dt_now]
+        next_shopping_sunday = filtered_shopping_sundays[0] if filtered_shopping_sundays else None
         if 'all' in command_args.named_args:
             response = f'Wszystkie handlowe niedziele w {dt_now.year}:\n - ' + '\n - '.join([core_utils.display_shopping_sunday(sunday) for sunday in sundays_dt])
-        elif filtered_sundays:
-            response = f'Kolejna handlowa niedziela jest: {core_utils.display_shopping_sunday(filtered_sundays[0])}'
+        elif next_shopping_sunday:
+            response = "Dziś niedziela handlowa! Zapylaj do lidla po wege kiełbaski czy do aldi po lampke na promocji!"
+        elif filtered_shopping_sundays:
+            response = f'Kolejna handlowa niedziela jest: {core_utils.display_shopping_sunday(filtered_shopping_sundays[0])}'
         else:
             response = 'Nie ma już handlowych niedzieli w tym roku :(('
 
