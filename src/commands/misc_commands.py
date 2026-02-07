@@ -314,9 +314,9 @@ class Commands:
         next_shopping_sunday = filtered_shopping_sundays[0] if filtered_shopping_sundays else None
         if 'all' in command_args.named_args:
             response = f'Wszystkie handlowe niedziele w {dt_now.year}:\n - ' + '\n - '.join([core_utils.display_shopping_sunday(sunday) for sunday in sundays_dt])
-        elif next_shopping_sunday:
+        elif next_shopping_sunday == dt_now:
             response = "Dziś niedziela handlowa! Zapylaj do lidla po wege kiełbaski czy do aldi po lampke na promocji!"
-        elif filtered_shopping_sundays:
+        elif next_shopping_sunday:
             response = f'Kolejna handlowa niedziela jest: {core_utils.display_shopping_sunday(filtered_shopping_sundays[0])}'
         else:
             response = 'Nie ma już handlowych niedzieli w tym roku :(('
