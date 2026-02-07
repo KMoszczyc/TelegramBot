@@ -1,4 +1,5 @@
 import copy
+import json
 import locale
 import logging
 import os
@@ -10,6 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 
 from definitions import (
@@ -777,3 +779,21 @@ async def send_message(update, context, message_type: MessageType, path, text):
 def roll(probability):
     """Roll a probability dice and return True if the hit is successful. The range of random() is [0, 1], so.. yeah it works."""
     return random.random() < probability
+
+def safe_json_dump(x):
+    """
+    Convert a value to JSON string, handling None, lists, numpy arrays, and pandas Series.
+    """
+    if x is None or (isinstance(x, float) and pd.isna(x)):
+        return None
+
+    # Convert numpy arrays or pandas Series to lists
+    if isinstance(x, (np.ndarray, pd.Series)):
+        x = x.tolist()
+
+    # Ensure everything is JSON-serializable
+    try:
+        return json.dumps(x)
+    except TypeError:
+        # fallback: wrap scalar in a list
+        return json.dumps([x])

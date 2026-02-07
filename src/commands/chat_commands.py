@@ -138,7 +138,6 @@ class ChatCommands:
 
         log.info(user_stats.head(100))
 
-
         # Calculate message and reaction count changes
         message_count_change = 0 if shifted_chat_df.empty else round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1)
         reaction_count_change = 0 if shifted_reactions_df.empty else round((len(reactions_df) - len(shifted_reactions_df)) / len(shifted_reactions_df) * 100, 1)

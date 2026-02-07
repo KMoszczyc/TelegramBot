@@ -2,17 +2,23 @@ FROM python:3.12.2-slim
 
 WORKDIR /app
 
-ENV PYHTONUNBUFFERED=1
-RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6 zip unzip fontconfig
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV TZ="Europe/Warsaw"
 
-#Install Roboto font for the jpg tables
+RUN apt-get update && apt-get install -y \
+    cron dos2unix locales tesseract-ocr ffmpeg \
+    libsm6 libxext6 zip unzip fontconfig \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY fonts/ /usr/share/fonts/truetype/
 RUN fc-cache -f -v
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
-ENV TZ="Europe/Warsaw"
-ENV PYTHONPATH=/app
+
+# ✅ Copy ALL app code
+COPY . .
 
 RUN sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 ENV LANG pl_PL.UTF-8

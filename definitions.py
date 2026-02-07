@@ -52,6 +52,8 @@ TIMEZONE = 'Europe/Warsaw'
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "/data" if RUNTIME_ENV == 'docker' else os.path.join(ROOT_DIR, 'data')
 TEMP_DIR = os.path.join(DATA_DIR, 'temp')
+DB_PATH = os.path.join(DATA_DIR, 'bot.db')
+DB_SCHEMA_SQL_PATH = os.path.join(ROOT_DIR, 'src/models/db/schema.sql')
 
 # Chat data
 CHAT_ETL_LOCK_PATH = os.path.join(DATA_DIR, 'chat/chat_etl.lock')
@@ -229,6 +231,17 @@ class CreditActionType(Enum):
     STEAL = 'steal'  # steal()
     QUIZ = 'quiz'
     GIFT = 'gift'
+
+
+class Table(Enum):
+    USERS = 'users'
+    CHAT_HISTORY = 'chat_history'
+    CHAT_HISTORY_CLEANED = 'chat_history_cleaned'
+    CWEL = 'cwel'
+    CREDIT_HISTORY = 'credit_history'
+    COMMANDS_USAGE = 'commands_usage'
+    REACTIONS = 'reactions'
+    CREDITS = 'credits'
 
 
 STEAL_EVENTS = [
