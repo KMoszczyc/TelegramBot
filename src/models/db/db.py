@@ -275,4 +275,8 @@ class DB:
         df = self.deserialize_lists(df, ["reaction_emojis", "reaction_user_ids"])
         df = self.deserialize_datetimes(df, ["timestamp"])
         df = self.deserialize_bools(df, ["success"])
+
+        if table == Table.USERS:
+            df = df.set_index("user_id")
+
         return df

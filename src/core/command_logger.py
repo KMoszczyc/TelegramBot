@@ -5,8 +5,7 @@ import pandas as pd
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from definitions import COMMANDS_USAGE_PATH, TIMEZONE, DBSaveMode, Table
-from src.core.utils import read_df
+from definitions import TIMEZONE, DBSaveMode, Table
 from src.models.command_args import CommandArgs
 from src.stats.utils import filter_by_time_df
 
@@ -41,13 +40,13 @@ class CommandLogger:
         return decorator
 
     def load_data(self):
-        command_df = read_df(COMMANDS_USAGE_PATH)
-        if command_df is None:
-            command_df = pd.DataFrame(columns=["timestamp", "user_id", "command_name"])
+        commands_usage_df = self.db.load_table(Table.COMMANDS_USAGE)
+        if commands_usage_df is None:
+            commands_usage_df = pd.DataFrame(columns=["timestamp", "user_id", "command_name"])
 
-        command_df["timestamp"] = pd.to_datetime(command_df["timestamp"], utc=True).dt.tz_convert(TIMEZONE)
-        self.commands = command_df["command_name"].unique().tolist()
-        return command_df
+        commands_usage_df["timestamp"] = pd.to_datetime(commands_usage_df["timestamp"], utc=True).dt.tz_convert(TIMEZONE)
+        self.commands = commands_usage_df["command_name"].unique().tolist()
+        return commands_usage_df
 
     def preprocess_data(self, users_df, command_args: CommandArgs):
         filtered_df = self.command_usage_df.copy()

@@ -12,7 +12,6 @@ import unidecode
 
 from definitions import (
     CHAT_ETL_LOCK_PATH,
-    CHAT_HISTORY_PATH,
     CWEL_STATS_PATH,
     TIMEZONE,
     USERS_PATH,
@@ -22,7 +21,7 @@ from definitions import (
     PeriodFilterMode,
     Table,
 )
-from src.core.utils import read_df
+from src.models.db.db import DB
 
 log = logging.getLogger(__name__)
 
@@ -200,7 +199,8 @@ def dt_to_str(dt):
 
 def check_bot_messages(message_ids: list, bot_id: int) -> bool:
     """Check if bot messages are present in chat history."""
-    chat_df = read_df(CHAT_HISTORY_PATH)
+    db = DB()
+    chat_df = db.load_table(Table.CHAT_HISTORY)
     filtered_df = chat_df[chat_df["message_id"].isin(message_ids)]
     non_bot_messages_df = filtered_df[filtered_df["user_id"] != bot_id]
     bot_messages_df = filtered_df[filtered_df["user_id"] == bot_id]

@@ -11,9 +11,6 @@ from dotenv import load_dotenv
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from definitions import (
-    CHAT_HISTORY_PATH,
-    CLEANED_CHAT_HISTORY_PATH,
-    COMMANDS_USAGE_PATH,
     TEMP_DIR,
     TIMEZONE,
     USERS_PATH,
@@ -228,15 +225,15 @@ class ChatETL:
     def extract_users(self):
         """Extract users from the chat history"""
 
-        if os.path.exists(USERS_PATH):
+        if self.db.count_rows(Table.USERS) > 0:
             log.info(f"Users already extracted, {USERS_PATH} exists.")
-            users_df = core_utils.read_df(USERS_PATH)
+            users_df = self.db.load_table(Table.USERS)
             stats_utils.validate_schema(users_df, users_schema)
             return
 
         log.info("Extracting users...")
 
-        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
+        chat_df = self.db.load_table(Table.CHAT_HISTORY)
         unique_chat_df = chat_df.drop_duplicates("user_id")
         users_df = unique_chat_df[["user_id", "first_name", "last_name", "username"]]
         filtered_users_df = users_df[~users_df["user_id"].isin(excluded_user_ids)]
@@ -257,8 +254,7 @@ class ChatETL:
         """Include all reactions and fill the missing user_ids with None"""
         log.info("Generating reactions df...")
 
-        users_df = core_utils.read_df(USERS_PATH)
-
+        users_df = self.db.load_table(Table.USERS)
         cleaned_chat_df["len_reactions"] = cleaned_chat_df["reaction_emojis"].apply(lambda x: len(x))
         cleaned_chat_df["len_reaction_users"] = cleaned_chat_df["reaction_user_ids"].apply(lambda x: len(x))
         filtered_clean_df = cleaned_chat_df[cleaned_chat_df["len_reactions"] > 0]
@@ -274,8 +270,8 @@ class ChatETL:
 
     def delete_bot_messages(self):
         """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
-        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
-        if chat_df is None:
+        chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
+        if chat_df is None or chat_df.empty:
             log.info("No chat history, no bot messages to delete.")
             return
 
@@ -300,7 +296,7 @@ class ChatETL:
             shutil.rmtree(TEMP_DIR)
 
     def move_video_notes(self):
-        chat_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
         if chat_df is None:
             log.info("No chat history, no video notes to move.")
             return
@@ -313,5 +309,5 @@ class ChatETL:
             shutil.move(src_path, dst_path)
 
     def validate_data(self):
-        commands_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)
+        commands_usage_df = self.db.load_table(Table.COMMANDS_USAGE)
         stats_utils.validate_schema(commands_usage_df, commands_usage_schema)

@@ -10,10 +10,8 @@ import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from definitions import (
     CHAT_VIDEO_NOTES_DIR_PATH,
-    CLEANED_CHAT_HISTORY_PATH,
     MAX_CWEL_USAGE_DAILY,
     MAX_USERNAME_LENGTH,
-    REACTIONS_PATH,
     TIMEZONE,
     UPDATE_REQUIRED_PATH,
     USERS_PATH,
@@ -46,16 +44,17 @@ MAX_NICKNAMES_NUM = 5
 
 class ChatCommands:
     def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, db: DB):
-        self.users_df = stats_utils.read_df(USERS_PATH)
+        self.db = db
+        self.users_df = self.db.load_table(Table.USERS)
         self.users_map = stats_utils.get_users_map(self.users_df)
-        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
+        self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
+        self.reactions_df = self.db.load_table(Table.REACTIONS)
+        self.cwel_stats_df = self.db.load_table(Table.CWEL)
+
+        self.word_stats = WordStats()
         self.command_logger = command_logger
         self.bot_state = bot_state
-        self.db = db
         self.job_persistance = job_persistance
-        self.cwel_stats_df = self.db.load_table(Table.CWEL)
-        self.word_stats = WordStats()
         self.ytdl = YoutubeDownload()
 
     def update(self):
@@ -65,9 +64,9 @@ class ChatCommands:
             return
 
         log.info("Reloading chat data due to the recent update.")
-        self.chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        self.reactions_df = stats_utils.read_df(REACTIONS_PATH)
-        self.users_df = stats_utils.read_df(USERS_PATH)
+        self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
+        self.reactions_df = self.db.load_table(Table.REACTIONS)
+        self.users_df = self.db.load_table(Table.USERS)
         self.word_stats = WordStats()
 
         stats_utils.remove_file(UPDATE_REQUIRED_PATH)
@@ -293,7 +292,7 @@ class ChatCommands:
         label = stats_utils.emoji_sentiment_to_label(emoji_type)
         text = core_utils.generate_response_headline(command_args, label=f"{label} Cinco messages")
 
-        for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
+        for i, (_, row) in enumerate(chat_df.head(5).iterrows()):
             if row["reactions_num"] == 0:
                 break
             text += f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
@@ -336,7 +335,7 @@ class ChatCommands:
 
         chat_df = chat_df.sort_values(["reactions_num", "timestamp"], ascending=[False, True])
 
-        for i, (index, row) in enumerate(chat_df.head(5).iterrows()):
+        for i, (_, row) in enumerate(chat_df.head(5).iterrows()):
             text = f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
             text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
@@ -359,7 +358,7 @@ class ChatCommands:
         text = f"Last {command_args.number} messages"
         text += f" by {command_args.user}" if command_args.user is not None else ":"
 
-        for i, (index, row) in enumerate(chat_df.head(command_args.number).iterrows()):
+        for i, (_, row) in enumerate(chat_df.head(command_args.number).iterrows()):
             text += f"\n{i + 1}. {row['final_username']}" if command_args.user is None else f"\n{i + 1}."
             text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
@@ -373,7 +372,7 @@ class ChatCommands:
         """Display all users in chat"""
 
         text = "All ye who dost partake in this discourse:"
-        for index, row in self.users_df.iterrows():
+        for _, row in self.users_df.iterrows():
             nicknames = ", ".join(row["nicknames"])
             text += f"\n- *{row['final_username']}*: [{nicknames}]"
 
@@ -482,7 +481,7 @@ class ChatCommands:
         fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
         text = core_utils.generate_response_headline(command_args, label="Funmeter")
 
-        for i, (index, row) in enumerate(fun_ratios.iterrows()):
+        for i, (_, row) in enumerate(fun_ratios.iterrows()):
             text += (
                 f"\n{i + 1}.".ljust(4) + f" {row['final_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}"
                 if command_args.user is None
@@ -512,7 +511,7 @@ class ChatCommands:
 
         text = core_utils.generate_response_headline(command_args, label="``` Wholesome meter")
 
-        for i, (index, row) in enumerate(wholesome_ratios.iterrows()):
+        for i, (_, row) in enumerate(wholesome_ratios.iterrows()):
             text += (
                 f"\n{i + 1}.".ljust(4) + f" {row['reacting_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['ratio']}"
                 if command_args.user is None
@@ -662,7 +661,7 @@ class ChatCommands:
         command_counts_df = command_usage_df.groupby("command_name").size().reset_index(name="count").sort_values("count", ascending=False)
 
         text = core_utils.generate_response_headline(command_args, label="``` Command usage")
-        for index, row in command_counts_df.iterrows():
+        for _, row in command_counts_df.iterrows():
             text += f"\n {row['command_name']}:".ljust(20) + f"{row['count']}"
 
         text += "```"
@@ -834,7 +833,7 @@ class ChatCommands:
         processed_cwel_stats_df = filtered_df.groupby("receiver_username")["value"].sum().sort_values(ascending=False).reset_index()
         text = core_utils.generate_response_headline(command_args, label="``` Top Cwel")
 
-        for i, (index, row) in enumerate(processed_cwel_stats_df.iterrows()):
+        for i, (_, row) in enumerate(processed_cwel_stats_df.iterrows()):
             text += (
                 f"\n{i + 1}.".ljust(4) + f" {row['receiver_username']}:".ljust(MAX_USERNAME_LENGTH + 5) + f"{row['value']}"
                 if command_args.user is None
