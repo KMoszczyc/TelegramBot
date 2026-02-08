@@ -17,14 +17,16 @@ from definitions import (
     TIMEZONE,
     USERS_PATH,
     DatetimeFormat,
+    DBSaveMode,
     EmojiType,
     PeriodFilterMode,
+    Table,
 )
 from src.core.utils import read_df
 
 log = logging.getLogger(__name__)
 
-negative_emojis = ['👎', '😢', '😭', '🤬', '🤡', '💩', '😫', '😩', '🥶', '🤨', '🧐', '🙃', '😒', '😠', '😣', '🗿']
+negative_emojis = ["👎", "😢", "😭", "🤬", "🤡", "💩", "😫", "😩", "🥶", "🤨", "🧐", "🙃", "😒", "😠", "😣", "🗿"]
 MATCHING_USERNAME_THRESHOLD = 5
 
 
@@ -34,7 +36,7 @@ def read_users():
 
 def create_empty_file(path):
     log.info(f"File {path} created.")
-    open(path, 'a').close()
+    open(path, "a").close()
 
 
 def remove_file(path):
@@ -46,8 +48,8 @@ def remove_file(path):
 
 
 def escape_special_characters(text):
-    special_characters = r'\-.()[{}_]:+!<>=#^|~$%[]'
-    return re.sub(f'([{re.escape(special_characters)}])', r'\\\1', text)
+    special_characters = r"\-.()[{}_]:+!<>=#^|~$%[]"
+    return re.sub(f"([{re.escape(special_characters)}])", r"\\\1", text)
 
 
 def contains_stopwords(s, stopwords):
@@ -89,11 +91,11 @@ def get_dt_now():
 
 
 def filter_df_in_range(df: pd.DataFrame, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
-    """ Filter dataframe in range of start_h and end_h"""
-    return df[(df['timestamp'] >= start_dt) & (df['timestamp'] < end_dt)]
+    """Filter dataframe in range of start_h and end_h"""
+    return df[(df["timestamp"] >= start_dt) & (df["timestamp"] < end_dt)]
 
 
-def filter_by_time_df(df, command_args, time_column='timestamp'):
+def filter_by_time_df(df, command_args, time_column="timestamp"):
     today_dt = get_today_midnight_dt()
     period_mode, period_time = command_args.period_mode, command_args.period_time
     dt_now = get_dt_now()
@@ -170,13 +172,13 @@ def filter_by_shifted_time_df(df, command_args):
             return filter_df_in_range(df, dt_now - timedelta(days=14), dt_now - timedelta(days=7))
 
 
-def filter_emojis_by_emoji_type(df, emoji_type, col='reaction_emojis'):
+def filter_emojis_by_emoji_type(df, emoji_type, col="reaction_emojis"):
     if emoji_type == EmojiType.NEGATIVE:
         df[col] = df[col].apply(lambda emojis: [emoji for emoji in emojis if emoji in negative_emojis])
     return df
 
 
-def filter_emoji_by_emoji_type(df, emoji_type, col='emoji'):
+def filter_emoji_by_emoji_type(df, emoji_type, col="emoji"):
     if emoji_type == EmojiType.NEGATIVE:
         df = df[df[col].isin(negative_emojis)]
         # df = df[df[col] is not None]
@@ -187,21 +189,21 @@ def emoji_sentiment_to_label(emoji_type: EmojiType):
     """Convert emoji_type to a message label."""
     match emoji_type:
         case EmojiType.ALL:
-            return 'Top'
+            return "Top"
         case EmojiType.NEGATIVE:
-            return 'Top Sad'
+            return "Top Sad"
 
 
 def dt_to_str(dt):
-    return dt.strftime('%d-%m-%Y %H:%M')
+    return dt.strftime("%d-%m-%Y %H:%M")
 
 
 def check_bot_messages(message_ids: list, bot_id: int) -> bool:
     """Check if bot messages are present in chat history."""
     chat_df = read_df(CHAT_HISTORY_PATH)
-    filtered_df = chat_df[chat_df['message_id'].isin(message_ids)]
-    non_bot_messages_df = filtered_df[filtered_df['user_id'] != bot_id]
-    bot_messages_df = filtered_df[filtered_df['user_id'] == bot_id]
+    filtered_df = chat_df[chat_df["message_id"].isin(message_ids)]
+    non_bot_messages_df = filtered_df[filtered_df["user_id"] != bot_id]
+    bot_messages_df = filtered_df[filtered_df["user_id"] == bot_id]
 
     return non_bot_messages_df.empty and len(message_ids) == len(bot_messages_df)
 
@@ -210,12 +212,12 @@ def check_new_username(users_df, new_username):
     """Check during setting new username whether the new username is valid."""
     allowed_characters = "aąbcćdeęfghijklłmnńoóprsśtuwyzźż0123456789_ "
 
-    error = ''
+    error = ""
     forbidden_usernames = get_forbidden_usernames()
     new_username_lower = new_username.lower()
-    new_username_prefix = new_username_lower[:min(MATCHING_USERNAME_THRESHOLD, len(new_username_lower))]
-    usernames = users_df['final_username'].tolist()
-    matching_usernames = [username for username in usernames if new_username_prefix == username.lower()[:len(new_username_prefix)]]
+    new_username_prefix = new_username_lower[: min(MATCHING_USERNAME_THRESHOLD, len(new_username_lower))]
+    usernames = users_df["final_username"].tolist()
+    matching_usernames = [username for username in usernames if new_username_prefix == username.lower()[: len(new_username_prefix)]]
 
     if new_username in usernames:
         error = "User with this display name already exists! Choose a different one u dummy. (Wiem, że to ty kuba)"
@@ -229,11 +231,11 @@ def check_new_username(users_df, new_username):
     if new_username_lower in forbidden_usernames:
         error = "This username is forbidden. Please choose a different one."
 
-    if error != '':
+    if error != "":
         log.error(error)
         return False, error
 
-    return True, ''
+    return True, ""
 
 
 def are_text_characters_allowed(text, characters_filter):
@@ -262,7 +264,7 @@ def generate_random_filename(extension):
 
 
 def username_to_user_id(users_df, username):
-    return users_df[users_df['final_username'] == username].iloc[0]['user_id']
+    return users_df[users_df["final_username"] == username].iloc[0]["user_id"]
 
 
 def is_list_column(series):
@@ -274,17 +276,17 @@ def is_string_column(series):
 
 
 def validate_schema(df, schema):
-    log.info(f'Validating schema: {schema.name}')
+    log.info(f"Validating schema: {schema.name}")
     if df is not None and not df.empty:
         schema(df)
 
 
 def get_last_message_id_of_a_user(df, user_id) -> [int, str]:
-    messages_by_user_df = df[df['user_id'] == user_id]
+    messages_by_user_df = df[df["user_id"] == user_id]
     if messages_by_user_df.empty:
-        return None, 'This user exists but has never posted a message.'
+        return None, "This user exists but has never posted a message."
     else:
-        return int(messages_by_user_df.iloc[-1]['message_id']), ''
+        return int(messages_by_user_df.iloc[-1]["message_id"]), ""
 
 
 def text_to_word_length_sum(text):
@@ -293,7 +295,7 @@ def text_to_word_length_sum(text):
 
 def init_cwel_stats():
     if not os.path.exists(CWEL_STATS_PATH):
-        columns = ['timestamp', 'receiver_username', 'giver_username', 'reply_message_id', 'value']
+        columns = ["timestamp", "receiver_username", "giver_username", "reply_message_id", "value"]
         df = pd.DataFrame(columns=columns)
         df.to_parquet(CWEL_STATS_PATH)
     else:
@@ -301,18 +303,25 @@ def init_cwel_stats():
     return df
 
 
-def append_cwel_stats(cwel_stats_df, timestamp, receiver_username, giver_username, reply_message_id, value):
-    new_entry = pd.DataFrame([{'timestamp': timestamp, 'receiver_username': receiver_username, 'giver_username': giver_username, 'reply_message_id': reply_message_id, 'value': value}])
+def update_cwel_stats(db, cwel_stats_df, timestamp, receiver_username, giver_username, reply_message_id, value):
+    new_entry = pd.DataFrame(
+        [
+            {
+                "timestamp": timestamp,
+                "receiver_username": receiver_username,
+                "giver_username": giver_username,
+                "reply_message_id": reply_message_id,
+                "value": value,
+            }
+        ]
+    )
+    db.save_dataframe(new_entry, Table.CWEL, DBSaveMode.APPEND)
     cwel_stats_df = pd.concat([cwel_stats_df, new_entry], ignore_index=True)
-    cwel_stats_df.to_parquet(CWEL_STATS_PATH)
     return cwel_stats_df
 
 
 def get_users_map(users_df):
-    return {
-        index: row['final_username']
-        for index, row in users_df.iterrows()
-    }
+    return {index: row["final_username"] for index, row in users_df.iterrows()}
 
 
 def get_random_media_path(directory):
@@ -320,24 +329,29 @@ def get_random_media_path(directory):
     filename = random.choice(files)
     return os.path.join(directory, filename)
 
+
 def is_chat_etl_locked():
     return os.path.exists(CHAT_ETL_LOCK_PATH)
 
+
 def lock_chat_etl():
-    log.info('Locking Chat ETL process.')
-    with open(CHAT_ETL_LOCK_PATH, 'w') as f:
-        f.write('')
+    log.info("Locking Chat ETL process.")
+    with open(CHAT_ETL_LOCK_PATH, "w") as f:
+        f.write("")
+
 
 def remove_chat_etl_lock():
     if os.path.exists(CHAT_ETL_LOCK_PATH):
-        log.info('Chat ETL lock removed.')
+        log.info("Chat ETL lock removed.")
         os.remove(CHAT_ETL_LOCK_PATH)
+
 
 def chat_etl_lock_decorator(func):
     """Due to possible overlaps of chat ETL processes, we need to lock it."""
+
     def wrapper(*args, **kwargs):
         if is_chat_etl_locked():
-            log.info('Chat ETL is locked by a different process, skipping.')
+            log.info("Chat ETL is locked by a different process, skipping.")
             return
 
         lock_chat_etl()
@@ -353,6 +367,6 @@ def chat_etl_lock_decorator(func):
 
     return wrapper
 
-def remove_diactric_accents(text):
-    return unidecode.unidecode(text, errors='ignore')
 
+def remove_diactric_accents(text):
+    return unidecode.unidecode(text, errors="ignore")

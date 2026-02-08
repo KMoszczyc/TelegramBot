@@ -7,26 +7,35 @@ import pandas as pd
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import CREDIT_HISTORY_COLUMNS, CREDIT_HISTORY_PATH, CREDITS_PATH, CreditActionType, LuckyScoreType, RouletteBetType
+from definitions import (
+    CREDIT_HISTORY_COLUMNS,
+    CREDIT_HISTORY_PATH,
+    CREDITS_PATH,
+    CreditActionType,
+    DBSaveMode,
+    LuckyScoreType,
+    RouletteBetType,
+    Table,
+)
 from src.models.command_args import CommandArgs
 
 
 class Credits:
-    def __init__(self):
+    def __init__(self, db):
         self.credits = self.load_credits()
         self.credit_history_df = self.load_credit_history()
+        self.db = db
 
-    def save_credits(self):
-        with open(CREDITS_PATH, 'wb') as f:
-            pickle.dump(self.credits, f)
-
-        core_utils.save_df(self.credit_history_df, CREDIT_HISTORY_PATH)
+    def save_credits(self, new_entry):
+        credits_df = pd.DataFrame(self.credits.items(), columns=["user_id", "credits"])
+        self.db.save_dataframe(credits_df, Table.CREDITS, DBSaveMode.REPLACE)
+        self.db.save_dataframe(new_entry, Table.CREDIT_HISTORY, DBSaveMode.APPEND)
 
     def load_credits(self):
         if not os.path.exists(CREDITS_PATH):
             return defaultdict(int)
 
-        with open(CREDITS_PATH, 'rb') as f:
+        with open(CREDITS_PATH, "rb") as f:
             try:
                 return pickle.load(f)
             except EOFError:
@@ -35,11 +44,12 @@ class Credits:
     def load_credit_history(self):
         if not os.path.exists(CREDIT_HISTORY_PATH):
             credits = self.load_credits()
-            data = [[stats_utils.get_dt_now(), user_id, None, credit, CreditActionType.GET.value, None, True] for user_id, credit in credits.items()]
+            data = [
+                [stats_utils.get_dt_now(), user_id, None, credit, CreditActionType.GET.value, None, True]
+                for user_id, credit in credits.items()
+            ]
             df = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=data)
             df.to_parquet(CREDIT_HISTORY_PATH)
-
-            print(df.head(15))
 
         return pd.read_parquet(CREDIT_HISTORY_PATH)
 
@@ -74,7 +84,7 @@ class Credits:
 
     def show_credit_leaderboard(self, users_map) -> str:
         sorted_credits = sorted(self.credits.items(), key=lambda kv: kv[1], reverse=True)
-        text = '``` Credit score leaderboard: \n'
+        text = "``` Credit score leaderboard: \n"
         if sorted_credits:
             max_len_username = max(len(users_map[user_id]) for user_id, _ in sorted_credits)
             for i, (user_id, credit) in enumerate(sorted_credits):
@@ -83,45 +93,52 @@ class Credits:
         text += "```"
         return stats_utils.escape_special_characters(text)
 
-    def update_credit_history(self, user_id: int, credit_change: int, action_type: CreditActionType | None, bet_type: RouletteBetType | None, success: bool, target_user_id=None):
+    def update_credit_history(
+        self,
+        user_id: int,
+        credit_change: int,
+        action_type: CreditActionType | None,
+        bet_type: RouletteBetType | None,
+        success: bool,
+        target_user_id=None,
+    ):
         bet_type = bet_type.value if bet_type is not None else None
         data = [stats_utils.get_dt_now(), user_id, target_user_id, credit_change, action_type.value, bet_type, success]
         new_entry = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=[data])
-        self.credit_history_df = pd.concat([self.credit_history_df, new_entry], ignore_index=True)
-        self.save_credits()
+        self.save_credits(new_entry)
 
     def preprocess_credit_history(self, command_args):
         filtered_credit_history_df = self.credit_history_df.copy(deep=True)
-        filtered_credit_history_df = stats_utils.filter_by_time_df(filtered_credit_history_df, command_args, 'timestamp')
+        filtered_credit_history_df = stats_utils.filter_by_time_df(filtered_credit_history_df, command_args, "timestamp")
         if command_args.user_id is not None:
-            filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df['user_id'] == command_args.user_id]
+            filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df["user_id"] == command_args.user_id]
 
         return filtered_credit_history_df
 
     def show_top_bet_leaderboard(self, users_map, command_args: CommandArgs):
         filtered_credit_history_df = self.preprocess_credit_history(command_args)
-        filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df['action_type'] == CreditActionType.BET.value]
-        filtered_credit_history_df['credit_change'] = filtered_credit_history_df['credit_change'].abs()
-        filtered_credit_history_df = filtered_credit_history_df.sort_values(by='credit_change', ascending=False)
-        text = '``` TOP bet leaderboard: \n'
+        filtered_credit_history_df = filtered_credit_history_df[filtered_credit_history_df["action_type"] == CreditActionType.BET.value]
+        filtered_credit_history_df["credit_change"] = filtered_credit_history_df["credit_change"].abs()
+        filtered_credit_history_df = filtered_credit_history_df.sort_values(by="credit_change", ascending=False)
+        text = "``` TOP bet leaderboard: \n"
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
         for i, (index, row) in enumerate(filtered_credit_history_df.head(10).iterrows()):
-            username = users_map[row['user_id']]
+            username = users_map[row["user_id"]]
             text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['credit_change']}"
         text += "```"
         return stats_utils.escape_special_characters(text)
 
     def show_steal_leaderboard(self, users_map, command_args: CommandArgs):
         filtered_credit_history_df = self.preprocess_credit_history(command_args)
-        steal_history_df = filtered_credit_history_df[filtered_credit_history_df['action_type'] == CreditActionType.STEAL.value]
-        steal_history_df = steal_history_df[filtered_credit_history_df['success'] == True]
-        steal_history_df['steal_amount'] = steal_history_df['credit_change'].abs()
-        steal_history_grouped_df = steal_history_df.groupby('user_id').agg({'steal_amount': 'sum'}).reset_index()
-        steal_history_grouped_df = steal_history_grouped_df.sort_values(by='steal_amount', ascending=False)
-        text = '``` TOTAL steal leaderboard: \n'
+        steal_history_df = filtered_credit_history_df[filtered_credit_history_df["action_type"] == CreditActionType.STEAL.value]
+        steal_history_df = steal_history_df[filtered_credit_history_df["success"] == True]
+        steal_history_df["steal_amount"] = steal_history_df["credit_change"].abs()
+        steal_history_grouped_df = steal_history_df.groupby("user_id").agg({"steal_amount": "sum"}).reset_index()
+        steal_history_grouped_df = steal_history_grouped_df.sort_values(by="steal_amount", ascending=False)
+        text = "``` TOTAL steal leaderboard: \n"
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
         for i, (index, row) in enumerate(steal_history_grouped_df.head(10).iterrows()):
-            username = users_map[row['user_id']]
+            username = users_map[row["user_id"]]
             text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['steal_amount']}"
         text += "```"
         return stats_utils.escape_special_characters(text)

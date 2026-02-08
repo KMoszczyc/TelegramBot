@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS chat_history (
     image_text TEXT,
     reaction_emojis TEXT,        -- JSON array
     reaction_user_ids TEXT,      -- JSON array
-    message_type TEXT NOT NULL
+    message_type TEXT NOT NULL,
+    UNIQUE(message_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_history_user_id
@@ -47,7 +48,8 @@ CREATE TABLE IF NOT EXISTS cleaned_chat_history (
     image_text TEXT,
     reaction_emojis TEXT,        -- JSON array
     reaction_user_ids TEXT,      -- JSON array
-    message_type TEXT NOT NULL
+    message_type TEXT NOT NULL,
+    UNIQUE(message_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_cleaned_chat_user_id
@@ -63,7 +65,8 @@ CREATE TABLE IF NOT EXISTS commands_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     [timestamp] TEXT NOT NULL,
     user_id INTEGER NOT NULL,
-    command_name TEXT NOT NULL
+    command_name TEXT NOT NULL,
+    UNIQUE([timestamp], user_id, command_name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_commands_usage_user_id
@@ -82,7 +85,8 @@ CREATE TABLE IF NOT EXISTS reactions (
     reacted_to_username TEXT NOT NULL,
     reacting_username TEXT NOT NULL,
     text TEXT,
-    emoji TEXT NOT NULL
+    emoji TEXT NOT NULL,
+    UNIQUE(message_id, reacted_to_username, reacting_username)
 );
 
 CREATE INDEX IF NOT EXISTS idx_reactions_message_id
@@ -100,7 +104,8 @@ CREATE TABLE IF NOT EXISTS users (
     last_name TEXT,
     username TEXT,
     final_username TEXT NOT NULL,
-    nicknames TEXT              -- JSON array
+    nicknames TEXT,              -- JSON array
+    UNIQUE(user_id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_final_username
@@ -115,7 +120,8 @@ CREATE TABLE IF NOT EXISTS cwel (
     receiver_username TEXT NOT NULL,
     giver_username TEXT NOT NULL,
     reply_message_id INTEGER NOT NULL,
-    [value] INTEGER NOT NULL
+    [value] INTEGER NOT NULL,
+    UNIQUE(timestamp, receiver_username, giver_username, reply_message_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_cwel_timestamp
@@ -135,7 +141,8 @@ CREATE TABLE IF NOT EXISTS credit_history (
     credit_change INTEGER NOT NULL,
     action_type TEXT NOT NULL,
     bet_type TEXT,
-    success INTEGER NOT NULL     -- 0 / 1
+    success INTEGER NOT NULL,     -- 0 / 1
+    UNIQUE([timestamp], user_id, action_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_credit_history_user_id
@@ -149,6 +156,7 @@ CREATE INDEX IF NOT EXISTS idx_credit_history_timestamp
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS credits (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    credits INTEGER NOT NULL
+    credits INTEGER NOT NULL,
+    UNIQUE(user_id)
 );
 

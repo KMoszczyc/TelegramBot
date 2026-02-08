@@ -34,10 +34,10 @@ from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 MAX_INT = 24 * 365 * 20
-if sys.platform == 'win32':
-    locale.setlocale(locale.LC_ALL, 'Polish_Poland')
+if sys.platform == "win32":
+    locale.setlocale(locale.LC_ALL, "Polish_Poland")
 else:
-    locale.setlocale(locale.LC_ALL, 'pl_PL.UTF-8')
+    locale.setlocale(locale.LC_ALL, "pl_PL.UTF-8")
 
 
 def read_str_file(path):
@@ -51,7 +51,7 @@ def create_dir(path):
         return
 
     os.makedirs(path)
-    log.info(f'Created directory in path: {path}')
+    log.info(f"Created directory in path: {path}")
 
 
 def read_df(path):
@@ -80,6 +80,7 @@ def preprocess_input(users_df: pd.DataFrame, command_args: CommandArgs):
 #
 #     return command_args
 
+
 def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     """
     A function to parse arguments and return a tuple with period mode, mode time, user, and error.
@@ -92,8 +93,8 @@ def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
     """
     command_args = merge_spaced_args(command_args)
     command_args = parse_named_args(users_df, command_args)
-    command_args.joined_args = ' '.join(command_args.args)
-    command_args.joined_args_lower = ' '.join(command_args.args).lower()
+    command_args.joined_args = " ".join(command_args.args)
+    command_args.joined_args_lower = " ".join(command_args.args).lower()
     if command_args.is_text_arg:
         command_args.args = [command_args.joined_args]
         command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
@@ -129,7 +130,7 @@ def handle_args(users_df, command_args_ref: CommandArgs):
     expected_args = command_args.expected_args.copy()
     for i, arg_type in enumerate(expected_args):
         if not command_args.optional[i]:
-            arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
+            arg = " ".join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
             _, command_args = parse_arg(users_df, command_args, arg, arg_type, is_optional=False)
             continue
 
@@ -139,7 +140,7 @@ def handle_args(users_df, command_args_ref: CommandArgs):
         # handle optional arg
         for arg in command_args.args:
             _, command_args = parse_arg(users_df, command_args, arg, arg_type, is_optional=True)
-            if command_args.optional_errors[-1] != '':
+            if command_args.optional_errors[-1] != "":
                 successes.append(False)
             else:
                 successes.append(True)
@@ -154,17 +155,17 @@ def handle_args(users_df, command_args_ref: CommandArgs):
 
 
 def merge_spaced_args(command_args: CommandArgs):
-    joined_args = ' '.join(command_args.args)
+    joined_args = " ".join(command_args.args)
     new_args = []
     quotation_opened = False
     current_spaced_args = []
     for arg in command_args.args:
-        if "\"" in arg and not quotation_opened:
+        if '"' in arg and not quotation_opened:
             quotation_opened = True
-            current_spaced_args.append(arg.replace('"', ''))
-        elif "\"" in arg and quotation_opened:
-            current_spaced_args.append(arg.replace('"', ''))
-            new_args.append(' '.join(current_spaced_args))
+            current_spaced_args.append(arg.replace('"', ""))
+        elif '"' in arg and quotation_opened:
+            current_spaced_args.append(arg.replace('"', ""))
+            new_args.append(" ".join(current_spaced_args))
             quotation_opened = False
             current_spaced_args = []
         elif quotation_opened:
@@ -179,7 +180,7 @@ def merge_spaced_args(command_args: CommandArgs):
 
 
 def filter_phrases(command_args: CommandArgs):
-    log.info(f'Command received: {command_args.arg_type} - {command_args.joined_args}')
+    log.info(f"Command received: {command_args.arg_type} - {command_args.joined_args}")
     match command_args.arg_type:
         case ArgType.TEXT:
             return text_filter(command_args)
@@ -201,14 +202,14 @@ def regex_filter(command_args):
     try:
         return [phrase for phrase in command_args.phrases if re.search(pattern, phrase, flags=re.IGNORECASE)], command_args
     except re.error as e:
-        command_args.error = f'{pattern} - is and invalid regex pattern.'
-        log.info(f'{command_args.error} - {e}')
+        command_args.error = f"{pattern} - is and invalid regex pattern."
+        log.info(f"{command_args.error} - {e}")
 
         return [], command_args
 
 
 def is_inside_square_brackets(text):
-    return text.startswith('[') and text.endswith(']')
+    return text.startswith("[") and text.endswith("]")
 
 
 def select_random_phrase(phrases, error_message):
@@ -216,36 +217,38 @@ def select_random_phrase(phrases, error_message):
 
 
 def generate_unique_number(user_id):
-    today = int(datetime.now().strftime('%Y%m%d'))
+    today = int(datetime.now().strftime("%Y%m%d"))
     user_id_cut = user_id % 100
 
-    log.info(f'Generating lucky number for user [{user_id}] - {today + user_id_cut}')
+    log.info(f"Generating lucky number for user [{user_id}] - {today + user_id_cut}")
     return today + user_id_cut
 
 
 def are_you_lucky(user_id, with_args=False):
-    today = int(datetime.now().strftime('%Y%m%d'))
+    today = int(datetime.now().strftime("%Y%m%d"))
     user_hash = user_id + today
     random.seed(user_hash)
     rand_value = random.random()
 
     if rand_value < 0.1:
-        message = 'Nie. 🗿' if with_args else "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
+        message = "Nie. 🗿" if with_args else "Dzisiaj masz wielkiego pecha. Lepiej zostań w domu i nic nie rób. (łeee jestem grzybem ;-;)"
         lucky_score_type = LuckyScoreType.VERY_UNLUCKY
     elif rand_value < 0.3:
-        message = 'Raczej nie.' if with_args else "Dzisiaj masz lekkiego pecha. Zachowaj ostrożność."
+        message = "Raczej nie." if with_args else "Dzisiaj masz lekkiego pecha. Zachowaj ostrożność."
         lucky_score_type = LuckyScoreType.UNLUCKY
     elif rand_value < 0.7:
-        message = 'Rabini są niezdecydowani w tej kwestii.' if with_args else "Normalny dzień dla normalnego chłopa."
+        message = "Rabini są niezdecydowani w tej kwestii." if with_args else "Normalny dzień dla normalnego chłopa."
         lucky_score_type = LuckyScoreType.NEUTRAL
     elif rand_value < 0.9:
-        message = 'Raczej tak.' if with_args else "Dzisiaj masz lekkie szczęście. Możesz spróbować coś zrobić, ale może się to nie powieść."
+        message = "Raczej tak." if with_args else "Dzisiaj masz lekkie szczęście. Możesz spróbować coś zrobić, ale może się to nie powieść."
         lucky_score_type = LuckyScoreType.LUCKY
     else:
-        message = 'Tak. 🗿' if with_args else "Dzisiaj masz ogromne szczęście! Wyjdź z domu i spróbuj zrobić coś nowego, na pewno Ci się uda!"
+        message = (
+            "Tak. 🗿" if with_args else "Dzisiaj masz ogromne szczęście! Wyjdź z domu i spróbuj zrobić coś nowego, na pewno Ci się uda!"
+        )
         lucky_score_type = LuckyScoreType.VERY_LUCKY
 
-    log.info(f'User [{user_hash}] ({rand_value}) - {message}')
+    log.info(f"User [{user_hash}] ({rand_value}) - {message}")
     return lucky_score_type, message
 
 
@@ -264,19 +267,19 @@ def is_video(message):
 def message_id_to_path(message_id, message_type: MessageType):
     match message_type:
         case MessageType.IMAGE:
-            filename = f'{message_id}.jpg'
+            filename = f"{message_id}.jpg"
             return os.path.join(CHAT_IMAGES_DIR_PATH, filename)
         case MessageType.GIF:
-            filename = f'{message_id}.mp4'
+            filename = f"{message_id}.mp4"
             return os.path.join(CHAT_GIFS_DIR_PATH, filename)
         case MessageType.VIDEO:
-            filename = f'{message_id}.mp4'
+            filename = f"{message_id}.mp4"
             return os.path.join(CHAT_VIDEOS_DIR_PATH, filename)
         case MessageType.VIDEO_NOTE:
-            filename = f'{message_id}.mp4'
+            filename = f"{message_id}.mp4"
             return os.path.join(CHAT_VIDEO_NOTES_DIR_PATH, filename)
         case MessageType.AUDIO:
-            filename = f'{message_id}.ogg'
+            filename = f"{message_id}.ogg"
             return os.path.join(CHAT_AUDIO_DIR_PATH, filename)
     return None
 
@@ -320,7 +323,7 @@ async def download_media(message, message_type):
 def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType, is_optional=False) -> tuple[str | int, CommandArgs]:
     command_args = copy.deepcopy(command_args_ref)
     value = None
-    error = ''
+    error = ""
     match arg_type:
         case ArgType.USER:
             command_args, error = parse_user(users_df, command_args, arg_str)
@@ -343,7 +346,7 @@ def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType, is_optiona
 
 def parse_named_args(users_df, command_args_ref: CommandArgs):
     command_args = copy.deepcopy(command_args_ref)
-    command_args.args = [arg.replace('—', '--') for arg in command_args.args]
+    command_args.args = [arg.replace("—", "--") for arg in command_args.args]
     if not command_args.available_named_args_aliases:
         command_args.available_named_args_aliases = {arg[0]: arg for arg in command_args.available_named_args}
     args = copy.deepcopy(command_args.args)
@@ -357,10 +360,10 @@ def parse_named_args(users_df, command_args_ref: CommandArgs):
             arg_type = command_args.available_named_args[named_arg]
             value, command_args = parse_arg(users_df, command_args, args[i + 1], arg_type)
             command_args.args.remove(args[i + 1])
-            if get_error(command_args) == '':
+            if get_error(command_args) == "":
                 command_args.named_args[named_arg] = value
         else:
-            command_args.errors.append(f'Argument {named_arg} requires a value')
+            command_args.errors.append(f"Argument {named_arg} requires a value")
         command_args.args.remove(arg)
 
     command_args.error = get_error(command_args)
@@ -369,54 +372,56 @@ def parse_named_args(users_df, command_args_ref: CommandArgs):
 
 def parse_named_arg(arg, command_args):
     if is_normal_named_arg(arg, command_args.available_named_args):
-        return arg.replace('-', '')
+        return arg.replace("-", "")
     elif is_aliased_named_arg(arg, command_args.available_named_args_aliases):
-        alias = arg.replace('-', '')
+        alias = arg.replace("-", "")
         return command_args.available_named_args_aliases[alias]
     return None
 
 
 def is_aliased_named_arg(arg, shortened_available_named_args):
-    return arg.startswith('-') and arg[1:] in shortened_available_named_args
+    return arg.startswith("-") and arg[1:] in shortened_available_named_args
 
 
 def is_normal_named_arg(arg, available_named_args):
-    return arg.startswith('--') and arg[2:] in available_named_args
+    return arg.startswith("--") and arg[2:] in available_named_args
 
 
 def is_named_arg(arg, commands_args):
-    return is_aliased_named_arg(arg, commands_args.available_named_args_aliases) or is_normal_named_arg(arg, commands_args.available_named_args)
+    return is_aliased_named_arg(arg, commands_args.available_named_args_aliases) or is_normal_named_arg(
+        arg, commands_args.available_named_args
+    )
 
 
 def parse_period(command_args, arg_str) -> [CommandArgs, str]:
-    error = ''
-    if arg_str == '':
+    error = ""
+    if arg_str == "":
         error = "Period cannot be empty."
         log.error(error)
         return command_args, error
 
     period_mode_str = arg_str
     try:
-        if 's' in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace('s', ''), positive_only=True)
-            period_mode_str = 'second'
-        elif 'm' in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace('m', ''), positive_only=True)
-            period_mode_str = 'minute'
-        elif 'h' in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace('h', ''), positive_only=True)
-            period_mode_str = 'hour'
-        elif 'd' in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace('d', ''), positive_only=True)
-            period_mode_str = 'day'
-        elif 'w' in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace('w', ''), positive_only=True)
-            period_mode_str = 'week'
+        if "s" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("s", ""), positive_only=True)
+            period_mode_str = "second"
+        elif "m" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("m", ""), positive_only=True)
+            period_mode_str = "minute"
+        elif "h" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("h", ""), positive_only=True)
+            period_mode_str = "hour"
+        elif "d" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("d", ""), positive_only=True)
+            period_mode_str = "day"
+        elif "w" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("w", ""), positive_only=True)
+            period_mode_str = "week"
 
-        if error == '':
+        if error == "":
             command_args.period_mode = PeriodFilterMode(period_mode_str)
 
-        if command_args.period_mode == PeriodFilterMode.ERROR and ';' in arg_str:
+        if command_args.period_mode == PeriodFilterMode.ERROR and ";" in arg_str:
             command_args.start_dt, command_args.end_dt, command_args.dt_format, error = parse_date_range(arg_str)
             command_args.period_mode = PeriodFilterMode.DATE_RANGE
         elif command_args.period_mode == PeriodFilterMode.ERROR:
@@ -428,7 +433,7 @@ def parse_period(command_args, arg_str) -> [CommandArgs, str]:
         error = f"There is no such time period as {arg_str}."
         log.error(error)
 
-    if error != '':
+    if error != "":
         command_args.period_mode = PeriodFilterMode.ERROR
 
     return command_args, error
@@ -444,14 +449,14 @@ def parse_date(date_str: str) -> tuple[datetime, DatetimeFormat, str] | tuple[No
 
     for dt_format in dt_formats:
         try:
-            return datetime.strptime(date_str, dt_format.value).replace(tzinfo=ZoneInfo(TIMEZONE)), dt_format, ''
+            return datetime.strptime(date_str, dt_format.value).replace(tzinfo=ZoneInfo(TIMEZONE)), dt_format, ""
         except ValueError:
             pass
     return None, None, f"Could not parse date: {date_str}"
 
 
 def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, DatetimeFormat, str] | tuple[None, None, None, str]:
-    date_range_split = date_range_str.split(';')
+    date_range_split = date_range_str.split(";")
     if len(date_range_split) != 2:
         error = f"Could not parse date range: {date_range_str}"
         return None, None, None, error
@@ -459,44 +464,44 @@ def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, DatetimeF
     end_date, dt_format, end_date_error = parse_date(date_range_split[1])
     error = start_date_error + end_date_error
 
-    if error == '' and start_date > end_date:
-        error = 'The start date cannot be after the end date of the range u dummy!'
+    if error == "" and start_date > end_date:
+        error = "The start date cannot be after the end date of the range u dummy!"
 
     return start_date, end_date, dt_format, error
 
 
 def parse_user(users_df, command_args, arg_str) -> [CommandArgs, str]:
-    if arg_str == '':
+    if arg_str == "":
         error = "User cannot be empty."
         # command_args.errors.append(error)
         log.error(error)
         return command_args, error
 
-    user_str = arg_str.replace('@', '')
+    user_str = arg_str.replace("@", "")
 
-    exact_matching_users = users_df[users_df['final_username'].str.lower() == user_str.lower()]
-    partially_matching_users = users_df[users_df['final_username'].str.contains(user_str, case=False)]
+    exact_matching_users = users_df[users_df["final_username"].str.lower() == user_str.lower()]
+    partially_matching_users = users_df[users_df["final_username"].str.contains(user_str, case=False)]
 
     if not exact_matching_users.empty:
-        command_args.user = exact_matching_users.iloc[0]['final_username']
+        command_args.user = exact_matching_users.iloc[0]["final_username"]
         command_args.user_id = exact_matching_users.index[0]
     elif len(user_str) >= 3 and not partially_matching_users.empty:
-        command_args.user = partially_matching_users.iloc[0]['final_username']
+        command_args.user = partially_matching_users.iloc[0]["final_username"]
         command_args.user_id = partially_matching_users.index[0]
     else:
         error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
         log.error(error)
         return command_args, error
 
-    return command_args, ''
+    return command_args, ""
 
 
 def parse_number(command_args, arg_str, positive_only=False) -> [int, CommandArgs, str]:
-    if arg_str == '':
-        return None, command_args, ''
+    if arg_str == "":
+        return None, command_args, ""
 
     number, error = parse_int(arg_str, positive_only)
-    if error != '':
+    if error != "":
         return None, command_args, error
 
     if number > command_args.max_number:
@@ -510,15 +515,15 @@ def parse_number(command_args, arg_str, positive_only=False) -> [int, CommandArg
         return number, command_args, error
 
     command_args.number = number
-    return number, command_args, ''
+    return number, command_args, ""
 
 
 def get_error(command_args: CommandArgs) -> str:
-    return '\n'.join(command_args.errors).strip()
+    return "\n".join(command_args.errors).strip()
 
 
 def parse_int(num_str, positive_only=False):
-    error = ''
+    error = ""
     num = None
     try:
         num = int(num_str)
@@ -543,31 +548,35 @@ def x_to_light_years_str(x):
 
     ly = x / 9460730472580.8
     ly = round(ly, 6) if ly < 1 else round(ly, 2)
-    return f'{ly} light years'
+    return f"{ly} light years"
 
 
 def parse_string(command_args: CommandArgs, text: str) -> [str, CommandArgs, str]:
-    error = ''
+    error = ""
     if len(text) < command_args.min_string_length:
-        error = f'{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters.'
+        error = f"{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters."
     if len(text) > command_args.max_string_length:
-        error = f'{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less.'
+        error = f"{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less."
 
-    if '&' in text and 'http' not in text:  # user for 'AND' filtering but don't do it for links
-        command_args.strings = text.split('&')
+    if "&" in text and "http" not in text:  # user for 'AND' filtering but don't do it for links
+        command_args.strings = text.split("&")
     else:
         command_args.string = text
     return text, command_args, error
 
 
 def display_shopping_sunday(dt):
-    return dt.strftime('%d %B')
+    return dt.strftime("%d %B")
 
 
-def display_holy_text_df(df, bot_state, holy_text_type, label='Filtered bible verses', show_siglum=True):
-    response = f'{label}:\n\n'
+def display_holy_text_df(df, bot_state, holy_text_type, label="Filtered bible verses", show_siglum=True):
+    response = f"{label}:\n\n"
     for i, row in df.iterrows():
-        verse = f"[{get_siglum(row, holy_text_type, siglum_type=SiglumType.SHORT)}] {row['text']}\n\n" if show_siglum else f"{row['verse']}. {row['text']}\n"
+        verse = (
+            f"[{get_siglum(row, holy_text_type, siglum_type=SiglumType.SHORT)}] {row['text']}\n\n"
+            if show_siglum
+            else f"{row['verse']}. {row['text']}\n"
+        )
         if len(response + verse) > 4096:
             break
         response += verse
@@ -602,7 +611,7 @@ def get_full_siglum(row):
 
 
 def get_bible_map(bible_df):
-    return bible_df.drop_duplicates('book')[['book', 'abbreviation']].set_index('abbreviation')
+    return bible_df.drop_duplicates("book")[["book", "abbreviation"]].set_index("abbreviation")
 
 
 def datetime_to_ms(dt):
@@ -618,9 +627,9 @@ def match_substr_to_list_of_texts(substr: str, texts: list, lower_case: bool = T
 
 
 def get_username(first_name, last_name):
-    username = first_name if first_name is not None else ''
+    username = first_name if first_name is not None else ""
     if last_name is not None:
-        username += f' {last_name}'
+        username += f" {last_name}"
     return username.strip()
 
 
@@ -665,19 +674,19 @@ def period_offset_to_dt(command_args):
     dt_now = get_dt_now()
     match command_args.period_mode:
         case PeriodFilterMode.SECOND:
-            return dt_now + timedelta(seconds=command_args.period_time), ''
+            return dt_now + timedelta(seconds=command_args.period_time), ""
         case PeriodFilterMode.MINUTE:
-            return dt_now + timedelta(minutes=command_args.period_time), ''
+            return dt_now + timedelta(minutes=command_args.period_time), ""
         case PeriodFilterMode.HOUR:
-            return dt_now + timedelta(hours=command_args.period_time), ''
+            return dt_now + timedelta(hours=command_args.period_time), ""
         case PeriodFilterMode.DAY:
-            return dt_now + timedelta(days=command_args.period_time), ''
+            return dt_now + timedelta(days=command_args.period_time), ""
         case PeriodFilterMode.WEEK:
-            return dt_now + timedelta(weeks=command_args.period_time), ''
+            return dt_now + timedelta(weeks=command_args.period_time), ""
         case PeriodFilterMode.DATE:
-            return command_args.dt, ''
+            return command_args.dt, ""
         case _:
-            return None, 'Wrong period offset. Use one of the following: second, minute, hour, day, week, date'
+            return None, "Wrong period offset. Use one of the following: second, minute, hour, day, week, date"
 
 
 async def send_response_message(context, chat_id, message_id, message):
@@ -689,44 +698,44 @@ def dt_to_pretty_str(dt):
 
 
 def regexify_multiword_filter(words):
-    base = r'^{}'
-    expr = '(?=.*{})'
-    return base.format(''.join(expr.format(w) for w in words))
+    base = r"^{}"
+    expr = "(?=.*{})"
+    return base.format("".join(expr.format(w) for w in words))
 
 
 def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str, str]:
-    arg_split = arg.split(':')
+    arg_split = arg.split(":")
     if len(arg_split) != 2:
-        return '', 'Failed to parse the --verse argument.'
+        return "", "Failed to parse the --verse argument."
 
     chapter_arg, verse_arg = arg_split[0].lower(), arg_split[1].lower()
-    chapter_nums = quran_df.drop_duplicates('chapter_nr')['chapter_nr'].tolist()
-    chapter_names = quran_df.drop_duplicates('chapter_name')['chapter_name'].tolist()
+    chapter_nums = quran_df.drop_duplicates("chapter_nr")["chapter_nr"].tolist()
+    chapter_names = quran_df.drop_duplicates("chapter_name")["chapter_name"].tolist()
 
     matching_chapter_nums = [num for num in chapter_nums if str(num) == chapter_arg]
     matching_chapter_names = [chapter_name for chapter_name in chapter_names if chapter_arg in chapter_name.lower()]
 
     if matching_chapter_nums:
         chapter_nr = matching_chapter_nums[0]
-        matching_verse_df = quran_df[(quran_df['chapter_nr'] == chapter_nr) & (quran_df['verse'] == verse_arg)]
+        matching_verse_df = quran_df[(quran_df["chapter_nr"] == chapter_nr) & (quran_df["verse"] == verse_arg)]
         row = None if matching_verse_df.empty else matching_verse_df.iloc[0]
     elif matching_chapter_names:
         chapter_name = matching_chapter_names[0]
-        matching_verse_df = quran_df[(quran_df['chapter_name'] == chapter_name) & (quran_df['verse'] == verse_arg)]
+        matching_verse_df = quran_df[(quran_df["chapter_name"] == chapter_name) & (quran_df["verse"] == verse_arg)]
         row = None if matching_verse_df.empty else matching_verse_df.iloc[0]
     else:
-        return '', f"Verse {chapter_arg}:{verse_arg} doesn't exist in Quran."
+        return "", f"Verse {chapter_arg}:{verse_arg} doesn't exist in Quran."
 
     if row is None:
-        return '', f"Verse {chapter_arg}:{verse_arg} doesn't exist in Quran."
+        return "", f"Verse {chapter_arg}:{verse_arg} doesn't exist in Quran."
 
     bot_state.set_holy_text_last_verse_id(row.name, holy_text_type)
     response = f"[{get_siglum(row, holy_text_type, SiglumType.SHORT)}] {row['text']}"
-    return response, ''
+    return response, ""
 
 
 def remove_punctuation(s):
-    return s.translate(str.maketrans('', '', string.punctuation))
+    return s.translate(str.maketrans("", "", string.punctuation))
 
 
 def max_str_length_in_col(series):
@@ -751,34 +760,49 @@ def calculate_skewed_probability(value, max_value):
 
 def generate_response_headline(command_args, label):
     text = label
-    text += f' of "{command_args.string}"' if command_args.string != '' else ''
+    text += f' of "{command_args.string}"' if command_args.string != "" else ""
     text += f" for {command_args.user}" if command_args.user is not None else " "
     text += f" ({generate_period_headline(command_args)}):"
     return text
 
 
 async def send_message(update, context, message_type: MessageType, path, text):
-    log.info(f'Sending message: {text} with media type: {message_type} and media path: {path}')
+    log.info(f"Sending message: {text} with media type: {message_type} and media path: {path}")
     match message_type:
         case MessageType.GIF:
-            await context.bot.send_animation(chat_id=update.effective_chat.id, animation=path, caption=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_animation(
+                chat_id=update.effective_chat.id, animation=path, caption=text, message_thread_id=update.message.message_thread_id
+            )
         case MessageType.VIDEO:
-            await context.bot.send_video(chat_id=update.effective_chat.id, video=path, caption=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_video(
+                chat_id=update.effective_chat.id, video=path, caption=text, message_thread_id=update.message.message_thread_id
+            )
         case MessageType.VIDEO_NOTE:
-            await context.bot.send_video_note(chat_id=update.effective_chat.id, video_note=path, message_thread_id=update.message.message_thread_id)
-            if text != '':
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_video_note(
+                chat_id=update.effective_chat.id, video_note=path, message_thread_id=update.message.message_thread_id
+            )
+            if text != "":
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id
+                )
         case MessageType.IMAGE:
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=path, caption=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id, photo=path, caption=text, message_thread_id=update.message.message_thread_id
+            )
         case MessageType.AUDIO:
-            await context.bot.send_audio(chat_id=update.effective_chat.id, audio=path, caption=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_audio(
+                chat_id=update.effective_chat.id, audio=path, caption=text, message_thread_id=update.message.message_thread_id
+            )
         case MessageType.VOICE:
-            await context.bot.send_voice(chat_id=update.effective_chat.id, voice=path, caption=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_voice(
+                chat_id=update.effective_chat.id, voice=path, caption=text, message_thread_id=update.message.message_thread_id
+            )
 
 
 def roll(probability):
     """Roll a probability dice and return True if the hit is successful. The range of random() is [0, 1], so.. yeah it works."""
     return random.random() < probability
+
 
 def safe_json_dump(x):
     """
