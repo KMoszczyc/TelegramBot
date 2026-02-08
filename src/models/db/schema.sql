@@ -113,12 +113,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_final_username
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS cwel (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp TEXT NOT NULL,
+    [timestamp] TEXT NOT NULL,
     receiver_username TEXT NOT NULL,
     giver_username TEXT NOT NULL,
     reply_message_id INTEGER NOT NULL,
     [value] INTEGER NOT NULL,
-    UNIQUE(timestamp, receiver_username, giver_username, reply_message_id)
+    UNIQUE([timestamp], receiver_username, giver_username, reply_message_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_cwel_timestamp
