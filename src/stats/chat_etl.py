@@ -50,10 +50,10 @@ class ChatETL:
         log.info(f"Running chat ETL for the past: {days} days")
 
         # ETL
-        self.download_chat_history(days)
+        latest_chat_history = self.download_chat_history(days)
         self.extract_users()
-        self.clean_chat_history()
-        self.generate_reactions_df()
+        cleaned_chat_history_df = self.clean_chat_history(latest_chat_history)
+        self.generate_reactions_df(cleaned_chat_history_df)
 
         if bulk_ocr:
             self.perform_bulk_ocr()
@@ -66,9 +66,7 @@ class ChatETL:
         self.cleanup_temp_dir()
 
     def download_chat_history(self, days):
-        # old_chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         latest_messages, message_types = self.client_api_handler.get_chat_history(days)
-
         columns = [
             "message_id",
             "timestamp",
@@ -144,13 +142,10 @@ class ChatETL:
         latest_chat_df = latest_chat_df.sort_values(by="timestamp").reset_index(drop=True)
         stats_utils.validate_schema(latest_chat_df, chat_history_schema)
 
-        # stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
-        # core_utils.save_df(merged_chat_df, CHAT_HISTORY_PATH)
         self.db.save_dataframe(latest_chat_df, Table.CHAT_HISTORY, mode=DBSaveMode.APPEND)
         return latest_chat_df
 
     def perform_bulk_ocr(self):
-        # chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         chat_df = self.db.read_df_from_db(Table.CHAT_HISTORY)
         if chat_df.empty or chat_df is None:
             log.info("No chat history df, no ocr performed.")
@@ -199,15 +194,17 @@ class ChatETL:
     def count_reactions(self, message):
         return sum(reaction_count.count for reaction_count in message.reactions.results) if message.reactions is not None else 0
 
-    def clean_chat_history(self):
+    def clean_chat_history(self, latest_chat_df):
+        if latest_chat_df.empty:
+            log.info("No chat history, no cleaning to perform.")
+            return
         log.info("Cleaning chat history...")
 
-        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
         users_df = stats_utils.read_users()
-        filtered_df = chat_df[~chat_df["user_id"].isin(excluded_user_ids)]
-        cleaned_df = filtered_df.drop(["first_name", "last_name", "username"], axis=1)
-        cleaned_df = cleaned_df.merge(users_df, on="user_id")
-        cleaned_df = cleaned_df[
+        filtered_df = latest_chat_df[~latest_chat_df["user_id"].isin(excluded_user_ids)]
+        cleaned_chat_df = filtered_df.drop(["first_name", "last_name", "username"], axis=1)
+        cleaned_chat_df = cleaned_chat_df.merge(users_df, on="user_id")
+        cleaned_chat_df = cleaned_chat_df[
             [
                 "message_id",
                 "timestamp",
@@ -220,13 +217,13 @@ class ChatETL:
                 "message_type",
             ]
         ]
-        cleaned_df["timestamp"] = cleaned_df["timestamp"].dt.tz_convert(TIMEZONE)
-        cleaned_df["reaction_user_ids"] = cleaned_df["reaction_user_ids"].tolist()
-        stats_utils.validate_schema(cleaned_df, cleaned_chat_history_schema)
+        cleaned_chat_df["timestamp"] = cleaned_chat_df["timestamp"].dt.tz_convert(TIMEZONE)
+        cleaned_chat_df["reaction_user_ids"] = cleaned_chat_df["reaction_user_ids"].tolist()
+        stats_utils.validate_schema(cleaned_chat_df, cleaned_chat_history_schema)
 
-        log.info(f"Cleaned chat history df, from: {len(chat_df)} to: {len(cleaned_df)}")
-        # core_utils.save_df(cleaned_df, CLEANED_CHAT_HISTORY_PATH)
-        self.db.save_dataframe(cleaned_df, Table.CLEANED_CHAT_HISTORY, mode=DBSaveMode.APPEND)
+        log.info(f"Cleaned chat history df, from: {len(latest_chat_df)} to: {len(cleaned_chat_df)}")
+        self.db.save_dataframe(cleaned_chat_df, Table.CLEANED_CHAT_HISTORY, mode=DBSaveMode.APPEND)
+        return cleaned_chat_df
 
     def extract_users(self):
         """Extract users from the chat history"""
@@ -248,7 +245,6 @@ class ChatETL:
         filtered_users_df = filtered_users_df.set_index("user_id")
 
         stats_utils.validate_schema(filtered_users_df, users_schema)
-        # core_utils.save_df(filtered_users_df, USERS_PATH)
         self.db.save_dataframe(filtered_users_df, Table.USERS, mode=DBSaveMode.APPEND)
 
     def create_final_username(self, row):
@@ -257,17 +253,16 @@ class ChatETL:
             final_username = f"{row['first_name']} {row['last_name']}" if row["last_name"] is not None else row["first_name"]
         return final_username
 
-    def generate_reactions_df(self):
+    def generate_reactions_df(self, cleaned_chat_df):
         """Include all reactions and fill the missing user_ids with None"""
         log.info("Generating reactions df...")
 
-        chat_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
         users_df = core_utils.read_df(USERS_PATH)
 
-        chat_df["len_reactions"] = chat_df["reaction_emojis"].apply(lambda x: len(x))
-        chat_df["len_reaction_users"] = chat_df["reaction_user_ids"].apply(lambda x: len(x))
-        clean_df = chat_df[chat_df["len_reactions"] > 0]
-        reactions_df = clean_df.explode(["reaction_emojis", "reaction_user_ids"])
+        cleaned_chat_df["len_reactions"] = cleaned_chat_df["reaction_emojis"].apply(lambda x: len(x))
+        cleaned_chat_df["len_reaction_users"] = cleaned_chat_df["reaction_user_ids"].apply(lambda x: len(x))
+        filtered_clean_df = cleaned_chat_df[cleaned_chat_df["len_reactions"] > 0]
+        reactions_df = filtered_clean_df.explode(["reaction_emojis", "reaction_user_ids"])
 
         reactions_df = reactions_df.merge(users_df, left_on="reaction_user_ids", right_on="user_id", how="left")
         reactions_df = reactions_df[["message_id", "timestamp", "final_username_x", "final_username_y", "text", "reaction_emojis"]]
@@ -275,7 +270,6 @@ class ChatETL:
         reactions_df = reactions_df.dropna(subset=["message_id", "timestamp", "reacted_to_username", "reacting_username", "emoji"])
 
         stats_utils.validate_schema(reactions_df, reactions_schema)
-        # core_utils.save_df(reactions_df, REACTIONS_PATH)
         self.db.save_dataframe(reactions_df, Table.REACTIONS, mode=DBSaveMode.APPEND)
 
     def delete_bot_messages(self):
