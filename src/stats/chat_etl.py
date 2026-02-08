@@ -142,8 +142,6 @@ class ChatETL:
         )
 
         latest_chat_df = latest_chat_df.sort_values(by="timestamp").reset_index(drop=True)
-
-        print(latest_chat_df.info())
         stats_utils.validate_schema(latest_chat_df, chat_history_schema)
 
         # stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
