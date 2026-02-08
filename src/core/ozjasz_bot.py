@@ -37,12 +37,12 @@ class OzjaszBot:
         self.bot_state = BotState(self.application.job_queue)
         self.job_persistance = JobPersistance(self.application.job_queue)
         self.credits = Credits(self.db)
-        self.holidays = Holidays(self.application.job_queue, self.credits)
+        self.holidays = Holidays(self.application.job_queue, self.credits, self.db)
 
         self.command_logger = CommandLogger(self.bot_state, self.db)
-        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state)
+        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state, self.db)
         self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state, self.db)
-        self.credit_commands = CreditCommands(self.command_logger, self.job_persistance, self.bot_state, self.credits)
+        self.credit_commands = CreditCommands(self.command_logger, self.job_persistance, self.bot_state, self.credits, self.db)
 
         self.add_commands()
         self.application.run_polling()

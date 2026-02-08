@@ -51,7 +51,7 @@ class ChatCommands:
         self.reactions_df = self.db.load_table(Table.REACTIONS)
         self.cwel_stats_df = self.db.load_table(Table.CWEL)
 
-        self.word_stats = WordStats()
+        self.word_stats = WordStats(self.db)
         self.command_logger = command_logger
         self.bot_state = bot_state
         self.job_persistance = job_persistance
@@ -67,7 +67,7 @@ class ChatCommands:
         self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
         self.reactions_df = self.db.load_table(Table.REACTIONS)
         self.users_df = self.db.load_table(Table.USERS)
-        self.word_stats = WordStats()
+        self.word_stats = WordStats(self.db)
 
         stats_utils.remove_file(UPDATE_REQUIRED_PATH)
 

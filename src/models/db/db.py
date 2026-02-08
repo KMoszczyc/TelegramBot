@@ -5,7 +5,6 @@ import sqlite3
 import pandas as pd
 
 import src.core.utils as core_utils
-import src.stats.utils as stats_utils
 from definitions import (
     CHAT_HISTORY_PATH,
     CLEANED_CHAT_HISTORY_PATH,
@@ -168,16 +167,20 @@ class DB:
         then saves each DataFrame to its corresponding SQLite table using REPLACE mode.
         This method serves as the one-time migration from parquet-based to SQLite-based storage.
         """
-        chat_df = stats_utils.read_df(CHAT_HISTORY_PATH)
-        cleaned_chat_df = stats_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
-        reactions_df = stats_utils.read_df(REACTIONS_PATH)
-        users_df = stats_utils.read_df(USERS_PATH)
-        command_usage_df = stats_utils.read_df(COMMANDS_USAGE_PATH)
-        credit_history_df = stats_utils.read_df(CREDIT_HISTORY_PATH)
-        cwel_df = stats_utils.read_df(CWEL_STATS_PATH)
-        cwel_df = cwel_df.drop_duplicates(
-            subset=["timestamp", "receiver_username", "giver_username", "reply_message_id"], keep="last"
-        ).reset_index(drop=True)
+        chat_df = core_utils.read_df(CHAT_HISTORY_PATH)
+        cleaned_chat_df = core_utils.read_df(CLEANED_CHAT_HISTORY_PATH)
+        reactions_df = core_utils.read_df(REACTIONS_PATH)
+        users_df = core_utils.read_df(USERS_PATH)
+        command_usage_df = core_utils.read_df(COMMANDS_USAGE_PATH)
+        credit_history_df = core_utils.read_df(CREDIT_HISTORY_PATH)
+        cwel_df = core_utils.read_df(CWEL_STATS_PATH)
+        cwel_df = (
+            cwel_df.drop_duplicates(
+                subset=["timestamp", "receiver_username", "giver_username", "reply_message_id"], keep="last"
+            ).reset_index(drop=True)
+            if cwel_df is not None
+            else None
+        )
         credits_df = pd.DataFrame(Credits(self).credits.items(), columns=["user_id", "credits"])
 
         table_to_df_map = {
