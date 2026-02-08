@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS chat_history (
     image_text TEXT,
     reaction_emojis TEXT,        -- JSON array
     reaction_user_ids TEXT,      -- JSON array
-    message_type TEXT NOT NULL,
-    UNIQUE(message_id)
+    message_type TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_history_user_id
@@ -48,8 +47,7 @@ CREATE TABLE IF NOT EXISTS cleaned_chat_history (
     image_text TEXT,
     reaction_emojis TEXT,        -- JSON array
     reaction_user_ids TEXT,      -- JSON array
-    message_type TEXT NOT NULL,
-    UNIQUE(message_id)
+    message_type TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_cleaned_chat_user_id
@@ -104,8 +102,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_name TEXT,
     username TEXT,
     final_username TEXT NOT NULL,
-    nicknames TEXT,              -- JSON array
-    UNIQUE(user_id)
+    nicknames TEXT              -- JSON array
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_final_username
@@ -156,7 +153,6 @@ CREATE INDEX IF NOT EXISTS idx_credit_history_timestamp
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS credits (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    credits INTEGER NOT NULL,
-    UNIQUE(user_id)
+    credits INTEGER NOT NULL
 );
 
