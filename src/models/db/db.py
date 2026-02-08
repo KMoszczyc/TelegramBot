@@ -66,25 +66,8 @@ class DB:
         with open(DB_SCHEMA_SQL_PATH) as schema_file:
             schema_sql = schema_file.read()
 
-        # Debug: Check if tables exist and their structure
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        existing_tables = [row[0] for row in cursor.fetchall()]
-        log.info(f"Existing tables before schema creation: {existing_tables}")
-
-        # Check chat_history table structure specifically
-        if "chat_history" in existing_tables:
-            cursor.execute("PRAGMA table_info(chat_history)")
-            chat_history_info = cursor.fetchall()
-            log.info(f"chat_history table structure: {chat_history_info}")
-
         self.conn.executescript(schema_sql)
         self.conn.commit()
-
-        # Debug: Check structure after creation
-        cursor.execute("PRAGMA table_info(chat_history)")
-        chat_history_info_after = cursor.fetchall()
-        log.info(f"chat_history table structure after schema: {chat_history_info_after}")
 
     def serialize_lists(self, df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         """Convert list columns to JSON strings for database storage.
