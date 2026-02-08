@@ -1,11 +1,12 @@
 FROM python:3.12.2-slim
+
 WORKDIR /app
 
 ENV PYHTONUNBUFFERED=1
-RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6
-
 ENV TZ="Europe/Warsaw"
 ENV PYTHONPATH=/app
+
+RUN apt-get update && apt-get install -y cron dos2unix locales tesseract-ocr ffmpeg libsm6 libxext6
 
 RUN sed -i '/pl_PL.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 ENV LANG pl_PL.UTF-8
@@ -14,6 +15,9 @@ ENV LC_ALL pl_PL.UTF-8
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+
+# ✅ Copy ALL app code
+COPY . .
 
 COPY ./docker/cron_etl /etc/cron.d/cron_etl
 RUN chmod 0644 /etc/cron.d/cron_etl
