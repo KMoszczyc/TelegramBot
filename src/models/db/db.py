@@ -272,7 +272,7 @@ class DB:
             DataFrame with properly deserialized data types
         """
         df = pd.read_sql_query(f"SELECT * FROM {table.value}", self.conn)
-        df = self.deserialize_lists(df, ["reaction_emojis", "reaction_user_ids"])
+        df = self.deserialize_lists(df, ["reaction_emojis", "reaction_user_ids", "nicknames"])
         df = self.deserialize_datetimes(df, ["timestamp"])
         df = self.deserialize_bools(df, ["success"])
 
