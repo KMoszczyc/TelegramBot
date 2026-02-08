@@ -141,7 +141,7 @@ class DB:
         for col in datetime_columns:
             if col not in df.columns:
                 continue
-            df[col] = pd.to_datetime(df[col], utc=True).dt.tz_convert(TIMEZONE)
+            df[col] = pd.to_datetime(df[col], utc=True).dt.tz_convert(TIMEZONE).astype(f"datetime64[ns, {TIMEZONE}]")
         return df
 
     def deserialize_bools(self, df: pd.DataFrame, bool_columns: list[str]) -> pd.DataFrame:
