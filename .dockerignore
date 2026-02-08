@@ -3,7 +3,13 @@
 **/env
 **/.git
 **/.gitignore
-docker/Dockerfile_bot
 README.md
 docker-compose.yml
 data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
