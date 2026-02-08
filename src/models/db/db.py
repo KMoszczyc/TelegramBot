@@ -175,6 +175,7 @@ class DB:
         command_usage_df = stats_utils.read_df(COMMANDS_USAGE_PATH)
         credit_history_df = stats_utils.read_df(CREDIT_HISTORY_PATH)
         cwel_df = stats_utils.read_df(CWEL_STATS_PATH)
+        cwel_df = cwel_df.groupby(["timestamp", "receiver_username", "giver_username", "reply_message_id"]).first()  # remove duplicates
         credits_df = pd.DataFrame(Credits(self).credits.items(), columns=["user_id", "credits"])
 
         table_to_df_map = {
