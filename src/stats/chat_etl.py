@@ -134,12 +134,16 @@ class ChatETL:
 
         latest_chat_df = pd.DataFrame(data, columns=columns)
         data_pull_start_dt = (datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-        latest_chat_df["timestamp"] = pd.to_datetime(latest_chat_df["timestamp"], utc=True).dt.tz_convert(TIMEZONE)
+        latest_chat_df["timestamp"] = (
+            pd.to_datetime(latest_chat_df["timestamp"], utc=True).dt.tz_convert(TIMEZONE).astype(f"datetime64[ns, {TIMEZONE}]")
+        )
         log.info(
             f"Since {data_pull_start_dt}: {len(latest_chat_df)} messages were pulled with {malformed_count} malformed records and {ocr_count} ocr performed on images."
         )
 
         latest_chat_df = latest_chat_df.sort_values(by="timestamp").reset_index(drop=True)
+
+        print(latest_chat_df.info())
         stats_utils.validate_schema(latest_chat_df, chat_history_schema)
 
         # stats_utils.create_empty_file(UPDATE_REQUIRED_PATH)
