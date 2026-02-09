@@ -226,7 +226,7 @@ class DB:
             case _:
                 # default: no special handling
                 pass
-        write_index = "user_id" in df_copy.columns and table == Table.USERS
+        write_index = table == Table.USERS
 
         # Write to SQLite
         before_count = self.count_rows(table)
