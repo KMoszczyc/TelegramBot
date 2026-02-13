@@ -152,7 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_credit_history_timestamp
 -- 8. Credits
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS credits (
-    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER PRIMARY KEY,
     credits INTEGER NOT NULL
 );
 
