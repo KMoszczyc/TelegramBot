@@ -143,7 +143,7 @@ class ChatETL:
         return latest_chat_df
 
     def perform_bulk_ocr(self):
-        chat_df = self.db.read_df_from_db(Table.CHAT_HISTORY)
+        chat_df = self.db.load_table(Table.CHAT_HISTORY)
         if chat_df.empty or chat_df is None:
             log.info("No chat history df, no ocr performed.")
             return
