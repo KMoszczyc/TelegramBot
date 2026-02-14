@@ -1,0 +1,16 @@
+MAX_USERNAME_LENGTH = 20
+MAX_NICKNAMES_NUM = 5
+MATCHING_USERNAME_THRESHOLD = 5
+MAX_REMINDERS_DAILY_USAGE = 10
+MAX_CWEL_USAGE_DAILY = 25
+MAX_GET_CREDITS_DAILY = 1
+MAX_STEAL_CREDITS_DAILY = 3
+LONG_MESSAGE_LIMIT = 1
+STOPWORD_RATIO_THRESHOLD = 0.59
+MIN_QUIZ_TIME_TO_ANSWER_SECONDS = 10
+CRITICAL_FAILURE_CHANCE = 0.05
+CRITICAL_SUCCESS_CHANCE = 0.05
+MAX_INT = 24 * 365 * 20
+negative_emojis = ["👎", "😢", "😭", "🤬", "🤡", "💩", "😫", "😩", "🥶", "🤨", "🧐", "🙃", "😒", "😠", "😣", "🗿"]
+CREDIT_HISTORY_COLUMNS = ["timestamp", "user_id", "target_user_id", "credit_change", "action_type", "bet_type", "success"]
+TIMEZONE = "Europe/Warsaw"
