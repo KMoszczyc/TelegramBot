@@ -6,11 +6,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    POLISH_STOPWORDS_PATH,
-    TIMEZONE,
-    Table,
-)
+from src.config.constants import TIMEZONE
+from src.config.enums import Table
+from src.config.paths import POLISH_STOPWORDS_PATH
 from src.models.db.db import DB
 
 
@@ -26,8 +24,8 @@ def generate_chat_plots(self):
     chat_df["hour"] = chat_df["timestamp"].dt.hour
     chat_df["minute"] = (chat_df["timestamp"].dt.floor("15Min", ambiguous=True)).dt.minute
 
-    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    # months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    # days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     # messages_by_month = chat_df.groupby('month').size().reindex(months, axis=0)
     # messages_by_day = chat_df.groupby('day_name').size().reindex(days, axis=0)
     # messages_by_hour = chat_df.groupby('hour').size()

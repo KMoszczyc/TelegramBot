@@ -10,7 +10,8 @@ from great_tables import GT, md
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import TEMP_DIR, ChartType, PeriodFilterMode
+from src.config.enums import ChartType, PeriodFilterMode
+from src.config.paths import TEMP_DIR
 
 
 def create_table_plt(df, title, columns):

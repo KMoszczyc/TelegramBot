@@ -1,24 +1,15 @@
 import logging
-import os
 from datetime import UTC, datetime, timedelta
 
-from dotenv import load_dotenv
 from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import CHAT_AUDIO_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_IMAGES_DIR_PATH, CHAT_VIDEO_NOTES_DIR_PATH, CHAT_VIDEOS_DIR_PATH
+from src.config.paths import CHAT_AUDIO_DIR_PATH, CHAT_GIFS_DIR_PATH, CHAT_IMAGES_DIR_PATH, CHAT_VIDEO_NOTES_DIR_PATH, CHAT_VIDEOS_DIR_PATH
+from src.config.settings import API_HASH, API_ID, BOT_ID, CHAT_ID, SESSION
 
-load_dotenv()
 log = logging.getLogger(__name__)
-
-API_ID = int(os.getenv('API_ID'))
-API_HASH = os.getenv('API_HASH')
-CHAT_ID = int(os.getenv('CHAT_ID'))
-TEST_CHAT_ID = int(os.getenv('TEST_CHAT_ID'))
-SESSION = os.getenv('SESSION')
-BOT_ID = int(os.getenv('BOT_ID'))
 
 
 class ClientAPIHandler:
@@ -54,8 +45,10 @@ class ClientAPIHandler:
                     if msg is None:
                         break
                     if count % 10000 == 0:
-                        if hasattr(msg.sender, 'first_name') and hasattr(msg.sender, 'last_name') and hasattr(msg.sender, 'username'):
-                            log.info(f"{msg.date}, {msg.id}, ':', {msg.sender.first_name}, {msg.sender.last_name}, {msg.sender.username}, {msg.sender_id}, ':', {msg.text}")
+                        if hasattr(msg.sender, "first_name") and hasattr(msg.sender, "last_name") and hasattr(msg.sender, "username"):
+                            log.info(
+                                f"{msg.date}, {msg.id}, ':', {msg.sender.first_name}, {msg.sender.last_name}, {msg.sender.username}, {msg.sender_id}, ':', {msg.text}"
+                            )
                         else:
                             log.info(f"{msg.id}, {msg.text}")
 
@@ -81,7 +74,9 @@ class ClientAPIHandler:
             async with self.client:
                 message_reactions = {}
                 for message_id in message_ids:
-                    message_reactions[message_id] = await self.client(functions.messages.GetMessageReactionsListRequest(peer=CHAT_ID, id=message_id, limit=100))
+                    message_reactions[message_id] = await self.client(
+                        functions.messages.GetMessageReactionsListRequest(peer=CHAT_ID, id=message_id, limit=100)
+                    )
                 return message_reactions
 
         with self.client:

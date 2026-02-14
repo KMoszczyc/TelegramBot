@@ -8,12 +8,7 @@ from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    LONG_MESSAGE_LIMIT,
-    ArgType,
-    HolyTextType,
-    SiglumType,
-    Table,
+from src.config.assets import (
     arguments_help,
     bartosiak_phrases,
     bible_df,
@@ -28,6 +23,8 @@ from definitions import (
     tvp_latest_headlines,
     walesa_phrases,
 )
+from src.config.constants import LONG_MESSAGE_LIMIT
+from src.config.enums import ArgType, HolyTextType, SiglumType, Table
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
@@ -470,7 +467,7 @@ class Commands:
         text = f"Kiepscy episodes that match [{search_phrase}]:\n"
         last_text = text
         message_sent_count = 0
-        for i, (index, row) in enumerate(merged_df.iterrows()):
+        for _, row in merged_df.iterrows():
             text += f"- *{row['nr']}: {row['title']}* - {row['description']}\n"
             if message_sent_count >= LONG_MESSAGE_LIMIT:
                 return

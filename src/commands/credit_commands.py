@@ -8,19 +8,9 @@ from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    BET_EVENTS,
-    CRITICAL_FAILURE_CHANCE,
-    CRITICAL_SUCCESS_CHANCE,
-    MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
-    QUIZ_EVENTS,
-    STEAL_EVENTS,
-    ArgType,
-    CreditActionType,
-    MessageType,
-    Table,
-    quiz_df,
-)
+from src.config.assets import quiz_df
+from src.config.constants import CRITICAL_FAILURE_CHANCE, CRITICAL_SUCCESS_CHANCE, MIN_QUIZ_TIME_TO_ANSWER_SECONDS
+from src.config.enums import BET_EVENTS, QUIZ_EVENTS, STEAL_EVENTS, ArgType, CreditActionType, MessageType, Table
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
@@ -420,7 +410,7 @@ class CreditCommands:
         filtered_credits_df = self.credits.credit_history_df[self.credits.credit_history_df["action_type"] == CreditActionType.STEAL.value]
         filtered_credits_df = stats_utils.filter_by_time_df(filtered_credits_df, command_args, "timestamp")
         if "all_attempts" not in command_args.named_args:
-            filtered_credits_df = filtered_credits_df[filtered_credits_df["success"] == True]
+            filtered_credits_df = filtered_credits_df[filtered_credits_df["success"]]
 
         filtered_credits_df["robbing_username"] = filtered_credits_df["user_id"].apply(lambda x: self.users_map[x])
         filtered_credits_df["robbed_username"] = filtered_credits_df["target_user_id"].apply(lambda x: self.users_map[x])

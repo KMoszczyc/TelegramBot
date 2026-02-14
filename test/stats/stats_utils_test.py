@@ -7,7 +7,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import pytest
 
-from definitions import TIMEZONE, DatetimeFormat, EmojiType, PeriodFilterMode
+from src.config.constants import TIMEZONE
+from src.config.enums import DatetimeFormat, EmojiType, PeriodFilterMode
 from src.models.command_args import CommandArgs
 from src.stats.utils import (
     are_text_characters_allowed,
@@ -478,8 +479,8 @@ def test_is_list_column():
     list_series = pd.Series([[1, 2], [3, 4], [5]])
     non_list_series = pd.Series([1, 2, 3])
 
-    assert is_list_column(list_series) == True
-    assert is_list_column(non_list_series) == False
+    assert is_list_column(list_series)
+    assert not is_list_column(non_list_series)
 
 
 # Tests for is_string_column
@@ -488,8 +489,8 @@ def test_is_string_column():
     string_series = pd.Series(["a", "b", "c"])
     non_string_series = pd.Series([1, 2, 3])
 
-    assert is_string_column(string_series) == True
-    assert is_string_column(non_string_series) == False
+    assert is_string_column(string_series)
+    assert not is_string_column(non_string_series)
 
 
 # Tests for validate_schema
@@ -566,7 +567,7 @@ def test_get_users_map():
 def test_get_random_media_path(mocker):
     """Test getting random media path."""
     mock_listdir = mocker.patch("os.listdir", return_value=["file1.jpg", "file2.png", "file3.mp4"])
-    mock_choice = mocker.patch("random.choice", return_value="file2.png")
+    mocker.patch("random.choice", return_value="file2.png")
 
     result = get_random_media_path("/test/directory")
 
@@ -578,10 +579,10 @@ def test_get_random_media_path(mocker):
 def test_is_chat_etl_locked(mocker):
     """Test checking if chat ETL is locked."""
     mocker.patch("os.path.exists", return_value=True)
-    assert is_chat_etl_locked() == True
+    assert is_chat_etl_locked()
 
     mocker.patch("os.path.exists", return_value=False)
-    assert is_chat_etl_locked() == False
+    assert not is_chat_etl_locked()
 
 
 def test_lock_chat_etl(mocker):

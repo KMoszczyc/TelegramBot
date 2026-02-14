@@ -1,28 +1,21 @@
 import logging
-import os
 from functools import wraps
 
-from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
 
 import src.commands.misc_commands as commands
 import src.core.utils as core_utils
-from definitions import EmojiType, MessageType
 from src.commands.chat_commands import ChatCommands
 from src.commands.credit_commands import CreditCommands
+from src.config.enums import EmojiType, MessageType
+from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
 from src.models.credits import Credits
 from src.models.db.db import DB
 from src.models.holidays import Holidays
-
-load_dotenv()
-TOKEN = os.getenv("TOKEN")
-TEST_TOKEN = os.getenv("TEST_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
-TEST_CHAT_ID = int(os.getenv("TEST_CHAT_ID"))
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +25,7 @@ class OzjaszBot:
         token = TEST_TOKEN if test else TOKEN
         init_message = "Starting Ozjasz in test mode" if test else "Starting Ozjasz in prod mode"
         log.info(init_message)
+        self.allowed_chat_ids = [CHAT_ID, TEST_CHAT_ID]
         self.application = ApplicationBuilder().token(token).read_timeout(30).write_timeout(30).concurrent_updates(True).build()
         self.db = DB()
         self.bot_state = BotState(self.application.job_queue)
@@ -137,7 +131,7 @@ class OzjaszBot:
                 user_id = update.message.from_user.id
                 user_name = core_utils.get_username(first_name, last_name)
 
-                if src_chat_id not in [CHAT_ID, TEST_CHAT_ID]:
+                if src_chat_id not in self.allowed_chat_ids:
                     error = "You cannot use this bot in your channel, sorry! :("
                     log.info(f"Attempted bot usage from chat: [{src_chat_id}] by user: {user_name} ({user_id}). Access denied.")
                     await context.bot.send_message(chat_id=update.effective_chat.id, text=error)

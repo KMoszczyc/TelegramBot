@@ -3,10 +3,10 @@ import logging
 import cv2
 import pytesseract
 
-from definitions import RUNTIME_ENV
+from src.config.paths import RUNTIME_ENV
 
-if RUNTIME_ENV == 'windows':
-    pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
+if RUNTIME_ENV == "windows":
+    pytesseract.pytesseract.tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
 log = logging.getLogger(__name__)
 
 
@@ -31,8 +31,8 @@ class OCR:
         try:
             img = cv2.imread(img_path)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            raw_text = pytesseract.image_to_string(gray, config=r'-l pol+eng --oem 3').replace("\n", " ")
+            raw_text = pytesseract.image_to_string(gray, config=r"-l pol+eng --oem 3").replace("\n", " ")
         except Exception as e:
             log.info(f"OCR error on image {img_path}: {e}")
-            raw_text = ''
+            raw_text = ""
         return raw_text

@@ -6,14 +6,10 @@ from nltk import ngrams
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    CHAT_WORD_STATS_DIR_PATH,
-    STOPWORD_RATIO_THRESHOLD,
-    WORD_STATS_UPDATE_LOCK_PATH,
-    PeriodFilterMode,
-    Table,
-    polish_stopwords,
-)
+from src.config.assets import polish_stopwords
+from src.config.constants import STOPWORD_RATIO_THRESHOLD
+from src.config.enums import PeriodFilterMode, Table
+from src.config.paths import CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH
 from src.models.command_args import CommandArgs
 
 pd.set_option("display.max_columns", None)

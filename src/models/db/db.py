@@ -5,7 +5,9 @@ import sqlite3
 import pandas as pd
 
 import src.core.utils as core_utils
-from definitions import (
+from src.config.constants import TIMEZONE
+from src.config.enums import DBSaveMode, Table
+from src.config.paths import (
     CHAT_HISTORY_PATH,
     CLEANED_CHAT_HISTORY_PATH,
     COMMANDS_USAGE_PATH,
@@ -14,10 +16,7 @@ from definitions import (
     DB_PATH,
     DB_SCHEMA_SQL_PATH,
     REACTIONS_PATH,
-    TIMEZONE,
     USERS_PATH,
-    DBSaveMode,
-    Table,
 )
 from src.models.credits import Credits
 

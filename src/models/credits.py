@@ -7,16 +7,9 @@ import pandas as pd
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    CREDIT_HISTORY_COLUMNS,
-    CREDIT_HISTORY_PATH,
-    CREDITS_PATH,
-    CreditActionType,
-    DBSaveMode,
-    LuckyScoreType,
-    RouletteBetType,
-    Table,
-)
+from src.config.constants import CREDIT_HISTORY_COLUMNS
+from src.config.enums import CreditActionType, DBSaveMode, LuckyScoreType, RouletteBetType, Table
+from src.config.paths import CREDIT_HISTORY_PATH, CREDITS_PATH
 from src.models.command_args import CommandArgs
 
 
@@ -122,7 +115,7 @@ class Credits:
         filtered_credit_history_df = filtered_credit_history_df.sort_values(by="credit_change", ascending=False)
         text = "``` TOP bet leaderboard: \n"
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
-        for i, (index, row) in enumerate(filtered_credit_history_df.head(10).iterrows()):
+        for i, (_, row) in enumerate(filtered_credit_history_df.head(10).iterrows()):
             username = users_map[row["user_id"]]
             text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['credit_change']}"
         text += "```"
@@ -131,13 +124,13 @@ class Credits:
     def show_steal_leaderboard(self, users_map, command_args: CommandArgs):
         filtered_credit_history_df = self.preprocess_credit_history(command_args)
         steal_history_df = filtered_credit_history_df[filtered_credit_history_df["action_type"] == CreditActionType.STEAL.value]
-        steal_history_df = steal_history_df[filtered_credit_history_df["success"] == True]
+        steal_history_df = steal_history_df[filtered_credit_history_df["success"]]
         steal_history_df["steal_amount"] = steal_history_df["credit_change"].abs()
         steal_history_grouped_df = steal_history_df.groupby("user_id").agg({"steal_amount": "sum"}).reset_index()
         steal_history_grouped_df = steal_history_grouped_df.sort_values(by="steal_amount", ascending=False)
         text = "``` TOTAL steal leaderboard: \n"
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
-        for i, (index, row) in enumerate(steal_history_grouped_df.head(10).iterrows()):
+        for i, (_, row) in enumerate(steal_history_grouped_df.head(10).iterrows()):
             username = users_map[row["user_id"]]
             text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['steal_amount']}"
         text += "```"
@@ -165,7 +158,7 @@ class Credits:
             return "A pathetic amount. You call that a gift? You should be ashamed of yourself."
 
     def give_credits_to_all(self, amount):
-        for user_id in self.credits.keys():
+        for user_id in self.credits:
             self.update_credits(user_id, amount, CreditActionType.GIFT, None, True, None)
         return
 

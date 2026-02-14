@@ -6,25 +6,17 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from dotenv import load_dotenv
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    TEMP_DIR,
-    TIMEZONE,
-    USERS_PATH,
-    DBSaveMode,
-    MessageType,
-    Table,
-)
+from src.config.constants import TIMEZONE
+from src.config.enums import DBSaveMode, MessageType, Table
+from src.config.paths import TEMP_DIR, USERS_PATH
+from src.config.settings import BOT_ID
 from src.core.client_api_handler import ClientAPIHandler
 from src.models.db.db import DB
 from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, commands_usage_schema, reactions_schema, users_schema
 from src.stats.ocr import OCR
-
-load_dotenv()
-BOT_ID = os.getenv("BOT_ID")
 
 pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)

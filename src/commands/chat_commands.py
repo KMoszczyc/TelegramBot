@@ -8,19 +8,9 @@ from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import (
-    CHAT_VIDEO_NOTES_DIR_PATH,
-    MAX_CWEL_USAGE_DAILY,
-    MAX_USERNAME_LENGTH,
-    TIMEZONE,
-    UPDATE_REQUIRED_PATH,
-    USERS_PATH,
-    ArgType,
-    ChartType,
-    EmojiType,
-    MessageType,
-    Table,
-)
+from src.config.constants import MAX_CWEL_USAGE_DAILY, MAX_NICKNAMES_NUM, MAX_USERNAME_LENGTH, TIMEZONE
+from src.config.enums import ArgType, ChartType, EmojiType, MessageType, Table
+from src.config.paths import CHAT_VIDEO_NOTES_DIR_PATH, UPDATE_REQUIRED_PATH, USERS_PATH
 from src.core.client_api_handler import BOT_ID
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
@@ -36,10 +26,6 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)
 pd.set_option("display.width", 1000)
 log = logging.getLogger(__name__)
-
-negative_emojis = ["👎", "😢", "😭", "🤬", "🤡", "💩", "😫", "😩", "🥶", "🤨", "🧐", "🙃", "😒", "😠", "😣", "🗿"]
-MAX_INT = 24 * 365 * 20
-MAX_NICKNAMES_NUM = 5
 
 
 class ChatCommands:

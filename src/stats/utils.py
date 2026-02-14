@@ -10,23 +10,12 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import unidecode
 
-from definitions import (
-    CHAT_ETL_LOCK_PATH,
-    CWEL_STATS_PATH,
-    TIMEZONE,
-    USERS_PATH,
-    DatetimeFormat,
-    DBSaveMode,
-    EmojiType,
-    PeriodFilterMode,
-    Table,
-)
+from src.config.constants import MATCHING_USERNAME_THRESHOLD, TIMEZONE, negative_emojis
+from src.config.enums import DatetimeFormat, DBSaveMode, EmojiType, PeriodFilterMode, Table
+from src.config.paths import CHAT_ETL_LOCK_PATH, CWEL_STATS_PATH, USERS_PATH
 from src.models.db.db import DB
 
 log = logging.getLogger(__name__)
-
-negative_emojis = ["👎", "😢", "😭", "🤬", "🤡", "💩", "😫", "😩", "🥶", "🤨", "🧐", "🙃", "😒", "😠", "😣", "🗿"]
-MATCHING_USERNAME_THRESHOLD = 5
 
 
 def read_users():

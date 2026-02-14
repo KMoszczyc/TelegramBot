@@ -14,21 +14,15 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from definitions import (
+from src.config.assets import quran_df
+from src.config.constants import TIMEZONE
+from src.config.enums import ArgType, DatetimeFormat, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
+from src.config.paths import (
     CHAT_AUDIO_DIR_PATH,
     CHAT_GIFS_DIR_PATH,
     CHAT_IMAGES_DIR_PATH,
     CHAT_VIDEO_NOTES_DIR_PATH,
     CHAT_VIDEOS_DIR_PATH,
-    TIMEZONE,
-    ArgType,
-    DatetimeFormat,
-    HolyTextType,
-    LuckyScoreType,
-    MessageType,
-    PeriodFilterMode,
-    SiglumType,
-    quran_df,
 )
 from src.models.command_args import CommandArgs
 
@@ -155,7 +149,6 @@ def handle_args(users_df, command_args_ref: CommandArgs):
 
 
 def merge_spaced_args(command_args: CommandArgs):
-    joined_args = " ".join(command_args.args)
     new_args = []
     quotation_opened = False
     current_spaced_args = []
@@ -571,7 +564,7 @@ def display_shopping_sunday(dt):
 
 def display_holy_text_df(df, bot_state, holy_text_type, label="Filtered bible verses", show_siglum=True):
     response = f"{label}:\n\n"
-    for i, row in df.iterrows():
+    for _, row in df.iterrows():
         verse = (
             f"[{get_siglum(row, holy_text_type, siglum_type=SiglumType.SHORT)}] {row['text']}\n\n"
             if show_siglum
@@ -619,10 +612,7 @@ def datetime_to_ms(dt):
 
 
 def match_substr_to_list_of_texts(substr: str, texts: list, lower_case: bool = True) -> str:
-    if lower_case:
-        matched_texts = [text for text in texts if substr.lower() in text.lower()]
-    else:
-        matched_texts = [text for text in texts if substr in text]
+    matched_texts = [text for text in texts if substr.lower() in text.lower()] if lower_case else [text for text in texts if substr in text]
     return matched_texts[0] if matched_texts else None
 
 

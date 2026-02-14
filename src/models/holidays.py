@@ -8,7 +8,10 @@ from dotenv import load_dotenv
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from definitions import TIMEZONE, Table, polish_holidays_df
+from src.config.assets import polish_holidays_df
+from src.config.constants import TIMEZONE
+from src.config.enums import Table
+from src.config.settings import CHAT_ID
 
 pd.options.mode.chained_assignment = None
 pd.set_option("display.max_columns", None)
@@ -16,8 +19,6 @@ pd.set_option("display.max_rows", None)
 pd.set_option("display.width", 1000)
 
 load_dotenv()
-BOT_ID = int(os.getenv("BOT_ID"))
-CHAT_ID = int(os.getenv("CHAT_ID"))
 THREAD_ID = int(os.getenv("BOT_CHAT_THREAD_ID"))
 
 

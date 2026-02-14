@@ -5,7 +5,8 @@ import pandas as pd
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from definitions import TIMEZONE, DBSaveMode, Table
+from src.config.constants import TIMEZONE
+from src.config.enums import DBSaveMode, Table
 from src.models.command_args import CommandArgs
 from src.stats.utils import filter_by_time_df
 
