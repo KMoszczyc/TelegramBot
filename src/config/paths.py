@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-
 RUNTIME_ENV = os.getenv("RUNTIME_ENV")
 
 DATA_DIR = Path("/data") if RUNTIME_ENV == "docker" else ROOT_DIR / "data"

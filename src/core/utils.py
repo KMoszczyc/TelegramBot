@@ -8,6 +8,7 @@ import re
 import string
 import sys
 import uuid
+from collections import defaultdict
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -811,3 +812,10 @@ def safe_json_dump(x):
     except TypeError:
         # fallback: wrap scalar in a list
         return json.dumps([x])
+
+
+def df_to_dict(df: pd.DataFrame, key_col: str, value_col: str, value_type):
+    d = defaultdict(value_type)
+    for key, value in zip(df[key_col], df[value_col], strict=False):
+        d[key] = value
+    return d

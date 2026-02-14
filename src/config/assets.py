@@ -35,28 +35,13 @@ ozjasz_phrases = read_str_file(str(OZJASZ_PHRASES_PATH))
 bartosiak_phrases = read_str_file(str(BARTOSIAK_PATH))
 commands = read_str_file(str(COMMANDS_PATH))
 arguments_help = read_str_file(str(ARGUMENTS_HELP_PATH))
-try:
-    bible_df = pd.read_parquet(str(BIBLE_PATH))
-except OSError:
-    bible_df = pd.DataFrame()
-try:
-    quran_df = pd.read_parquet(str(QURAN_PATH))
-except OSError:
-    quran_df = pd.DataFrame()
+bible_df = pd.read_parquet(str(BIBLE_PATH))
+quran_df = pd.read_parquet(str(QURAN_PATH))
 shopping_sundays = read_str_file(str(SHOPPING_SUNDAYS_PATH))
 europejskafirma_phrases = read_str_file(str(EUROPEJSKAFIRMA_PATH))
 boczek_phrases = read_str_file(str(BOCZEK_PATH))
-try:
-    kiepscy_df = pd.read_parquet(str(KIEPSCY_PATH))
-except OSError:
-    kiepscy_df = pd.DataFrame()
+kiepscy_df = pd.read_parquet(str(KIEPSCY_PATH))
 walesa_phrases = read_str_file(str(WALESA_PATH))
 polish_stopwords = read_str_file(str(POLISH_STOPWORDS_PATH))
-try:
-    quiz_df = pd.read_parquet(str(QUIZ_DATABASE_PATH))
-except OSError:
-    quiz_df = pd.DataFrame()
-try:
-    polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")
-except OSError:
-    polish_holidays_df = pd.DataFrame()
+quiz_df = pd.read_parquet(str(QUIZ_DATABASE_PATH))
+polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")

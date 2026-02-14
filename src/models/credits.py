@@ -1,7 +1,4 @@
-import os
-import pickle
 import random
-from collections import defaultdict
 
 import pandas as pd
 
@@ -9,42 +6,19 @@ import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.config.constants import CREDIT_HISTORY_COLUMNS
 from src.config.enums import CreditActionType, DBSaveMode, LuckyScoreType, RouletteBetType, Table
-from src.config.paths import CREDIT_HISTORY_PATH, CREDITS_PATH
 from src.models.command_args import CommandArgs
 
 
 class Credits:
     def __init__(self, db):
-        self.credits = self.load_credits()
-        self.credit_history_df = self.load_credit_history()
         self.db = db
+        self.credits = core_utils.df_to_dict(self.db.load_table(Table.CREDITS), "user_id", "credits", int)
+        self.credit_history_df = self.db.load_table(Table.CREDIT_HISTORY)
 
     def save_credits(self, new_entry):
         credits_df = pd.DataFrame(self.credits.items(), columns=["user_id", "credits"])
         self.db.save_dataframe(credits_df, Table.CREDITS, DBSaveMode.REPLACE)
         self.db.save_dataframe(new_entry, Table.CREDIT_HISTORY, DBSaveMode.APPEND)
-
-    def load_credits(self):
-        if not os.path.exists(CREDITS_PATH):
-            return defaultdict(int)
-
-        with open(CREDITS_PATH, "rb") as f:
-            try:
-                return pickle.load(f)
-            except EOFError:
-                return defaultdict(int)
-
-    def load_credit_history(self):
-        if not os.path.exists(CREDIT_HISTORY_PATH):
-            credits = self.load_credits()
-            data = [
-                [stats_utils.get_dt_now(), user_id, None, credit, CreditActionType.GET.value, None, True]
-                for user_id, credit in credits.items()
-            ]
-            df = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=data)
-            df.to_parquet(CREDIT_HISTORY_PATH)
-
-        return pd.read_parquet(CREDIT_HISTORY_PATH)
 
     def get_daily_credits(self, user_id):
         lucky_score_type, _ = core_utils.are_you_lucky(user_id, with_args=False)

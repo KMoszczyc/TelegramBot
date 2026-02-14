@@ -12,6 +12,7 @@ if load_dotenv is not None:
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
+RUNTIME_ENV = os.getenv("RUNTIME_ENV")
 TOKEN = os.getenv("TOKEN")
 TEST_TOKEN = os.getenv("TEST_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID")) if os.getenv("CHAT_ID") else None
@@ -20,3 +21,5 @@ API_ID = int(os.getenv("API_ID")) if os.getenv("API_ID") else None
 API_HASH = os.getenv("API_HASH")
 SESSION = os.getenv("SESSION")
 BOT_ID = int(os.getenv("BOT_ID")) if os.getenv("BOT_ID") else None
+
+log.info(f"============ RUNTIME ENVIRONMENT: {RUNTIME_ENV} ============")
