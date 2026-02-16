@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from src.config.assets import quran_df
 from src.config.constants import TIMEZONE
 from src.config.enums import ArgType, DatetimeFormat, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
 from src.config.paths import (
@@ -694,7 +693,7 @@ def regexify_multiword_filter(words):
     return base.format("".join(expr.format(w) for w in words))
 
 
-def parse_quran_verse_arg(arg, bot_state, holy_text_type) -> [str, str]:
+def parse_quran_verse_arg(quran_df, arg, bot_state, holy_text_type) -> [str, str]:
     arg_split = arg.split(":")
     if len(arg_split) != 2:
         return "", "Failed to parse the --verse argument."
@@ -803,7 +802,7 @@ def safe_json_dump(x):
         return None
 
     # Convert numpy arrays or pandas Series to lists
-    if isinstance(x, (np.ndarray, pd.Series)):
+    if isinstance(x, np.ndarray | pd.Series):
         x = x.tolist()
 
     # Ensure everything is JSON-serializable

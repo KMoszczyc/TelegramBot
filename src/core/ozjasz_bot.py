@@ -8,6 +8,7 @@ import src.commands.misc_commands as commands
 import src.core.utils as core_utils
 from src.commands.chat_commands import ChatCommands
 from src.commands.credit_commands import CreditCommands
+from src.config.assets import Assets
 from src.config.enums import EmojiType, MessageType
 from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
 from src.core.command_logger import CommandLogger
@@ -27,6 +28,7 @@ class OzjaszBot:
         log.info(init_message)
         self.allowed_chat_ids = [CHAT_ID, TEST_CHAT_ID]
         self.application = ApplicationBuilder().token(token).read_timeout(30).write_timeout(30).concurrent_updates(True).build()
+        self.assets = Assets()
         self.db = DB()
         self.bot_state = BotState(self.application.job_queue)
         self.job_persistance = JobPersistance(self.application.job_queue)
@@ -34,7 +36,7 @@ class OzjaszBot:
         self.holidays = Holidays(self.application.job_queue, self.credits, self.db)
 
         self.command_logger = CommandLogger(self.bot_state, self.db)
-        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state, self.db)
+        self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state, self.db, self.assets)
         self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state, self.db)
         self.credit_commands = CreditCommands(self.command_logger, self.job_persistance, self.bot_state, self.credits, self.db)
 

@@ -30,3 +30,6 @@ combine-as-imports = true
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
+
+[pytest]
+addopts = ["--import-mode=importlib"]

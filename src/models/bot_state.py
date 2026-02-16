@@ -4,7 +4,6 @@ import random
 from collections import defaultdict
 from zoneinfo import ZoneInfo
 
-from src.config.assets import quiz_df
 from src.config.constants import MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY, MAX_REMINDERS_DAILY_USAGE, MAX_STEAL_CREDITS_DAILY, TIMEZONE
 from src.config.enums import HolyTextType
 
@@ -12,7 +11,8 @@ log = logging.getLogger(__name__)
 
 
 class BotState:
-    def __init__(self, job_queue):
+    def __init__(self, job_queue, assets):
+        self.assets = assets
         self.last_bible_verse_id = -1
         self.last_quran_verse_id = -1
         self.remindme_usage_map = defaultdict(int)
@@ -26,7 +26,7 @@ class BotState:
 
     def init_quiz_map(self, users_df):
         for user_id in users_df.index:
-            self.available_quiz_id_map[user_id] = quiz_df["quiz_id"].tolist()
+            self.available_quiz_id_map[user_id] = self.assets.quiz_df["quiz_id"].tolist()
 
     def get_random_quiz_id(self, quiz_df, user_id):
         if user_id not in self.available_quiz_id_map or not self.available_quiz_id_map[user_id]:  # reset the quizes for the user

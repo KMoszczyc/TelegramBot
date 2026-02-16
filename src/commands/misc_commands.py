@@ -8,21 +8,7 @@ from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from src.config.assets import (
-    arguments_help,
-    bartosiak_phrases,
-    bible_df,
-    boczek_phrases,
-    commands,
-    europejskafirma_phrases,
-    kiepscy_df,
-    ozjasz_phrases,
-    quran_df,
-    shopping_sundays,
-    tvp_headlines,
-    tvp_latest_headlines,
-    walesa_phrases,
-)
+from src.config.assets import Assets
 from src.config.constants import LONG_MESSAGE_LIMIT
 from src.config.enums import ArgType, HolyTextType, SiglumType, Table
 from src.core.command_logger import CommandLogger
@@ -35,11 +21,12 @@ log = logging.getLogger(__name__)
 
 
 class Commands:
-    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, db: DB):
+    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, db: DB, assets: Assets):
         self.command_logger = command_logger
         self.job_persistance = job_persistance
         self.bot_state = bot_state
         self.db = db
+        self.assets = assets
         self.users_df = self.db.load_table(Table.USERS)
         self.users_map = stats_utils.get_users_map(self.users_df)
 
@@ -56,7 +43,7 @@ class Commands:
         )
 
     async def cmd_ozjasz(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=ozjasz_phrases, is_text_arg=True)
+        command_args = CommandArgs(args=context.args, phrases=self.assets.ozjasz_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
             await context.bot.send_message(
@@ -77,12 +64,12 @@ class Commands:
             )
             return
 
-        curse = core_utils.select_random_phrase(boczek_phrases, "Nie ma takiej wypowiedzi :(")
+        curse = core_utils.select_random_phrase(self.assets.boczek_phrases, "Nie ma takiej wypowiedzi :(")
         response = f"{command_args.string} to {curse}" if command_args.string != "" else curse
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_europejskafirma(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=europejskafirma_phrases, is_text_arg=True)
+        command_args = CommandArgs(args=context.args, phrases=self.assets.europejskafirma_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
             await context.bot.send_message(
@@ -94,7 +81,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_bartosiak(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=bartosiak_phrases, is_text_arg=True)
+        command_args = CommandArgs(args=context.args, phrases=self.assets.bartosiak_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
             await context.bot.send_message(
@@ -106,7 +93,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tvp(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        merged_headlines = tvp_latest_headlines + tvp_headlines
+        merged_headlines = self.assets.tvp_latest_headlines + self.assets.tvp_headlines
         command_args = CommandArgs(args=context.args, phrases=merged_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
@@ -120,7 +107,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tvp_latest(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=tvp_latest_headlines, is_text_arg=True)
+        command_args = CommandArgs(args=context.args, phrases=self.assets.tvp_latest_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
             await context.bot.send_message(
@@ -132,7 +119,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tusk(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        tusk_headlines = [headline for headline in tvp_headlines if "tusk" in headline.lower()]
+        tusk_headlines = [headline for headline in self.assets.tvp_headlines if "tusk" in headline.lower()]
         command_args = CommandArgs(args=context.args, phrases=tusk_headlines, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
@@ -145,7 +132,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_walesa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, phrases=walesa_phrases, is_text_arg=True)
+        command_args = CommandArgs(args=context.args, phrases=self.assets.walesa_phrases, is_text_arg=True)
         filtered_phrases, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
             await context.bot.send_message(
@@ -169,7 +156,7 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_infos = commands + arguments_help
+        command_infos = self.assets.commands + self.assets.arguments_help
         command_args = CommandArgs(args=context.args, phrases=command_infos, is_text_arg=True)
         filtered_commands, command_args = core_utils.preprocess_input(self.users_df, command_args)
         if command_args.error != "":
@@ -181,8 +168,8 @@ class Commands:
         if command_args.joined_args != "" and filtered_commands:
             text = "Existing commands:\n- /" + "\n- /".join(filtered_commands)
         else:
-            text = "Existing commands:\n- /" + "\n- /".join(commands)
-            text += "\n\n *Arguments*:\n" + "\n".join(arguments_help)
+            text = "Existing commands:\n- /" + "\n- /".join(self.assets.commands)
+            text += "\n\n *Arguments*:\n" + "\n".join(self.assets.arguments_help)
 
         text = stats_utils.escape_special_characters(text)
         while len(text) > 1:
@@ -219,6 +206,7 @@ class Commands:
             return
 
         filter_phrase = command_args.joined_args_lower
+        bible_df = self.assets.bible_df
         filtered_df = bible_df[bible_df["text"].str.lower().str.contains(filter_phrase)]
 
         response = ""
@@ -276,6 +264,7 @@ class Commands:
             },
             available_named_args_aliases={"p": "prev", "n": "next", "a": "all", "c": "count", "ch": "chapter", "num": "num", "v": "verse"},
         )
+        quran_df = self.assets.quran_df
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
             await context.bot.send_message(
@@ -337,7 +326,7 @@ class Commands:
             response = f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}": \n\n'
             response += f'[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row["text"]}'
         elif "verse" in command_args.named_args:
-            response, error = core_utils.parse_quran_verse_arg(command_args.named_args["verse"], bot_state, holy_text_type)
+            response, error = core_utils.parse_quran_verse_arg(raw_df, command_args.named_args["verse"], bot_state, holy_text_type)
         else:
             random_row = filtered_df.iloc[0]
             self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
@@ -346,6 +335,7 @@ class Commands:
         return response, error
 
     async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        bible_df = self.assets.bible_df
         bible_stats_df = bible_df.drop_duplicates("book")[["book", "abbreviation"]].set_index("abbreviation")
         bible_stats_df["chapter_count"] = (
             bible_df.drop_duplicates(["abbreviation", "chapter"])[["abbreviation", "chapter"]]
@@ -381,7 +371,7 @@ class Commands:
             return
 
         dt_now = datetime.now().date()
-        sundays_dt = [datetime.strptime(date, "%d-%m-%Y").date() for date in shopping_sundays]
+        sundays_dt = [datetime.strptime(date, "%d-%m-%Y").date() for date in self.assets.shopping_sundays]
         filtered_shopping_sundays = [sunday for sunday in sundays_dt if sunday >= dt_now]
         next_shopping_sunday = filtered_shopping_sundays[0] if filtered_shopping_sundays else None
         if "all" in command_args.named_args:
@@ -429,6 +419,7 @@ class Commands:
     async def cmd_kiepscy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
+        kiepscy_df = self.assets.kiepscy_df
 
         # await context.bot.send_message(chat_id=update.effective_chat.id, text='Temporarily disabled :(')
         # return
@@ -493,6 +484,7 @@ class Commands:
     async def cmd_kiepscyurl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], max_number=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
+        kiepscy_df = self.assets.kiepscy_df
         if command_args.error != "":
             await context.bot.send_message(
                 chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id

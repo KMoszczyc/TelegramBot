@@ -20,28 +20,26 @@ from src.config.paths import (
 )
 
 
-def read_str_file(path):
-    try:
+class Assets:
+    def __init__(self):
+        self.tvp_headlines = self.read_str_file(str(TVP_HEADLINES_PATH))
+        self.tvp_latest_headlines = self.read_str_file(str(TVP_LATEST_HEADLINES_PATH))
+        self.ozjasz_phrases = self.read_str_file(str(OZJASZ_PHRASES_PATH))
+        self.bartosiak_phrases = self.read_str_file(str(BARTOSIAK_PATH))
+        self.commands = self.read_str_file(str(COMMANDS_PATH))
+        self.arguments_help = self.read_str_file(str(ARGUMENTS_HELP_PATH))
+        self.bible_df = pd.read_parquet(str(BIBLE_PATH))
+        self.quran_df = pd.read_parquet(str(QURAN_PATH))
+        self.shopping_sundays = self.read_str_file(str(SHOPPING_SUNDAYS_PATH))
+        self.europejskafirma_phrases = self.read_str_file(str(EUROPEJSKAFIRMA_PATH))
+        self.boczek_phrases = self.read_str_file(str(BOCZEK_PATH))
+        self.kiepscy_df = pd.read_parquet(str(KIEPSCY_PATH))
+        self.walesa_phrases = self.read_str_file(str(WALESA_PATH))
+        self.polish_stopwords = self.read_str_file(str(POLISH_STOPWORDS_PATH))
+        self.quiz_df = pd.read_parquet(str(QUIZ_DATABASE_PATH))
+        self.polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")
+
+    def read_str_file(self, path):
         with open(path) as f:
             lines = f.read().splitlines()
         return lines
-    except OSError:
-        return []
-
-
-tvp_headlines = read_str_file(str(TVP_HEADLINES_PATH))
-tvp_latest_headlines = read_str_file(str(TVP_LATEST_HEADLINES_PATH))
-ozjasz_phrases = read_str_file(str(OZJASZ_PHRASES_PATH))
-bartosiak_phrases = read_str_file(str(BARTOSIAK_PATH))
-commands = read_str_file(str(COMMANDS_PATH))
-arguments_help = read_str_file(str(ARGUMENTS_HELP_PATH))
-bible_df = pd.read_parquet(str(BIBLE_PATH))
-quran_df = pd.read_parquet(str(QURAN_PATH))
-shopping_sundays = read_str_file(str(SHOPPING_SUNDAYS_PATH))
-europejskafirma_phrases = read_str_file(str(EUROPEJSKAFIRMA_PATH))
-boczek_phrases = read_str_file(str(BOCZEK_PATH))
-kiepscy_df = pd.read_parquet(str(KIEPSCY_PATH))
-walesa_phrases = read_str_file(str(WALESA_PATH))
-polish_stopwords = read_str_file(str(POLISH_STOPWORDS_PATH))
-quiz_df = pd.read_parquet(str(QUIZ_DATABASE_PATH))
-polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")
