@@ -7,6 +7,7 @@ matplotlib
 pillow
 pytest
 pytest-mock
+pytest-asyncio
 pytesseract
 opencv-python
 pandera[pandas]
