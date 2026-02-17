@@ -17,7 +17,6 @@ This Telegram bot provides detailed chat statistics, including top messages, mem
     <img src="https://github.com/user-attachments/assets/5f716e96-823a-4949-b1b1-b0ee92986fb5" width="400" />
      <img src="https://github.com/user-attachments/assets/c24f133e-49c4-4e43-8a0b-7654347b8573"  width="250"/>
 <img src="https://github.com/user-attachments/assets/19ad79d1-fa4d-453d-b22d-787279330dff"  width="250"/>
-    <img src="https://github.com/user-attachments/assets/e77a3290-ebd1-439b-a94a-66ae34b709b5"  width="250"/>
 </p>
 
 ## Installation
