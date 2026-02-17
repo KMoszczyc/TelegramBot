@@ -14,46 +14,18 @@ def users_df():
     return pd.DataFrame(data, columns=["first_name", "last_name", "username", "final_username"], index=[111, 222])
 
 
+# fmt: off
 @pytest.fixture()
 def bible_df():
     data = [
         ("Rdz", "Księga Rodzaju", 1, "1", "Na początku Bóg stworzył niebo i ziemię."),
-        (
-            "Rdz",
-            "Księga Rodzaju",
-            1,
-            "2",
-            "Ziemia zaś była bezładem i pustkowiem: ciemność była nad powierzchnią bezmiaru wód, a Duch Boży unosił się nad wodami.",
-        ),
+        ("Rdz", "Księga Rodzaju", 1, "2", "Ziemia zaś była bezładem i pustkowiem: ciemność była nad powierzchnią bezmiaru wód, a Duch Boży unosił się nad wodami."),
         ("Rdz", "Księga Rodzaju", 1, "3", "Wtedy Bóg rzekł: Niechaj się stanie światłość! I stała się światłość."),
-        (
-            "Pwt",
-            "Księga Powtórzonego Prawa",
-            27,
-            "7",
-            "Jemu złożycie też ofiary biesiadne, spożyjecie je na miejscu i będziecie się cieszyć wobec Pana, Boga swego.",
-        ),
-        (
-            "Ps",
-            "Księga Psalmów",
-            27,
-            "6",
-            "Już teraz głowa moja się podnosi nad nieprzyjaciół, co wokół mnie stoją. Złożę w Jego przybytku ofiary radości, zaśpiewam i zagram Panu.",
-        ),
-        (
-            "2 Krl",
-            "2 Księga Królewska",
-            21,
-            "7",
-            "Posąg Aszery, który sporządził, postawił w świątyni, o której Pan powiedział do Dawida i do syna jego, Salomona: W świątyni tej i w Jeruzalem, które wybrałem ze wszystkich pokoleń Izraela, kładę moje Imię na wieki.",
-        ),
-        (
-            "Mt",
-            "Ewangelia Mateusza",
-            11,
-            "11",
-            "Zaprawdę, powiadam wam: Między narodzonymi z niewiast nie powstał większy od Jana Chrzciciela. Lecz najmniejszy w królestwie niebieskim większy jest niż on.",
-        ),
+        ("Pwt", "Księga Powtórzonego Prawa", 27, "7", "Jemu złożycie też ofiary biesiadne, spożyjecie je na miejscu i będziecie się cieszyć wobec Pana, Boga swego."),
+        ("Ps", "Księga Psalmów", 27, "6", "Już teraz głowa moja się podnosi nad nieprzyjaciół, co wokół mnie stoją. Złożę w Jego przybytku ofiary radości, zaśpiewam i zagram Panu."),
+        ("2 Krl", "2 Księga Królewska", 21, "7",
+         "Posąg Aszery, który sporządził, postawił w świątyni, o której Pan powiedział do Dawida i do syna jego, Salomona: W świątyni tej i w Jeruzalem, które wybrałem ze wszystkich pokoleń Izraela, kładę moje Imię na wieki."),
+        ("Mt", "Ewangelia Mateusza", 11, "11", "Zaprawdę, powiadam wam: Między narodzonymi z niewiast nie powstał większy od Jana Chrzciciela. Lecz najmniejszy w królestwie niebieskim większy jest niż on.")
     ]
     return pd.DataFrame(data, columns=["abbreviation", "book", "chapter", "verse", "text"])
 
@@ -62,23 +34,17 @@ def bible_df():
 def quran_df():
     data = [
         (24, "Światło", "10", "I gdyby nie łaska i miłosierdzie Boga nad wami, i gdyby Bóg nie był Przebaczający, Mądry!"),
-        (
-            34,
-            "Saba",
-            "9",
-            "Czy oni nie widzą tego, co jest przed nimi i za nimi, z nieba i ziemi? Jeśli zechcemy, to sprawimy, że pochłonie ich ziemia albo spadnie na nich kawałek nieba. Zaprawdę, w tym jest znak dla każdego sługi okazującego skruchę.",
-        ),
-        (
-            34,
-            "Saba",
-            "45",
-            "I ci, którzy byli przed nimi, odrzucili prawdę. A ci nie otrzymali nawet dziesiątej części tego, cośmy tamtym dali, i uznali za kłamców Moich posłańców. Jakże było Moje oburzenie!",
-        ),
+        (34, "Saba", "9",
+         "Czy oni nie widzą tego, co jest przed nimi i za nimi, z nieba i ziemi? Jeśli zechcemy, to sprawimy, że pochłonie ich ziemia albo spadnie na nich kawałek nieba. Zaprawdę, w tym jest znak dla każdego sługi okazującego skruchę."),
+        (34, "Saba", "45", "I ci, którzy byli przed nimi, odrzucili prawdę. A ci nie otrzymali nawet dziesiątej części tego, cośmy tamtym dali, i uznali za kłamców Moich posłańców. Jakże było Moje oburzenie!"),
         (114, "Ludzie", "1", "Powiedz: „Szukam schronienia u Pana ludzi,"),
         (114, "Ludzie", "2", "Władcy ludzi,"),
-        (114, "Ludzie", "3-6", "Boga ludzi, przed złem szeptów upadłego, który szepcze w piersi ludzi, spośród dżinnów i ludzi!”"),
+        (114, "Ludzie", "3-6", "Boga ludzi, przed złem szeptów upadłego, który szepcze w piersi ludzi, spośród dżinnów i ludzi!”")
     ]
     return pd.DataFrame(data, columns=["chapter_nr", "chapter_name", "verse", "text"])
+
+
+# fmt: on
 
 
 @pytest.fixture()
