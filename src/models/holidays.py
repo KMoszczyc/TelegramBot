@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from src.config.assets import polish_holidays_df
 from src.config.constants import TIMEZONE
 from src.config.enums import Table
 from src.config.settings import CHAT_ID
@@ -23,9 +22,10 @@ THREAD_ID = int(os.getenv("BOT_CHAT_THREAD_ID"))
 
 
 class Holidays:
-    def __init__(self, job_queue, credits_obj, db):
+    def __init__(self, job_queue, credits_obj, db, assets):
         self.job_queue = job_queue
         self.db = db
+        self.assets = assets
         self.users_df = self.db.load_table(Table.USERS)
         self.credits = credits_obj
 
@@ -52,7 +52,7 @@ class Holidays:
 
     def preprocess_holidays(self):
         current_dt = core_utils.get_dt_now()
-        raw_holidays_df = polish_holidays_df.copy(deep=True)
+        raw_holidays_df = self.assets.polish_holidays_df.copy(deep=True)
         raw_holidays_df["date"] = pd.to_datetime(raw_holidays_df["date"], format="%d-%m-%Y", utc=True).dt.tz_convert(tz=ZoneInfo(TIMEZONE))
 
         years_num = 2  # for how many years should we load holiday jobs - 2 seem enough (current and the next), as Ozjasz is frequently updated, I guess more is unnecessary and could put some overhead?

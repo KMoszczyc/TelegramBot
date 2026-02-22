@@ -20,9 +20,9 @@ class RandomEvent:
 
 class RandomFailureEvent(RandomEvent):
     def __init__(self, description: str, effect_func: Callable):
-        super().__init__(description, effect_func, 'failure')
+        super().__init__(description, effect_func, "failure")
 
 
 class RandomSuccessEvent(RandomEvent):
     def __init__(self, description: str, effect_func: Callable):
-        super().__init__(description, effect_func, 'success')
+        super().__init__(description, effect_func, "success")

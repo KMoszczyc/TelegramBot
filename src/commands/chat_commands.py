@@ -1,5 +1,4 @@
 import logging
-import os.path
 
 import pandas as pd
 import telegram
@@ -8,9 +7,10 @@ from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
+from src.config.assets import Assets
 from src.config.constants import MAX_CWEL_USAGE_DAILY, MAX_NICKNAMES_NUM, MAX_USERNAME_LENGTH, TIMEZONE
 from src.config.enums import ArgType, ChartType, EmojiType, MessageType, Table
-from src.config.paths import CHAT_VIDEO_NOTES_DIR_PATH, UPDATE_REQUIRED_PATH, USERS_PATH
+from src.config.paths import CHAT_VIDEO_NOTES_DIR_PATH, USERS_PATH
 from src.core.client_api_handler import BOT_ID
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
@@ -29,15 +29,16 @@ log = logging.getLogger(__name__)
 
 
 class ChatCommands:
-    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, db: DB):
+    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, db: DB, assets: Assets):
         self.db = db
+        self.assets = assets
         self.users_df = self.db.load_table(Table.USERS)
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
         self.reactions_df = self.db.load_table(Table.REACTIONS)
         self.cwel_stats_df = self.db.load_table(Table.CWEL)
 
-        self.word_stats = WordStats(self.db)
+        self.word_stats = WordStats(self.db, self.assets)
         self.command_logger = command_logger
         self.bot_state = bot_state
         self.job_persistance = job_persistance
@@ -45,17 +46,11 @@ class ChatCommands:
 
     def update(self):
         """If chat data was updated recentely, reload it."""
-        if not os.path.isfile(UPDATE_REQUIRED_PATH):
-            log.info(f"Update not required, {UPDATE_REQUIRED_PATH} doesn't exist.")
-            return
-
         log.info("Reloading chat data due to the recent update.")
         self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
         self.reactions_df = self.db.load_table(Table.REACTIONS)
         self.users_df = self.db.load_table(Table.USERS)
         self.word_stats = WordStats(self.db)
-
-        stats_utils.remove_file(UPDATE_REQUIRED_PATH)
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
         self.update()
@@ -402,7 +397,7 @@ class ChatCommands:
         core_utils.save_df(self.users_df, USERS_PATH)
 
         current_nicknames = self.users_df.at[user_id, "nicknames"]
-        text = f'Nickname *{new_nickname}* added for *{current_username}*. Resulting in the following nicknames: *{", ".join(current_nicknames)}*. It will get updated in a few minutes.'
+        text = f"Nickname *{new_nickname}* added for *{current_username}*. Resulting in the following nicknames: *{', '.join(current_nicknames)}*. It will get updated in a few minutes."
         text = stats_utils.escape_special_characters(text)
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -869,7 +864,7 @@ class ChatCommands:
         if "text" in command_args.named_args and ngram_num not in self.word_stats.ngram_range:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args['text']}" is {ngram_num}-gram.',
+                text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args["text"]}" is {ngram_num}-gram.',
                 message_thread_id=update.message.message_thread_id,
             )
         if "diacritical" in command_args.named_args:

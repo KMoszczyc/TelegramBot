@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from src.config.assets import quiz_df
+from src.config.assets import Assets
 from src.config.constants import CRITICAL_FAILURE_CHANCE, CRITICAL_SUCCESS_CHANCE, MIN_QUIZ_TIME_TO_ANSWER_SECONDS
 from src.config.enums import BET_EVENTS, QUIZ_EVENTS, STEAL_EVENTS, ArgType, CreditActionType, MessageType, Table
 from src.core.command_logger import CommandLogger
@@ -26,12 +26,15 @@ log = logging.getLogger(__name__)
 
 
 class CreditCommands:
-    def __init__(self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, credits: Credits, db: DB):
+    def __init__(
+        self, command_logger: CommandLogger, job_persistance: JobPersistance, bot_state: BotState, credits: Credits, db: DB, assets: Assets
+    ):
         self.command_logger = command_logger
         self.job_persistance = job_persistance
         self.bot_state = bot_state
         self.credits = credits
         self.db = db
+        self.assets = assets
         self.users_df = self.db.load_table(Table.USERS)
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.roulette = Roulette(self.credits)
@@ -272,7 +275,7 @@ class CreditCommands:
             )
             return
 
-        filtered_quiz_df = copy.deepcopy(quiz_df)
+        filtered_quiz_df = copy.deepcopy(self.assets.quiz_df)
         if "category" in command_args.named_args:
             filtered_quiz_df = filtered_quiz_df[filtered_quiz_df["category"].str.contains(command_args.named_args["category"], case=False)]
         if "difficulty" in command_args.named_args:

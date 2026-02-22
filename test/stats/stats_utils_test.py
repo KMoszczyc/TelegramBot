@@ -1,4 +1,5 @@
 """Tests for stats utility functions."""
+
 import os
 from datetime import datetime
 from unittest.mock import MagicMock

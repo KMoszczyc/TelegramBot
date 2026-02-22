@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from src.commands.misc_commands import Commands
-from src.config.enums import HolyTextType, Table
+from src.config.enums import ErrorMessage, HolyTextType, Table
 from src.models.bot_state import BotState
 
 
@@ -86,6 +86,9 @@ def assets(bible_df, quran_df):
     a.boczek_phrases = ["curse_one", "curse_two"]
     a.shopping_sundays = ["01-01-2024"]
     a.kiepscy_df = pd.DataFrame([{"nr": "1", "title": "t", "url": "u", "description": "d"}])
+    a.tvp_headlines = ["Tusk powraca", "Kaczynski na wakacjach"]
+    a.tvp_latest_headlines = ["Nowy podatek"]
+    a.walesa_phrases = ["Ja to zrobilem"]
     return a
 
 
@@ -133,7 +136,7 @@ async def test_cmd_all_sends_markdown_mentions(commands, update, context):
     [
         pytest.param([], "", ["hello"], "hello", id="no_args_success"),
         pytest.param(["x"], "some error", ["hello"], "some error", id="preprocess_error"),
-        pytest.param(["x"], "", [], "Nie ma takiej wypowiedzi :(", id="no_matching_phrase"),
+        pytest.param(["x"], "", [], ErrorMessage.NO_SUCH_PHRASE, id="no_matching_phrase"),
     ],
 )
 async def test_cmd_ozjasz_edge_cases(mocker, commands, update, context, args, preprocess_error, filtered_phrases, expected_text):
@@ -163,10 +166,10 @@ async def test_cmd_boczek_uses_real_boczek_phrases_and_arg_parsing(mocker, comma
     commands.assets.boczek_phrases = ["curse_one", "curse_two"]
 
     await commands.cmd_boczek(update, context)
-
     sent = context.bot.send_message.await_args.kwargs["text"]
-    assert sent.startswith(expected_prefix)
     curse_part = sent[len(expected_prefix) :] if expected_prefix else sent
+
+    assert sent.startswith(expected_prefix)
     assert curse_part in {"curse_one", "curse_two"}
 
 
@@ -183,15 +186,47 @@ async def test_cmd_boczek_uses_real_boczek_phrases_and_arg_parsing(mocker, comma
     ],
 )
 async def test_phrase_commands_preprocess_error_short_circuits(mocker, commands, update, context, method_name):
-    mocker.patch(
-        "src.commands.misc_commands.core_utils.preprocess_input",
-        return_value=([], MagicMock(error="err")),
-    )
+    mocker.patch("src.commands.misc_commands.core_utils.preprocess_input", return_value=([], MagicMock(error="err")))
 
     await getattr(commands, method_name)(update, context)
 
     kwargs = context.bot.send_message.await_args.kwargs
     assert kwargs["text"] == "err"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name, error_message, expected_text, replace_newlines",
+    [
+        pytest.param("cmd_europejskafirma", ErrorMessage.NO_SUCH_PHRASE, "hello", False, id="europejskafirma"),
+        pytest.param("cmd_bartosiak", ErrorMessage.NO_SUCH_PHRASE, "hello", False, id="bartosiak"),
+        pytest.param("cmd_tvp", ErrorMessage.NO_SUCH_HEADLINE, "hello", False, id="tvp"),
+        pytest.param("cmd_tvp_latest", ErrorMessage.NO_SUCH_HEADLINE, "hello", False, id="tvp_latest"),
+        pytest.param("cmd_tusk", ErrorMessage.NO_SUCH_HEADLINE, "hello", False, id="tusk"),
+        pytest.param("cmd_walesa", ErrorMessage.NO_SUCH_ITEM, "hello\nworld", True, id="walesa"),
+    ],
+)
+async def test_phrase_commands_success_and_fallback(
+    mocker, commands, update, context, method_name, error_message, expected_text, replace_newlines
+):
+    # Test valid case
+    mocker.patch("src.commands.misc_commands.core_utils.preprocess_input", return_value=(["raw_hello"], MagicMock(error="")))
+    if replace_newlines:
+        mocker.patch("src.commands.misc_commands.core_utils.select_random_phrase", return_value=expected_text.replace("\n", r"\n"))
+    else:
+        mocker.patch("src.commands.misc_commands.core_utils.select_random_phrase", return_value=expected_text)
+
+    await getattr(commands, method_name)(update, context)
+    kwargs = context.bot.send_message.await_args.kwargs
+    assert kwargs["text"] == expected_text
+
+    # Test no phrases available fallback
+    mocker.patch("src.commands.misc_commands.core_utils.preprocess_input", return_value=([], MagicMock(error="")))
+    mocker.patch("src.commands.misc_commands.core_utils.select_random_phrase", return_value=error_message)
+
+    await getattr(commands, method_name)(update, context)
+    kwargs = context.bot.send_message.await_args.kwargs
+    assert kwargs["text"] == error_message
 
 
 @pytest.mark.asyncio
@@ -210,9 +245,9 @@ async def test_cmd_are_you_lucky_today_args_provided(mocker, commands, update, c
     mocker.patch("src.commands.misc_commands.core_utils.text_to_number", return_value=5)
 
     await commands.cmd_are_you_lucky_today(update, context)
+    kwargs = context.bot.send_message.await_args.kwargs
 
     assert lucky.call_args.args[1] == expected_args_provided
-    kwargs = context.bot.send_message.await_args.kwargs
     assert kwargs["text"] == "resp"
 
 

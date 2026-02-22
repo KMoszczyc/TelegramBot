@@ -6,7 +6,6 @@ from nltk import ngrams
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from src.config.assets import polish_stopwords
 from src.config.constants import STOPWORD_RATIO_THRESHOLD
 from src.config.enums import PeriodFilterMode, Table
 from src.config.paths import CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH
@@ -21,8 +20,9 @@ log = logging.getLogger(__name__)
 
 
 class WordStats:
-    def __init__(self, db):
+    def __init__(self, db, assets):
         self.db = db
+        self.assets = assets
         self.ngram_dfs = {}
         self.ngram_range = [1, 2, 3, 4, 5]
         self.load_ngrams()
@@ -211,10 +211,10 @@ class WordStats:
             return True
 
         if n == 1:  # for a single word we dont want it to be a stopword 100%
-            return not stats_utils.contains_stopwords(text, polish_stopwords)
+            return not stats_utils.contains_stopwords(text, self.assets.polish_stopwords)
 
         return (
-            not stats_utils.is_ngram_contaminated_by_stopwords(text, STOPWORD_RATIO_THRESHOLD, polish_stopwords)
+            not stats_utils.is_ngram_contaminated_by_stopwords(text, STOPWORD_RATIO_THRESHOLD, self.assets.polish_stopwords)
         ) and stats_utils.is_ngram_valid(text)
 
     def is_nan(self, text):

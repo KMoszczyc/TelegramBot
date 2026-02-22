@@ -60,6 +60,14 @@ class MessageType(Enum):
     NONE = "none"
 
 
+class ErrorMessage(str, Enum):
+    NO_SUCH_PHRASE = "Nie ma takiej wypowiedzi :("
+    NO_SUCH_HEADLINE = "Nie ma takiego nagłówka :("
+    NO_SUCH_ITEM = "Nie ma takiego przedmiotu :("
+    NO_SUCH_VERSE = "Nie ma takiego wersetu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :("
+    NO_SUCH_EPISODE = "Nie ma takiego epizodu :("
+
+
 class NamedArgType(Enum):
     SHORT = "short"
     NORMAL = "normal"

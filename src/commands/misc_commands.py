@@ -10,7 +10,7 @@ import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.config.assets import Assets
 from src.config.constants import LONG_MESSAGE_LIMIT
-from src.config.enums import ArgType, HolyTextType, SiglumType, Table
+from src.config.enums import ArgType, ErrorMessage, HolyTextType, SiglumType, Table
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
@@ -52,7 +52,7 @@ class Commands:
             return
         log.info(update.message)
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiej wypowiedzi :(")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_PHRASE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_boczek(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -64,7 +64,7 @@ class Commands:
             )
             return
 
-        curse = core_utils.select_random_phrase(self.assets.boczek_phrases, "Nie ma takiej wypowiedzi :(")
+        curse = core_utils.select_random_phrase(self.assets.boczek_phrases, ErrorMessage.NO_SUCH_PHRASE)
         response = f"{command_args.string} to {curse}" if command_args.string != "" else curse
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
@@ -77,7 +77,7 @@ class Commands:
             )
             return
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiej wypowiedzi :(")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_PHRASE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_bartosiak(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -89,7 +89,7 @@ class Commands:
             )
             return
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiej wypowiedzi :(")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_PHRASE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tvp(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,7 +102,7 @@ class Commands:
             )
             return
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiego nagłówka :(")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_HEADLINE)
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
@@ -115,7 +115,7 @@ class Commands:
             )
             return
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiego nagłówka :(")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_HEADLINE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_tusk(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,7 +128,7 @@ class Commands:
             )
             return
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiego nagłówka :(")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_HEADLINE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_walesa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -140,7 +140,7 @@ class Commands:
             )
             return
 
-        response = core_utils.select_random_phrase(filtered_phrases, "Nie ma takiego przedmiotu :(").replace(r"\n", "\n")
+        response = core_utils.select_random_phrase(filtered_phrases, ErrorMessage.NO_SUCH_ITEM).replace(r"\n", "\n")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_are_you_lucky_today(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -211,9 +211,9 @@ class Commands:
 
         response = ""
         if "book" in command_args.named_args:
-            abbrevarions = bible_df["abbreviation"].unique()
+            abbreviation = bible_df["abbreviation"].unique()
             books = bible_df["book"].unique()
-            matched_abbreviation = core_utils.match_substr_to_list_of_texts(command_args.named_args["book"], abbrevarions)
+            matched_abbreviation = core_utils.match_substr_to_list_of_texts(command_args.named_args["book"], abbreviation)
             matched_book_name = core_utils.match_substr_to_list_of_texts(command_args.named_args["book"], books)
 
             if matched_abbreviation is not None:
@@ -223,7 +223,7 @@ class Commands:
                 filtered_df = filtered_df[filtered_df["book"] == matched_book_name]
 
             if matched_book_name is None or matched_abbreviation is None:
-                response += f'[{filtered_df.iloc[0]['abbreviation']}] {filtered_df.iloc[0]['book']}, '
+                response += f"[{filtered_df.iloc[0]['abbreviation']}] {filtered_df.iloc[0]['book']}, "
 
         if "chapter" in command_args.named_args:  # in chapter mode we read a random chapter from the bible
             random_row = filtered_df.sample(frac=1).iloc[0]
@@ -285,7 +285,7 @@ class Commands:
                 filtered_df = filtered_df[filtered_df["chapter_name"] == matched_chapter_name]
 
             if matched_chapter_name is None:
-                response += f'[Sura {filtered_df.iloc[0]['chapter_nr']}]. {filtered_df.iloc[0]['chapter_name']}, '
+                response += f"[Sura {filtered_df.iloc[0]['chapter_nr']}]. {filtered_df.iloc[0]['chapter_name']}, "
 
         response, error = self.handle_holy_text_named_params(
             command_args, filtered_df, quran_df, bot_state, filter_phrase, HolyTextType.QURAN
@@ -300,7 +300,7 @@ class Commands:
         error = ""
         last_verse_id = bot_state.last_bible_verse_id if holy_text_type == HolyTextType.BIBLE else bot_state.last_quran_verse_id
         if filtered_df.empty:
-            response = "Nie ma takiego wersetu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :("
+            response = ErrorMessage.NO_SUCH_VERSE
         elif "num" in command_args.named_args:
             df = filtered_df.head(command_args.named_args["num"])
             response = core_utils.display_holy_text_df(
@@ -313,18 +313,18 @@ class Commands:
         elif "prev" in command_args.named_args and last_verse_id != -1:
             start_index = max(0, last_verse_id - command_args.named_args["prev"])
             filtered_df = raw_df.iloc[start_index:last_verse_id]
-            label = f'{command_args.named_args['prev']} {holy_text_type.value} verses before {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}'
+            label = f"{command_args.named_args['prev']} {holy_text_type.value} verses before {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}"
             response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=label, show_siglum=False)
         elif "next" in command_args.named_args and last_verse_id != -1:
             end_index = min(len(filtered_df), last_verse_id + command_args.named_args["next"] + 1)
             filtered_df = raw_df.iloc[last_verse_id + 1 : end_index]
-            label = f'{command_args.named_args['next']} {holy_text_type.value} verses after {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}'
+            label = f"{command_args.named_args['next']} {holy_text_type.value} verses after {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}"
             response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=label, show_siglum=False)
         elif "count" in command_args.named_args:
             random_row = filtered_df.iloc[0]
             self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
             response = f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}": \n\n'
-            response += f'[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row["text"]}'
+            response += f"[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row['text']}"
         elif "verse" in command_args.named_args:
             response, error = core_utils.parse_quran_verse_arg(raw_df, command_args.named_args["verse"], bot_state, holy_text_type)
         else:
@@ -495,7 +495,7 @@ class Commands:
         matching_episode_df = kiepscy_df[kiepscy_df["nr"] == episode_nr]
         if matching_episode_df.empty:
             await context.bot.send_message(
-                chat_id=update.effective_chat.id, text="Nie ma takiego epizodu :(", message_thread_id=update.message.message_thread_id
+                chat_id=update.effective_chat.id, text=ErrorMessage.NO_SUCH_EPISODE, message_thread_id=update.message.message_thread_id
             )
             return
         row = matching_episode_df.iloc[0]

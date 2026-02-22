@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from src.config.constants import TIMEZONE
-from src.config.enums import ArgType, DatetimeFormat, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
+from src.config.enums import ArgType, DatetimeFormat, ErrorMessage, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
 from src.config.paths import (
     CHAT_AUDIO_DIR_PATH,
     CHAT_GIFS_DIR_PATH,
@@ -205,8 +205,8 @@ def is_inside_square_brackets(text):
     return text.startswith("[") and text.endswith("]")
 
 
-def select_random_phrase(phrases, error_message):
-    return random.choice(phrases) if phrases else error_message
+def select_random_phrase(phrases, error_message: ErrorMessage):
+    return random.choice(phrases) if phrases else error_message.value
 
 
 def generate_unique_number(user_id):
