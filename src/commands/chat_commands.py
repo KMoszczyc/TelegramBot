@@ -50,7 +50,7 @@ class ChatCommands:
         self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
         self.reactions_df = self.db.load_table(Table.REACTIONS)
         self.users_df = self.db.load_table(Table.USERS)
-        self.word_stats = WordStats(self.db)
+        self.word_stats = WordStats(self.db, self.assets)
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
         self.update()
@@ -158,82 +158,32 @@ class ChatCommands:
         # text = stats_utils.escape_special_characters(text)
         # await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
+        def fmt(df, name_col, val_col):
+            return [f"{r[name_col]}: <b>{r[val_col]}</b>" for _, r in df.head(display_count).iterrows()]
+
         rows = [
-            [
-                "<b>Top spammer</b>",
-                *[
-                    f"{row['final_username']}: <b>{row['message_count']}</b>"
-                    for _, row in user_stats.sort_values("message_count", ascending=False).head(display_count).iterrows()
-                ],
-            ],
-            [
-                "<b>Word count</b>",
-                *[
-                    f"{row['final_username']}: <b>{row['word_count']}</b>"
-                    for _, row in user_stats.sort_values("word_count", ascending=False).head(display_count).iterrows()
-                ],
-            ],
+            ["<b>Top spammer</b>", *fmt(user_stats.sort_values("message_count", ascending=False), "final_username", "message_count")],
+            ["<b>Word count</b>", *fmt(user_stats.sort_values("word_count", ascending=False), "final_username", "word_count")],
             [
                 "<b>Monologue index</b>",
-                *[
-                    f"{row['final_username']}: <b>{row['monologue_ratio']}</b>"
-                    for _, row in user_stats.sort_values("monologue_ratio", ascending=False).head(display_count).iterrows()
-                ],
+                *fmt(user_stats.sort_values("monologue_ratio", ascending=False), "final_username", "monologue_ratio"),
             ],
-            [
-                "<b>Elaborateness</b>",
-                *[
-                    f"{row['final_username']}: <b>{row['avg_word_length']}</b>"
-                    for _, row in user_stats.sort_values("avg_word_length", ascending=False).head(display_count).iterrows()
-                ],
-            ],
-            ["<b>Fun</b>", *[f"{row['final_username']}: <b>{row['ratio']}</b>" for _, row in fun_metric.head(display_count).iterrows()]],
-            [
-                "<b>Wholesome</b>",
-                *[f"{row['reacting_username']}: <b>{row['ratio']}</b>" for _, row in wholesome_metric.head(display_count).iterrows()],
-            ],
-            [
-                "<b>Unwholesome</b>",
-                *[
-                    f"{row['reacting_username']}: <b>{row['ratio']}</b>"
-                    for _, row in wholesome_metric.sort_values("ratio", ascending=True).head(display_count).iterrows()
-                ],
-            ],
-            [
-                "<b>Most liked</b>",
-                *[
-                    f"{row['reacted_to_username']}: <b>{row['count']}</b>"
-                    for _, row in reactions_received_counts.head(display_count).iterrows()
-                ],
-            ],
-            [
-                "<b>Most liking</b>",
-                *[f"{row['reacting_username']}: <b>{row['count']}</b>" for _, row in reactions_given_counts.head(display_count).iterrows()],
-            ],
-            [
-                "<b>Most disliked</b>",
-                *[
-                    f"{row['reacted_to_username']}: <b>{row['count']}</b>"
-                    for _, row in sad_reactions_received_counts.head(display_count).iterrows()
-                ],
-            ],
-            [
-                "<b>Most disliking</b>",
-                *[
-                    f"{row['reacting_username']}: <b>{row['count']}</b>"
-                    for _, row in sad_reactions_given_counts.head(display_count).iterrows()
-                ],
-            ],
+            ["<b>Elaborateness</b>", *fmt(user_stats.sort_values("avg_word_length", ascending=False), "final_username", "avg_word_length")],
+            ["<b>Fun</b>", *fmt(fun_metric, "final_username", "ratio")],
+            ["<b>Wholesome</b>", *fmt(wholesome_metric, "reacting_username", "ratio")],
+            ["<b>Unwholesome</b>", *fmt(wholesome_metric.sort_values("ratio", ascending=True), "reacting_username", "ratio")],
+            ["<b>Most liked</b>", *fmt(reactions_received_counts, "reacted_to_username", "count")],
+            ["<b>Most liking</b>", *fmt(reactions_given_counts, "reacting_username", "count")],
+            ["<b>Most disliked</b>", *fmt(sad_reactions_received_counts, "reacted_to_username", "count")],
+            ["<b>Most disliking</b>", *fmt(sad_reactions_given_counts, "reacting_username", "count")],
         ]
+        top_msg = ", ".join(
+            f"{r['final_username']} [{stats_utils.dt_to_str(r['timestamp'])}]: {r['text']} [{''.join(r['reaction_emojis'])}]"
+            for _, r in text_only_chat_df.head(1).iterrows()
+        )
         footnotes = [
             f"Total: {len(chat_df)} ({message_count_change_text}) messages, {len(reactions_df)} ({reaction_count_change_text}) reactions and {images_num} images",
-            "Top message: "
-            + ", ".join(
-                [
-                    f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]"
-                    for _, row in text_only_chat_df.head(1).iterrows()
-                ]
-            ),
+            f"Top message: {top_msg}",
         ]
         send_msg = "\n".join(footnotes)
 
@@ -388,8 +338,8 @@ class ChatCommands:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=error,
-                message_thread_id=update.message.message_thread_id,
                 parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
             )
             return
 

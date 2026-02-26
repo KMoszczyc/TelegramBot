@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 import src.commands.misc_commands as commands
 import src.core.utils as core_utils
@@ -54,6 +54,7 @@ class OzjaszBot:
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
+        self.application.add_handler(MessageHandler(filters.ALL, self.message_handler))
         self.application.add_handler(CallbackQueryHandler(self.credit_commands.btn_quiz_callback))
 
     def get_commands_map(self):

@@ -184,19 +184,18 @@ class Commands:
             text = text[index:]
 
     async def cmd_bible(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
+        named_args = {
+            "prev": ArgType.POSITIVE_INT,
+            "next": ArgType.POSITIVE_INT,
+            "all": ArgType.NONE,
+            "num": ArgType.POSITIVE_INT,
+            "count": ArgType.NONE,
+            "book": ArgType.STRING,
+            "chapter": ArgType.POSITIVE_INT,
+        }
+        aliases = {"p": "prev", "n": "next", "a": "all", "c": "count", "b": "book", "ch": "chapter"}
         command_args = CommandArgs(
-            args=context.args,
-            is_text_arg=True,
-            available_named_args={
-                "prev": ArgType.POSITIVE_INT,
-                "next": ArgType.POSITIVE_INT,
-                "all": ArgType.NONE,
-                "num": ArgType.POSITIVE_INT,
-                "count": ArgType.NONE,
-                "book": ArgType.STRING,
-                "chapter": ArgType.POSITIVE_INT,
-            },
-            available_named_args_aliases={"p": "prev", "n": "next", "a": "all", "c": "count", "b": "book", "ch": "chapter"},
+            args=context.args, is_text_arg=True, available_named_args=named_args, available_named_args_aliases=aliases
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
@@ -250,19 +249,18 @@ class Commands:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response, message_thread_id=update.message.message_thread_id)
 
     async def cmd_quran(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_state: BotState):
+        named_args = {
+            "prev": ArgType.POSITIVE_INT,
+            "next": ArgType.POSITIVE_INT,
+            "all": ArgType.NONE,
+            "num": ArgType.POSITIVE_INT,
+            "count": ArgType.NONE,
+            "chapter": ArgType.STRING,
+            "verse": ArgType.STRING,
+        }
+        aliases = {"p": "prev", "n": "next", "a": "all", "c": "count", "ch": "chapter", "num": "num", "v": "verse"}
         command_args = CommandArgs(
-            args=context.args,
-            is_text_arg=True,
-            available_named_args={
-                "prev": ArgType.POSITIVE_INT,
-                "next": ArgType.POSITIVE_INT,
-                "all": ArgType.NONE,
-                "num": ArgType.POSITIVE_INT,
-                "count": ArgType.NONE,
-                "chapter": ArgType.STRING,
-                "verse": ArgType.STRING,
-            },
-            available_named_args_aliases={"p": "prev", "n": "next", "a": "all", "c": "count", "ch": "chapter", "num": "num", "v": "verse"},
+            args=context.args, is_text_arg=True, available_named_args=named_args, available_named_args_aliases=aliases
         )
         quran_df = self.assets.quran_df
         command_args = core_utils.parse_args(self.users_df, command_args)
