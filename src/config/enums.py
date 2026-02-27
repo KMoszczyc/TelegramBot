@@ -66,6 +66,11 @@ class ErrorMessage(str, Enum):
     NO_SUCH_ITEM = "Nie ma takiego przedmiotu :("
     NO_SUCH_VERSE = "Nie ma takiego wersetu. Beduinom pustynnym weszło post-nut clarity po wyruchaniu kozy. :("
     NO_SUCH_EPISODE = "Nie ma takiego epizodu :("
+    NO_DATA_FOR_PERIOD = "No data from that period, sorry :("
+    TOO_MUCH_TEXT = "Too much text to display. Lower the number of messages."
+    CWEL_NO_REPLY = "You have to reply to a message to cwel someone."
+    CWEL_BOT = "You cannot cwel Ozjasz. Only Ozjasz can cwel you."
+    CWEL_SELF = "You cannot cwel yourself."
 
 
 class NamedArgType(Enum):

@@ -9,7 +9,7 @@ import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.config.assets import Assets
 from src.config.constants import MAX_CWEL_USAGE_DAILY, MAX_NICKNAMES_NUM, MAX_USERNAME_LENGTH, TIMEZONE
-from src.config.enums import ArgType, ChartType, EmojiType, MessageType, Table
+from src.config.enums import ArgType, ChartType, EmojiType, ErrorMessage, MessageType, Table
 from src.config.paths import CHAT_VIDEO_NOTES_DIR_PATH, USERS_PATH
 from src.core.client_api_handler import BOT_ID
 from src.core.command_logger import CommandLogger
@@ -295,7 +295,7 @@ class ChatCommands:
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
         if len(text) > 4096:
-            text = "Too much text to display. Lower the number of messages."
+            text = ErrorMessage.TOO_MUCH_TEXT
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
 
@@ -660,7 +660,7 @@ class ChatCommands:
         if reactions_df.empty:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="No data from that period, sorry :(",
+                text=ErrorMessage.NO_DATA_FOR_PERIOD,
                 message_thread_id=update.message.message_thread_id,
             )
             return
@@ -714,12 +714,8 @@ class ChatCommands:
             )
             return
 
-        error = "You have to reply to a message to cwel someone." if not update.message.reply_to_message else ""
-        error += (
-            "You cannot cwel Ozjasz. Only Ozjasz can cwel you."
-            if update.message.reply_to_message and update.message.reply_to_message.from_user.id == BOT_ID
-            else error
-        )
+        error = ErrorMessage.CWEL_NO_REPLY if not update.message.reply_to_message else ""
+        error += ErrorMessage.CWEL_BOT if update.message.reply_to_message and update.message.reply_to_message.from_user.id == BOT_ID else ""
         if error != "":
             await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
             return
@@ -730,7 +726,7 @@ class ChatCommands:
         giver_id = update.message.from_user.id
         giver_username = self.users_map[giver_id]
         if receiver_username == giver_username:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="You cannot cwel yourself.")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=ErrorMessage.CWEL_SELF)
             return
 
         self.cwel_stats_df = stats_utils.update_cwel_stats(

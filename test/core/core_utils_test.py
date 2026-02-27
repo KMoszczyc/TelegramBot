@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from src.config.constants import TIMEZONE
-from src.config.enums import ArgType, DatetimeFormat, MessageType, PeriodFilterMode
+from src.config.enums import ArgType, DatetimeFormat, ErrorMessage, MessageType, PeriodFilterMode
 from src.core.utils import (
     calculate_skewed_probability,
     datetime_to_ms,
@@ -139,8 +139,8 @@ def test_is_inside_square_brackets(text, expected):
 @pytest.mark.parametrize(
     "phrases, error_message, expected_in_result",
     [
-        pytest.param(["hello", "world"], "error", ["hello", "world"], id="non_empty_list"),
-        pytest.param([], "No phrases found", ["No phrases found"], id="empty_list"),
+        pytest.param(["hello", "world"], ErrorMessage.NO_SUCH_PHRASE, ["hello", "world"], id="non_empty_list"),
+        pytest.param([], ErrorMessage.NO_SUCH_PHRASE, [ErrorMessage.NO_SUCH_PHRASE.value], id="empty_list"),
     ],
 )
 def test_select_random_phrase(phrases, error_message, expected_in_result):
