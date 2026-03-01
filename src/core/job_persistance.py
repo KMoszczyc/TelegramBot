@@ -9,6 +9,7 @@ class JobPersistance:
     """Persist scheduled jobs such as /remindme in a pickle file. Jobs are stored in a dict of dicts."""
 
     def __init__(self, job_queue):
+        self.job_queue = job_queue
         self.jobs = self.load_jobs(job_queue)
 
     def load_jobs(self, job_queue):

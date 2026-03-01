@@ -44,7 +44,12 @@ class ChatCommands:
         self.job_persistance = job_persistance
         self.ytdl = YoutubeDownload()
 
-    def update(self):
+        self.run_update_job()
+
+    def run_update_job(self):
+        self.job_persistance.job_queue.run_repeating(callback=lambda context: self.update(), interval=60, name="Chat commands update job")
+
+    async def update(self):
         """If chat data was updated recentely, reload it."""
         log.info("Reloading chat data due to the recent update.")
         self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
@@ -53,7 +58,7 @@ class ChatCommands:
         self.word_stats = WordStats(self.db, self.assets)
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
-        self.update()
+        # self.update()
 
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
