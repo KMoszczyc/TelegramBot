@@ -44,7 +44,7 @@ class ChatCommands:
         self.job_persistance = job_persistance
         self.ytdl = YoutubeDownload()
 
-        self.run_update_job()
+        # self.run_update_job()
 
     def run_update_job(self):
         self.job_persistance.job_queue.run_repeating(callback=lambda context: self.update(), interval=60, name="Chat commands update job")
