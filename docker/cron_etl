@@ -1,3 +1,3 @@
-*/1 * * * * /usr/local/bin/python3 /app/src/main_etl.py --days 1 >> /var/log/chat_etl.log 2>&1
+*/5 * * * * /usr/local/bin/python3 /app/src/main_etl.py --days 1 >> /var/log/chat_etl.log 2>&1
 0 0 * * * /usr/local/bin/python3 /app/src/main_etl.py --days 7 >> /var/log/chat_etl.log 2>&1
 0 * * * * /usr/local/bin/python3 /app/src/word_stats_etl.py --days 1 >> /var/log/chat_etl.log 2>&1
