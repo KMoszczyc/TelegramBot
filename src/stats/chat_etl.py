@@ -9,7 +9,7 @@ import pandas as pd
 
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
-from src.config.constants import TIMEZONE
+from src.config.constants import BOT_MESSAGE_RETENION_IN_MINUTES, EXCLUDED_USER_IDS, TIMEZONE
 from src.config.enums import DBSaveMode, MessageType, Table
 from src.config.paths import TEMP_DIR, USERS_PATH
 from src.config.settings import BOT_ID
@@ -24,8 +24,6 @@ pd.set_option("display.width", 1000)
 pd.options.mode.chained_assignment = None
 
 log = logging.getLogger(__name__)
-excluded_user_ids = [6455867316, 6455867316, 1660481027, 1626698260, 1653222205, 1626673718, 2103796402]
-BOT_MESSAGE_RETENION_IN_MINUTES = 5
 
 
 class ChatETL:
@@ -190,7 +188,7 @@ class ChatETL:
         log.info("Cleaning chat history...")
 
         users_df = stats_utils.read_users()
-        filtered_df = latest_chat_df[~latest_chat_df["user_id"].isin(excluded_user_ids)]
+        filtered_df = latest_chat_df[~latest_chat_df["user_id"].isin(EXCLUDED_USER_IDS)]
         cleaned_chat_df = filtered_df.drop(["first_name", "last_name", "username"], axis=1)
         cleaned_chat_df = cleaned_chat_df.merge(users_df, on="user_id")
         cleaned_chat_df = cleaned_chat_df[
@@ -228,7 +226,7 @@ class ChatETL:
         chat_df = self.db.load_table(Table.CHAT_HISTORY)
         unique_chat_df = chat_df.drop_duplicates("user_id")
         users_df = unique_chat_df[["user_id", "first_name", "last_name", "username"]]
-        filtered_users_df = users_df[~users_df["user_id"].isin(excluded_user_ids)]
+        filtered_users_df = users_df[~users_df["user_id"].isin(EXCLUDED_USER_IDS)]
         filtered_users_df["final_username"] = filtered_users_df.apply(self.create_final_username, axis=1)
         filtered_users_df["nicknames"] = [[] for _ in range(len(filtered_users_df))]
         filtered_users_df = filtered_users_df.set_index("user_id")
