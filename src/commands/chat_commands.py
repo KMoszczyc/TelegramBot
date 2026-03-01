@@ -56,6 +56,7 @@ class ChatCommands:
         self.reactions_df = self.db.load_table(Table.REACTIONS)
         self.users_df = self.db.load_table(Table.USERS)
         self.word_stats = WordStats(self.db, self.assets)
+        log.info("Finished updating")
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
         # self.update()
