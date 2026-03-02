@@ -48,8 +48,8 @@ class DB:
         # self.migrate()
 
     def init_db(self) -> sqlite3.Connection:
-        """Initialize and return a SQLite database connection with 30s timeout and autocommit mode"""
-        return sqlite3.connect(DB_PATH, timeout=30, isolation_level=None)
+        """Initialize and return a SQLite database connection."""
+        return sqlite3.connect(DB_PATH, timeout=30, isolation_level=None, check_same_thread=False)
 
     def create_tables(self) -> None:
         """Create database tables from the SQL schema file.
