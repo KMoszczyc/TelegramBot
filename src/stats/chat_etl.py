@@ -30,8 +30,8 @@ class ChatETL:
     """Core chat downloader and data processor."""
 
     def __init__(self):
-        self.client_api_handler = ClientAPIHandler()
         self.db = DB()
+        self.client_api_handler = ClientAPIHandler(self.db)
 
     def update(self, days: int, bulk_ocr=False):
         log.info(f"Running chat ETL for the past: {days} days")
@@ -210,6 +210,7 @@ class ChatETL:
 
         log.info(f"Cleaned chat history df, from: {len(latest_chat_df)} to: {len(cleaned_chat_df)}")
         self.db.save_dataframe(cleaned_chat_df, Table.CLEANED_CHAT_HISTORY, mode=DBSaveMode.APPEND)
+        self.db.record_updated_message_ids(cleaned_chat_df["message_id"])
         return cleaned_chat_df
 
     def extract_users(self):
@@ -257,6 +258,7 @@ class ChatETL:
 
         stats_utils.validate_schema(reactions_df, reactions_schema)
         self.db.save_dataframe(reactions_df, Table.REACTIONS, mode=DBSaveMode.APPEND)
+        self.db.record_updated_message_ids(reactions_df["message_id"])
 
     def delete_bot_messages(self):
         """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""

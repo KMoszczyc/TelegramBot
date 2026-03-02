@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import pandas as pd
@@ -44,19 +45,47 @@ class ChatCommands:
         self.job_persistance = job_persistance
         self.ytdl = YoutubeDownload()
 
-        # self.run_update_job()
+        self.run_update_job()
 
     def run_update_job(self):
-        self.job_persistance.job_queue.run_repeating(callback=lambda context: self.update(), interval=60, name="Chat commands update job")
+        self.job_persistance.job_queue.run_repeating(
+            callback=lambda context: asyncio.ensure_future(self.update()),
+            interval=60,
+            name="Chat commands update job",
+        )
 
     async def update(self):
-        """If chat data was updated recentely, reload it."""
-        log.info("Reloading chat data due to the recent update.")
-        self.chat_df = self.db.load_table(Table.CLEANED_CHAT_HISTORY)
-        self.reactions_df = self.db.load_table(Table.REACTIONS)
-        self.users_df = self.db.load_table(Table.USERS)
+        """Incrementally merge newly written rows into the in-memory DataFrames.
+
+        Reads only the message IDs that ChatETL recorded since the last call,
+        fetches those rows, and merges them into self.chat_df / self.reactions_df.
+        Returns immediately if nothing changed.
+        """
+        message_ids = await asyncio.to_thread(self.db.pop_updated_message_ids)
+        if not message_ids:
+            return
+
+        log.info(f"Incremental update: {len(message_ids)} changed message IDs.")
+
+        new_chat, new_reactions, users = await asyncio.gather(
+            asyncio.to_thread(self.db.load_rows_by_message_ids, Table.CLEANED_CHAT_HISTORY, message_ids),
+            asyncio.to_thread(self.db.load_rows_by_message_ids, Table.REACTIONS, message_ids),
+            asyncio.to_thread(self.db.load_table, Table.USERS),
+        )
+
+        id_set = set(message_ids)
+        self.chat_df = pd.concat(
+            [self.chat_df[~self.chat_df["message_id"].isin(id_set)], new_chat],
+            ignore_index=True,
+        )
+        self.reactions_df = pd.concat(
+            [self.reactions_df[~self.reactions_df["message_id"].isin(id_set)], new_reactions],
+            ignore_index=True,
+        )
+        self.users_df = users
         self.word_stats = WordStats(self.db, self.assets)
-        log.info("Finished updating")
+
+        log.info("Incremental update finished.")
 
     def preprocess_input(self, command_args, emoji_type: EmojiType = EmojiType.ALL):
         # self.update()

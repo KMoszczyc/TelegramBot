@@ -156,3 +156,11 @@ CREATE TABLE IF NOT EXISTS credits (
     credits INTEGER NOT NULL
 );
 
+-- ---------------------------------------------------------
+-- 9. Updated Message IDs (incremental update tracking)
+-- ---------------------------------------------------------
+-- Written by ChatETL after each run; read+cleared by the bot.
+CREATE TABLE IF NOT EXISTS updated_message_ids (
+    message_id INTEGER PRIMARY KEY
+);
+

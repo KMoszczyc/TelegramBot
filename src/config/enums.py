@@ -132,6 +132,7 @@ class Table(Enum):
     COMMANDS_USAGE = "commands_usage"
     REACTIONS = "reactions"
     CREDITS = "credits"
+    UPDATED_MESSAGE_IDS = "updated_message_ids"
 
 
 class DBSaveMode(Enum):

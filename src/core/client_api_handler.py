@@ -13,13 +13,10 @@ log = logging.getLogger(__name__)
 
 
 class ClientAPIHandler:
-    def __init__(self):
+    def __init__(self, db):
         log.info("Initialize telethon client API")
-        # self.client = TelegramClient('ozjasz_sessionv2', api_id=API_ID, api_hash=API_HASH)
+        self.db = db
         self.client = TelegramClient(StringSession(SESSION), api_id=API_ID, api_hash=API_HASH)
-
-        # session_str = StringSession.save(self.client.session)
-        # print(session_str)
         self.create_dirs()
 
     def create_dirs(self):
@@ -91,7 +88,7 @@ class ClientAPIHandler:
     def delete_messages(self, message_ids: list):
         """Be carefull here, you could delete someone's messages forever if you are not sure about the bot_id!"""
 
-        if not stats_utils.check_bot_messages(message_ids, BOT_ID):
+        if not stats_utils.check_bot_messages(message_ids, BOT_ID, self.db):
             log.info("Not all messages set for deletion belong to a bot, deletion stopped!")
             return
         log.info("All message ids correspond to bot messages. Proceeding with deletion.")

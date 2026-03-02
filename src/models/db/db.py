@@ -48,11 +48,7 @@ class DB:
         # self.migrate()
 
     def init_db(self) -> sqlite3.Connection:
-        """Initialize and return a SQLite database connection.
-
-        Returns:
-            sqlite3.Connection: Database connection with 30s timeout and autocommit mode
-        """
+        """Initialize and return a SQLite database connection with 30s timeout and autocommit mode"""
         return sqlite3.connect(DB_PATH, timeout=30, isolation_level=None)
 
     def create_tables(self) -> None:
@@ -68,59 +64,25 @@ class DB:
         self.conn.commit()
 
     def serialize_lists(self, df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-        """Convert list columns to JSON strings for database storage.
-
-        Args:
-            df: DataFrame containing list columns to serialize
-            columns: List of column names containing list data
-
-        Returns:
-            DataFrame with list columns converted to JSON strings
-        """
+        """Convert list columns to JSON strings for database storage."""
         for col in columns:
             df[col] = df[col].apply(core_utils.safe_json_dump)
         return df
 
     def serialize_datetimes(self, df: pd.DataFrame, datetime_columns: list[str]) -> pd.DataFrame:
-        """Convert datetime columns to ISO format strings for database storage.
-
-        Args:
-            df: DataFrame containing datetime columns to serialize
-            datetime_columns: List of column names containing datetime data
-
-        Returns:
-            DataFrame with datetime columns converted to ISO format strings
-        """
+        """Convert datetime columns to ISO format strings for database storage."""
         for col in datetime_columns:
             df[col] = df[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
         return df
 
     def bool_to_int(self, df: pd.DataFrame, column: str) -> pd.DataFrame:
-        """Convert boolean column to integer for database storage.
-
-        Fills NaN values with False, then converts boolean values to integers (0/1).
-
-        Args:
-            df: DataFrame containing boolean column to convert
-            column: Name of the boolean column
-
-        Returns:
-            DataFrame with boolean column converted to integers
-        """
+        """Convert boolean column to integer for database storage. Fills NaN values with False, then converts boolean values to integers (0/1)."""
         df[column] = df[column].fillna(False)
         df[column] = df[column].astype(int)
         return df
 
     def deserialize_lists(self, df: pd.DataFrame, list_columns: list[str]) -> pd.DataFrame:
-        """Convert JSON string columns back to Python lists.
-
-        Args:
-            df: DataFrame containing JSON string columns to deserialize
-            list_columns: List of column names containing JSON-encoded lists
-
-        Returns:
-            DataFrame with JSON columns converted back to Python lists
-        """
+        """Convert JSON string columns back to Python lists."""
         for col in list_columns:
             if col not in df.columns:
                 continue
@@ -128,15 +90,7 @@ class DB:
         return df
 
     def deserialize_datetimes(self, df: pd.DataFrame, datetime_columns: list[str]) -> pd.DataFrame:
-        """Convert ISO string columns back to datetime objects with timezone.
-
-        Args:
-            df: DataFrame containing datetime string columns to deserialize
-            datetime_columns: List of column names containing ISO datetime strings
-
-        Returns:
-            DataFrame with string columns converted to timezone-aware datetime objects
-        """
+        """Convert ISO string columns back to datetime objects with timezone."""
         for col in datetime_columns:
             if col not in df.columns:
                 continue
@@ -161,7 +115,6 @@ class DB:
 
     def migrate(self) -> None:
         """Migrate all parquet data to SQLite database.
-
         Reads data from all parquet files and the credits pickle file,
         then saves each DataFrame to its corresponding SQLite table using REPLACE mode.
         This method serves as the one-time migration from parquet-based to SQLite-based storage.
@@ -197,11 +150,8 @@ class DB:
             self.save_dataframe(df, table, DBSaveMode.REPLACE)
 
     def save_dataframe(self, df: pd.DataFrame, table: Table, mode: DBSaveMode = DBSaveMode.APPEND) -> None:
-        """Save a DataFrame to a SQLite table with appropriate serialization.
-
-        Applies table-specific serialization logic for lists, datetimes, and booleans,
+        """Save a DataFrame to a SQLite table with appropriate serialization. Applies table-specific serialization logic for lists, datetimes, and booleans,
         then saves the data to the specified table using the given mode.
-
         Args:
             df: DataFrame to save to the database
             table: Target table enum value
@@ -281,4 +231,34 @@ class DB:
         if table == Table.USERS:
             df = df.set_index("user_id")
 
+        return df
+
+    def record_updated_message_ids(self, message_ids) -> None:
+        """Write message IDs to the tracking table so the bot can do incremental loads."""
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO updated_message_ids (message_id) VALUES (?)",
+            ((int(mid),) for mid in message_ids),
+        )
+        self.conn.commit()
+
+    def pop_updated_message_ids(self) -> list[int]:
+        """Atomically read and clear the updated_message_ids table."""
+        with self.conn:
+            rows = self.conn.execute("SELECT message_id FROM updated_message_ids").fetchall()
+            self.conn.execute("DELETE FROM updated_message_ids")
+        return [row[0] for row in rows]
+
+    def load_rows_by_message_ids(self, table: Table, message_ids: list[int]) -> pd.DataFrame:
+        """Load specific rows from a table by message_id. Applies the same deserialization as load_table."""
+        if not message_ids:
+            return pd.DataFrame()
+        placeholders = ", ".join("?" for _ in message_ids)
+        df = pd.read_sql_query(
+            f"SELECT * FROM {table.value} WHERE message_id IN ({placeholders})",
+            self.conn,
+            params=message_ids,
+        )
+        df = self.deserialize_lists(df, ["reaction_emojis", "reaction_user_ids", "nicknames"])
+        df = self.deserialize_datetimes(df, ["timestamp"])
+        df = self.deserialize_bools(df, ["success"])
         return df

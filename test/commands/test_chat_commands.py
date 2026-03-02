@@ -89,9 +89,21 @@ def db(users_df, chat_df, reactions_df, cwel_df):
                 Table.REACTIONS: reactions_df,
                 Table.CWEL: cwel_df,
             }
+            self._pending_ids: list[int] = []
 
         def load_table(self, table):
             return self._tables[table]
+
+        def pop_updated_message_ids(self) -> list[int]:
+            ids, self._pending_ids = self._pending_ids, []
+            return ids
+
+        def record_updated_message_ids(self, message_ids) -> None:
+            self._pending_ids.extend(int(mid) for mid in message_ids)
+
+        def load_rows_by_message_ids(self, table, message_ids):
+            df = self._tables[table]
+            return df[df["message_id"].isin(message_ids)].copy()
 
     return FakeDB()
 
@@ -707,3 +719,46 @@ def test_get_reply_message_type_found(chat_commands):
 def test_get_reply_message_type_not_found(chat_commands):
     result = chat_commands.get_reply_message_type(9999)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# update() — incremental merge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_noop_when_no_ids(chat_commands):
+    """update() returns immediately without mutating DataFrames when nothing changed."""
+    original_chat_len = len(chat_commands.chat_df)
+    original_reactions_len = len(chat_commands.reactions_df)
+
+    await chat_commands.update()
+
+    assert len(chat_commands.chat_df) == original_chat_len
+    assert len(chat_commands.reactions_df) == original_reactions_len
+
+
+@pytest.mark.asyncio
+async def test_update_merges_new_rows(chat_commands, chat_df, reactions_df):
+    """update() replaces rows for changed message IDs and appends genuinely new ones."""
+    new_row_id = 99
+    new_chat_row = pd.DataFrame(
+        [(new_row_id, pd.Timestamp("2025-01-12 10:00", tz=TIMEZONE), 111, "user_a", "brand new", None, [], [], "text")],
+        columns=CHAT_COLS,
+    )
+    new_reaction_row = pd.DataFrame(
+        [(new_row_id, pd.Timestamp("2025-01-12 10:01", tz=TIMEZONE), "user_a", "user_b", "brand new", "👍")],
+        columns=REACTIONS_COLS,
+    )
+
+    # Inject synthetic data into FakeDB so load_rows_by_message_ids returns it
+    chat_commands.db._tables[Table.CLEANED_CHAT_HISTORY] = pd.concat([chat_df, new_chat_row], ignore_index=True)
+    chat_commands.db._tables[Table.REACTIONS] = pd.concat([reactions_df, new_reaction_row], ignore_index=True)
+    chat_commands.db._pending_ids = [new_row_id]
+
+    await chat_commands.update()
+
+    assert new_row_id in chat_commands.chat_df["message_id"].values
+    assert new_row_id in chat_commands.reactions_df["message_id"].values
+    # Existing rows should still be present
+    assert 1 in chat_commands.chat_df["message_id"].values

@@ -13,7 +13,6 @@ import unidecode
 from src.config.constants import MATCHING_USERNAME_THRESHOLD, TIMEZONE, negative_emojis
 from src.config.enums import DatetimeFormat, DBSaveMode, EmojiType, PeriodFilterMode, Table
 from src.config.paths import CHAT_ETL_LOCK_PATH, CWEL_STATS_PATH, USERS_PATH
-from src.models.db.db import DB
 
 log = logging.getLogger(__name__)
 
@@ -186,9 +185,8 @@ def dt_to_str(dt):
     return dt.strftime("%d-%m-%Y %H:%M")
 
 
-def check_bot_messages(message_ids: list, bot_id: int) -> bool:
+def check_bot_messages(message_ids: list, bot_id: int, db) -> bool:
     """Check if bot messages are present in chat history."""
-    db = DB()
     chat_df = db.load_table(Table.CHAT_HISTORY)
     filtered_df = chat_df[chat_df["message_id"].isin(message_ids)]
     non_bot_messages_df = filtered_df[filtered_df["user_id"] != bot_id]
