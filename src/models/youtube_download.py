@@ -29,9 +29,11 @@ class YoutubeDownload:
 
         return output_path, ""
 
-    def swap_video_audio(self, video_path, audio_path):
+    def swap_video_audio(self, video_path, audio_path, start_time=0, duration=10000000000):
+        input_kwargs = {"ss": start_time, "t": duration}
+
         input_video = ffmpeg.input(video_path)
-        input_audio = ffmpeg.input(audio_path)
+        input_audio = ffmpeg.input(audio_path, **input_kwargs)
         output_path = os.path.join(TEMP_DIR, f"{core_utils.get_random_id()}.mp4")
         ffmpeg.output(
             input_video.video,
@@ -39,7 +41,7 @@ class YoutubeDownload:
             output_path,
             vcodec="copy",
             acodec="aac",
-            shortest=None,  # This ensures output ends when the video ends
+            shortest=None,
         ).run(overwrite_output=True)
 
         return output_path

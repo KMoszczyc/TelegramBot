@@ -937,7 +937,7 @@ class ChatCommands:
         command_args = CommandArgs(
             args=context.args,
             expected_args=[ArgType.STRING],
-            available_named_args={"full": ArgType.NONE},
+            available_named_args={"full": ArgType.NONE, "start_time": ArgType.POSITIVE_INT, "duration": ArgType.POSITIVE_INT},
             optional=[False],
             max_string_length=1000,
         )
@@ -947,6 +947,9 @@ class ChatCommands:
                 chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
             )
             return
+
+        start_time = command_args.named_args.get("start_time", 0)
+        duration = command_args.named_args.get("duration", 1000000)
 
         audio_path, error = self.ytdl.download(command_args.string)
         if error != "":
@@ -965,7 +968,7 @@ class ChatCommands:
         else:
             video_path = stats_utils.get_random_media_path(CHAT_VIDEO_NOTES_DIR_PATH)
             message_type = MessageType.VIDEO_NOTE
-        output_path = self.ytdl.swap_video_audio(video_path, audio_path)
+        output_path = self.ytdl.swap_video_audio(video_path, audio_path, start_time=start_time, duration=duration)
 
         await core_utils.send_message(update, context, message_type, output_path, "")
 
