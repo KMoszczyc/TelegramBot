@@ -10,6 +10,7 @@ TEMP_DIR = DATA_DIR / "temp"
 DB_PATH = DATA_DIR / "bot.db"
 DB_WAL_PATH = DATA_DIR / "bot.db-wal"
 DB_SCHEMA_SQL_PATH = ROOT_DIR / "src" / "models" / "db" / "schema.sql"
+YOUTUBE_COOKIE_PATH = DATA_DIR / "cookies.txt"
 
 # Chat data
 CHAT_ETL_LOCK_PATH = DATA_DIR / "chat" / "chat_etl.lock"

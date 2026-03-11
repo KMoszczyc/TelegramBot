@@ -4,7 +4,7 @@ import ffmpeg
 import yt_dlp
 
 import src.core.utils as core_utils
-from src.config.paths import TEMP_DIR
+from src.config.paths import TEMP_DIR, YOUTUBE_COOKIE_PATH
 
 
 class YoutubeDownload:
@@ -13,7 +13,14 @@ class YoutubeDownload:
             return "", "Invalid youtube url"
 
         output_path = os.path.join(TEMP_DIR, f"{core_utils.get_random_id()}.webm")
-        ydl_opts = {"outtmpl": output_path, "format": "bestaudio/best", "noplaylist": True}
+        ydl_opts = {
+            "outtmpl": output_path,
+            "format": "bestaudio/best",
+            "noplaylist": True,
+            "cookiefile": YOUTUBE_COOKIE_PATH,
+            "remote_components": ["ejs:github"],
+        }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 

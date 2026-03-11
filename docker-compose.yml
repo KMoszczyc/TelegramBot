@@ -7,6 +7,9 @@ services:
       dockerfile: docker/Dockerfile_bot
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app
+      - RUNTIME_ENV=docker
     image: telegram-bot
     volumes:
       - ./data:/data
@@ -18,6 +21,9 @@ services:
       dockerfile: docker/Dockerfile_bot_etl
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app
+      - RUNTIME_ENV=docker
     image: telegram-bot-etl
     volumes:
       - ./data:/data

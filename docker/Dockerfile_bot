@@ -5,11 +5,16 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 ENV TZ="Europe/Warsaw"
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="${DENO_INSTALL}/bin:${PATH}"
 
 RUN apt-get update && apt-get install -y \
     cron dos2unix locales tesseract-ocr ffmpeg \
-    libsm6 libxext6 zip unzip fontconfig \
+    libsm6 libxext6 zip unzip fontconfig curl unzip \
  && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://deno.land/install.sh | sh
+
 
 COPY fonts/ /usr/share/fonts/truetype/
 RUN fc-cache -f -v
