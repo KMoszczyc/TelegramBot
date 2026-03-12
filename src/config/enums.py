@@ -71,6 +71,8 @@ class ErrorMessage(str, Enum):
     CWEL_NO_REPLY = "You have to reply to a message to cwel someone."
     CWEL_BOT = "You cannot cwel Ozjasz. Only Ozjasz can cwel you."
     CWEL_SELF = "You cannot cwel yourself."
+    ROULETTE_NOT_ENOUGH_CREDITS = "You don't have enough credits for that bet, fuck off."
+    ROULETTE_INVALID_BET = "Invalid bet type."
 
 
 class NamedArgType(Enum):

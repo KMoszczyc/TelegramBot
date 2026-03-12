@@ -2,7 +2,7 @@ import random
 
 import pandas as pd
 
-from src.config.enums import CreditActionType, RouletteBetType
+from src.config.enums import CreditActionType, ErrorMessage, RouletteBetType
 
 pd.options.mode.chained_assignment = None
 pd.set_option("display.max_columns", None)
@@ -56,11 +56,11 @@ class Roulette:
 
     def play(self, user_id, bet_size, bet_type_arg: str) -> tuple[str, str]:
         if user_id not in self.credits.credits or self.credits.credits[user_id] < bet_size:
-            return "You don't have enough credits for that bet, fuck off.", False
+            return ErrorMessage.ROULETTE_NOT_ENOUGH_CREDITS, False
 
         bet_type = self.parse_bet(bet_type_arg)
         if bet_type == RouletteBetType.NONE:
-            return "Invalid bet type.", False
+            return ErrorMessage.ROULETTE_INVALID_BET, False
 
         message = ""
         success = False
