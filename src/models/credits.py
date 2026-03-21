@@ -75,6 +75,7 @@ class Credits:
         self.save_credits(new_entry)
 
     def preprocess_credit_history(self, command_args):
+        self.credit_history_df = self.db.load_table(Table.CREDIT_HISTORY)
         filtered_credit_history_df = self.credit_history_df.copy(deep=True)
         filtered_credit_history_df = stats_utils.filter_by_time_df(filtered_credit_history_df, command_args, "timestamp")
         if command_args.user_id is not None:
