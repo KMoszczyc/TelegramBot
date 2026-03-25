@@ -360,9 +360,9 @@ class CreditCommands:
                 user_id=cached_quiz.user_id, credit_change=credit_penalty, action_type=CreditActionType.QUIZ
             )
             message = (
-                f"Answer: *{query.data}* is incorrect. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :["
+                f"Answer: *{query.data}* is incorrect. The correct answer was *{cached_quiz.correct_answer}*. You lose *{abs(credit_penalty)}* credits [*{user_credits}* left] :["
                 if success
-                else f"Answer: *{query.data}* is incorrect, but because you're so poor you won't lose any credits for it :]"
+                else f"Answer: *{query.data}* is incorrect. The correct answer was *{cached_quiz.correct_answer}*, but because you're so poor you won't lose any credits for it :]"
             )
             if core_utils.roll(CRITICAL_FAILURE_CHANCE) and (event := self.event_manager.get_random_event("quiz", "failure")):
                 effect = event.apply_effect(amount=credit_penalty)
