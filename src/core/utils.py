@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from src.config.constants import TIMEZONE
+from src.config.constants import MAX_INT, TIMEZONE
 from src.config.enums import ArgType, DatetimeFormat, ErrorMessage, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
 from src.config.paths import (
     CHAT_AUDIO_DIR_PATH,
@@ -27,7 +27,7 @@ from src.config.paths import (
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
-MAX_INT = 24 * 365 * 20
+
 if sys.platform == "win32":
     locale.setlocale(locale.LC_ALL, "Polish_Poland")
 else:

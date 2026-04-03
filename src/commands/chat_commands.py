@@ -49,9 +49,7 @@ class ChatCommands:
 
     def run_update_job(self):
         self.job_persistance.job_queue.run_repeating(
-            callback=lambda context: asyncio.ensure_future(self.update()),
-            interval=60,
-            name="Chat commands update job",
+            callback=lambda context: asyncio.ensure_future(self.update()), interval=60, name="Chat commands update job"
         )
 
     async def update(self):
@@ -74,14 +72,8 @@ class ChatCommands:
         )
 
         id_set = set(message_ids)
-        self.chat_df = pd.concat(
-            [self.chat_df[~self.chat_df["message_id"].isin(id_set)], new_chat],
-            ignore_index=True,
-        )
-        self.reactions_df = pd.concat(
-            [self.reactions_df[~self.reactions_df["message_id"].isin(id_set)], new_reactions],
-            ignore_index=True,
-        )
+        self.chat_df = pd.concat([self.chat_df[~self.chat_df["message_id"].isin(id_set)], new_chat], ignore_index=True)
+        self.reactions_df = pd.concat([self.reactions_df[~self.reactions_df["message_id"].isin(id_set)], new_reactions], ignore_index=True)
         self.users_df = users
         self.word_stats = WordStats(self.db, self.assets)
 
@@ -177,6 +169,7 @@ class ChatCommands:
         # Create summary
         text = "*Chat summary*"
         text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
+
         # text += f"\n- *Total*: *{len(chat_df)} ({message_count_change_text})* messages, *{len(reactions_df)} ({reaction_count_change_text})* reactions and *{images_num}* images"
         # text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['message_count']}*" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()])
         # text += "\n- *Word count*: " + ", ".join([f"{row['final_username']}: *{row['word_count']}*" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()])
@@ -694,9 +687,7 @@ class ChatCommands:
 
         if reactions_df.empty:
             await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=ErrorMessage.NO_DATA_FOR_PERIOD,
-                message_thread_id=update.message.message_thread_id,
+                chat_id=update.effective_chat.id, text=ErrorMessage.NO_DATA_FOR_PERIOD, message_thread_id=update.message.message_thread_id
             )
             return
 
