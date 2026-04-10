@@ -14,6 +14,9 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
+import telegram
+from telegram import Update
+from telegram.ext import ContextTypes
 
 from src.config.constants import MAX_INT, TIMEZONE
 from src.config.enums import ArgType, DatetimeFormat, ErrorMessage, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
@@ -756,7 +759,7 @@ def generate_response_headline(command_args, label):
     return text
 
 
-async def send_message(update, context, message_type: MessageType, path, text):
+async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, text: str, path: str = ""):
     log.info(f"Sending message: {text} with media type: {message_type} and media path: {path}")
     match message_type:
         case MessageType.GIF:
@@ -786,6 +789,15 @@ async def send_message(update, context, message_type: MessageType, path, text):
         case MessageType.VOICE:
             await context.bot.send_voice(
                 chat_id=update.effective_chat.id, voice=path, caption=text, message_thread_id=update.message.message_thread_id
+            )
+        case MessageType.TEXT:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+        case MessageType.MARKDOWN_TEXT:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
             )
 
 

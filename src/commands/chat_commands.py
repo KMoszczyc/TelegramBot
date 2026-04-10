@@ -224,7 +224,7 @@ class ChatCommands:
         path = charts.create_table_plotly(summary_df, command_args=command_args, columns=columns)
 
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text=send_msg)
+        await core_utils.send_message(update, context, current_message_type, text=send_msg, path=path)
 
     async def cmd_messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
@@ -301,7 +301,7 @@ class ChatCommands:
 
             current_message_type = MessageType(row["message_type"])
             path = core_utils.message_id_to_path(str(row["message_id"]), current_message_type)
-            await core_utils.send_message(update, context, current_message_type, path, text)
+            await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_last_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display last n messages from chat history"""
@@ -510,7 +510,7 @@ class ChatCommands:
         path = charts.generate_plot(fun_ratios, users, "final_username", "period", "ratio", text, x_label="time", y_label="funratio daily")
 
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text)
+        await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_spamchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
@@ -536,7 +536,7 @@ class ChatCommands:
         )
 
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text)
+        await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_monologuechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -577,7 +577,7 @@ class ChatCommands:
         )
 
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text)
+        await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_likechart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
@@ -604,7 +604,7 @@ class ChatCommands:
         )
 
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text)
+        await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_command_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
@@ -673,7 +673,7 @@ class ChatCommands:
         )
 
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text)
+        await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_relationship_graph(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
@@ -696,7 +696,7 @@ class ChatCommands:
             reactions_df, "reacting_username", "reacted_to_username", "Relationship Network"
         )
         current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, path, text)
+        await core_utils.send_message(update, context, current_message_type, text, path)
 
     async def cmd_remind(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -948,7 +948,7 @@ class ChatCommands:
             return
 
         if "full" in command_args.named_args:
-            await core_utils.send_message(update, context, MessageType.VOICE, audio_path, "")
+            await core_utils.send_message(update, context, MessageType.VOICE, "", audio_path)
             return
 
         reply_message_id = update.message.reply_to_message.message_id if update.message.reply_to_message is not None else None
@@ -961,7 +961,7 @@ class ChatCommands:
             message_type = MessageType.VIDEO_NOTE
         output_path = self.ytdl.swap_video_audio(video_path, audio_path, start_time=start_time, duration=duration)
 
-        await core_utils.send_message(update, context, message_type, output_path, "")
+        await core_utils.send_message(update, context, message_type, "", output_path)
 
     def get_reply_message_type(self, reply_message_id):
         reply_message = self.chat_df[self.chat_df["message_id"] == reply_message_id]

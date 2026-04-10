@@ -51,6 +51,7 @@ class ArgType(Enum):
 
 class MessageType(Enum):
     TEXT = "text"
+    MARKDOWN_TEXT = "markdown_text"
     GIF = "gif"
     VIDEO = "video"
     VIDEO_NOTE = "video_note"
