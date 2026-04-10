@@ -58,12 +58,7 @@ class CreditCommands:
             return
 
         message = self.credits.get_daily_credits(user_id)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_show_credit_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = self.credits.show_credit_leaderboard(self.users_map)
