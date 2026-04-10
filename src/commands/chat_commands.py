@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 import pandas as pd
-import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -116,9 +115,7 @@ class ChatCommands:
         shifted_chat_df = stats_utils.filter_by_shifted_time_df(self.chat_df, command_args)
         shifted_reactions_df = stats_utils.filter_by_shifted_time_df(self.reactions_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         sad_reactions_df = stats_utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, "emoji")
@@ -237,9 +234,7 @@ class ChatCommands:
         )
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         chat_df = chat_df[(chat_df["text"] != "") & (chat_df["text"].notna())]
@@ -258,7 +253,7 @@ class ChatCommands:
             text += f" [{stats_utils.dt_to_str(row['timestamp'])}]:"
             text += f" {row['text']} [{''.join(row['reaction_emojis'])}]"
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+        await core_utils.send_message(update, context, MessageType.TEXT, text)
 
     async def cmd_media_by_reactions(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, emoji_type: EmojiType = EmojiType.ALL
@@ -273,15 +268,12 @@ class ChatCommands:
         )
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, emoji_type)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         label = stats_utils.emoji_sentiment_to_label(emoji_type)
         text = core_utils.generate_response_headline(command_args, label=f"{label} Cinco {message_type.value}")
-
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+        await core_utils.send_message(update, context, MessageType.TEXT, text)
 
         if message_type == MessageType.VIDEO:
             chat_df = chat_df[chat_df["message_type"].isin([MessageType.VIDEO.value, MessageType.VIDEO_NOTE.value])]
@@ -309,9 +301,7 @@ class ChatCommands:
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         chat_df = chat_df.sort_values(by="timestamp", ascending=False)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text = f"Last {command_args.number} messages"
@@ -325,7 +315,7 @@ class ChatCommands:
         if len(text) > 4096:
             text = ErrorMessage.TOO_MUCH_TEXT
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+        await core_utils.send_message(update, context, MessageType.TEXT, text)
 
     async def cmd_display_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Display all users in chat"""
@@ -335,13 +325,8 @@ class ChatCommands:
             nicknames = ", ".join(row["nicknames"])
             text += f"\n- *{row['final_username']}*: [{nicknames}]"
 
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_add_nickname(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
@@ -350,9 +335,7 @@ class ChatCommands:
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         user_id = update.effective_user.id
@@ -361,14 +344,10 @@ class ChatCommands:
         new_nickname = command_args.string
 
         if len(current_nicknames) >= MAX_NICKNAMES_NUM:
-            error = f"Nickname *{new_nickname}* not added for *{current_username}*. Nicknames limit is {MAX_NICKNAMES_NUM}."
-            error = stats_utils.escape_special_characters(error)
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=error,
-                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                message_thread_id=update.message.message_thread_id,
+            error = stats_utils.escape_special_characters(
+                f"Nickname *{new_nickname}* not added for *{current_username}*. Nicknames limit is {MAX_NICKNAMES_NUM}."
             )
+            await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, error)
             return
 
         self.users_df.at[user_id, "nicknames"] = [new_nickname] if len(current_nicknames) == 0 else current_nicknames + [new_nickname]
@@ -376,13 +355,8 @@ class ChatCommands:
 
         current_nicknames = self.users_df.at[user_id, "nicknames"]
         text = f"Nickname *{new_nickname}* added for *{current_username}*. Resulting in the following nicknames: *{', '.join(current_nicknames)}*. It will get updated in a few minutes."
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_set_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set username for all users in chat"""
@@ -396,20 +370,12 @@ class ChatCommands:
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text = "Due to missuse of *set_username* command through various means, it has been *indefinitely disabled*, until decided otherwise by the Ozjasz Team. You can unlock this feature after subscribing to Ozjasz premium, for *5$ monthly*. \n\nRegards, *Ozjasz Team*."
-        escaped_text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=escaped_text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
-        return
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
         # user_id = update.effective_user.id
         # current_username = self.users_df.at[user_id, 'final_username']
@@ -432,9 +398,7 @@ class ChatCommands:
         command_args = core_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         fun_ratios = self.calculate_fun_metric(chat_df, reactions_df)
@@ -448,22 +412,15 @@ class ChatCommands:
             )
 
         text += "```"
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_wholesome(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
         command_args = core_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         wholesome_ratios = self.calculate_wholesome_metric(reactions_df)
@@ -478,13 +435,8 @@ class ChatCommands:
             )
 
         text += "```"
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_funchart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -495,9 +447,7 @@ class ChatCommands:
         )
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text = core_utils.generate_response_headline(command_args, label="Funmeter chart")
@@ -516,9 +466,7 @@ class ChatCommands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.USER, ArgType.PERIOD], optional=[True, True])
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text = core_utils.generate_response_headline(command_args, label="Spamchart")
@@ -547,9 +495,7 @@ class ChatCommands:
         )
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         label = "Monologue index chart accumulated" if "acc" in command_args.named_args else "Monologue index chart daily"
@@ -584,9 +530,7 @@ class ChatCommands:
 
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text = core_utils.generate_response_headline(command_args, label="Likechart")
@@ -611,9 +555,7 @@ class ChatCommands:
         command_args = core_utils.parse_args(self.users_df, command_args)
 
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         command_usage_df = self.command_logger.preprocess_data(self.users_df, command_args)
@@ -624,13 +566,8 @@ class ChatCommands:
             text += f"\n {row['command_name']}:".ljust(20) + f"{row['count']}"
 
         text += "```"
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_command_usage_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -643,9 +580,7 @@ class ChatCommands:
             command_args.error += f'Command "{command}" does not exist.'
 
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text = core_utils.generate_response_headline(command_args, label="Command usage chart")
@@ -680,15 +615,11 @@ class ChatCommands:
 
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         if reactions_df.empty:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=ErrorMessage.NO_DATA_FOR_PERIOD, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, ErrorMessage.NO_DATA_FOR_PERIOD)
             return
 
         text = core_utils.generate_response_headline(command_args, label="Relationship Graph")
@@ -708,16 +639,14 @@ class ChatCommands:
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         dt, dt_error = core_utils.period_offset_to_dt(command_args)
         message_id, message_id_error = stats_utils.get_last_message_id_of_a_user(self.chat_df, command_args.user_id)
         error = dt_error + message_id_error
         if error != "":
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
+            await core_utils.send_message(update, context, MessageType.TEXT, error)
             return
 
         self.job_persistance.save_job(
@@ -726,8 +655,8 @@ class ChatCommands:
             func=core_utils.send_response_message,
             args=[update.effective_chat.id, message_id, command_args.string],
         )
-        response = f"{command_args.user} is gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        message = f"{command_args.user} is gonna get pinged at {core_utils.dt_to_pretty_str(dt)}."
+        await core_utils.send_message(update, context, MessageType.TEXT, message)
 
     async def cmd_cwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -735,15 +664,13 @@ class ChatCommands:
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
-        error = ErrorMessage.CWEL_NO_REPLY if not update.message.reply_to_message else ""
+        error = "" if update.message.reply_to_message else ErrorMessage.CWEL_NO_REPLY
         error += ErrorMessage.CWEL_BOT if update.message.reply_to_message and update.message.reply_to_message.from_user.id == BOT_ID else ""
         if error != "":
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
+            await core_utils.send_message(update, context, MessageType.TEXT, error)
             return
 
         source_message = update.message.reply_to_message
@@ -752,7 +679,7 @@ class ChatCommands:
         giver_id = update.message.from_user.id
         giver_username = self.users_map[giver_id]
         if receiver_username == giver_username:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=ErrorMessage.CWEL_SELF)
+            await core_utils.send_message(update, context, MessageType.TEXT, ErrorMessage.CWEL_SELF)
             return
 
         self.cwel_stats_df = stats_utils.update_cwel_stats(
@@ -762,26 +689,17 @@ class ChatCommands:
         processed_cwel_stats_df = self.cwel_stats_df.groupby("receiver_username")["value"].sum().sort_values(ascending=False).reset_index()
         cwel_place = processed_cwel_stats_df[processed_cwel_stats_df["receiver_username"] == receiver_username].index[0] + 1
 
-        response = f"*{giver_username}* cwel'd *{receiver_username}*, now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
-        response = stats_utils.escape_special_characters(response)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=response,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = f"*{giver_username}* cwel'd *{receiver_username}*, now *{receiver_username}* is cwel *#{cwel_place}*, lvl *{cwel_count}*"
+        message = stats_utils.escape_special_characters(message)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_topcwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
-        df = self.cwel_stats_df.sort_values(by="timestamp", ascending=False)
-        print(df.tail(5))
         filtered_df = stats_utils.filter_by_time_df(self.cwel_stats_df, command_args)
         processed_cwel_stats_df = filtered_df.groupby("receiver_username")["value"].sum().sort_values(ascending=False).reset_index()
         text = core_utils.generate_response_headline(command_args, label="``` Top Cwel")
@@ -794,13 +712,8 @@ class ChatCommands:
             )
 
         text += "```"
-        text = stats_utils.escape_special_characters(text)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        message = stats_utils.escape_special_characters(text)
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_wordstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # TODO: -u - group by user, but with partial filter_text match
@@ -826,19 +739,14 @@ class ChatCommands:
         filtered_ngram_dfs = self.word_stats.filter_ngrams(command_args)
 
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         text_filter = command_args.named_args["text"] if "text" in command_args.named_args else None
         ngram_num = len(command_args.named_args["text"].split()) if "text" in command_args.named_args else -1
         if "text" in command_args.named_args and ngram_num not in self.word_stats.ngram_range:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args["text"]}" is {ngram_num}-gram.',
-                message_thread_id=update.message.message_thread_id,
-            )
+            message = f'Text must be within the ngram range of {self.word_stats.ngram_range} and "{command_args.named_args["text"]}" is {ngram_num}-gram.'
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
         if "diacritical" in command_args.named_args:
             self.word_stats.decode_diacritic_accents(filtered_ngram_dfs)
         if "diacritical" in command_args.named_args and "text" in command_args.named_args:
@@ -849,12 +757,7 @@ class ChatCommands:
             filtered_ngram_dfs = {n: filtered_ngram_dfs[command_args.named_args["ngram"]]}
 
         text = self.word_stats.wordstats_cmd_handler(filtered_ngram_dfs, command_args, text_filter)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            message_thread_id=update.message.message_thread_id,
-        )
+        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, text)
 
     def calculate_fun_metric(self, chat_df, reactions_df):
         reactions_received_counts = reactions_df.groupby("reacted_to_username").size().reset_index(name="reaction_count")
@@ -934,9 +837,7 @@ class ChatCommands:
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=command_args.error, message_thread_id=update.message.message_thread_id
-            )
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         start_time = command_args.named_args.get("start_time", 0)
@@ -944,7 +845,7 @@ class ChatCommands:
 
         audio_path, error = self.ytdl.download(command_args.string)
         if error != "":
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=error, message_thread_id=update.message.message_thread_id)
+            await core_utils.send_message(update, context, MessageType.TEXT, error)
             return
 
         if "full" in command_args.named_args:

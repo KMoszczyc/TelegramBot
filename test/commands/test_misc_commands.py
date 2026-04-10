@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
+from telegram.constants import ParseMode
 
 from src.commands.misc_commands import Commands
 from src.config.enums import ErrorMessage, HolyTextType, Table
@@ -129,7 +130,7 @@ async def test_cmd_all_sends_markdown_mentions(commands, update, context):
     assert context.bot.send_message.await_count == 1
     kwargs = context.bot.send_message.await_args.kwargs
     assert kwargs["chat_id"] == update.effective_chat.id
-    assert kwargs["parse_mode"] == "Markdown"
+    assert kwargs["parse_mode"] == ParseMode.MARKDOWN_V2
     # Both users should be mentioned
     assert "tg://user?id=111" in kwargs["text"]
     assert "tg://user?id=222" in kwargs["text"]

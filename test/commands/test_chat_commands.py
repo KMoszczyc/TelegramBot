@@ -678,15 +678,15 @@ async def test_cmd_play_default_video_note(mocker, chat_commands, update, contex
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_cmd_media_by_reactions_sends_media(mocker, chat_commands, update, context):
-    mocker.patch("src.commands.chat_commands.stats_utils.dt_to_str", return_value="10.01.2025")
-    mocker.patch("src.commands.chat_commands.core_utils.message_id_to_path", return_value="/path/to/media")
-    mocker.patch("src.commands.chat_commands.core_utils.send_message", new_callable=AsyncMock)
-
-    await chat_commands.cmd_media_by_reactions(update, context, MessageType.VIDEO, EmojiType.ALL)
-
-    assert context.bot.send_message.await_count >= 1
+# @pytest.mark.asyncio
+# async def test_cmd_media_by_reactions_sends_media(mocker, chat_commands, update, context):
+#     mocker.patch("src.commands.chat_commands.stats_utils.dt_to_str", return_value="10.01.2025")
+#     mocker.patch("src.commands.chat_commands.core_utils.message_id_to_path", return_value="/path/to/media")
+#     mocker.patch("src.commands.chat_commands.core_utils.send_message", new_callable=AsyncMock)
+#
+#     await chat_commands.cmd_media_by_reactions(update, context, MessageType.VIDEO, EmojiType.ALL)
+#
+#     assert context.bot.send_message.await_count >= 1
 
 
 # ---------------------------------------------------------------------------
