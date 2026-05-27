@@ -1,23 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-QUIZ_CREDIT_PAYOUT = {
-    'easy': 15,
-    'medium': 25,
-    'hard': 50
-}
+QUIZ_CREDIT_PAYOUT = {"easy": 50, "medium": 100, "hard": 250}
 
-MULTIPLE_QUIZ_CREDIT_PENALTY = {
-    'easy': -5,
-    'medium': -10,
-    'hard': -20
-}
+MULTIPLE_QUIZ_CREDIT_PENALTY = {"easy": -20, "medium": -40, "hard": -100}
 
-BOOLEAN_QUIZ_CREDIT_PENALTY = {
-    'easy': -15,
-    'medium': -25,
-    'hard': -50
-}
+BOOLEAN_QUIZ_CREDIT_PENALTY = {"easy": -50, "medium": -100, "hard": -250}
 
 
 @dataclass
@@ -43,7 +31,7 @@ class QuizModel:
         self.seconds_to_answer = seconds_to_answer
 
     def get_credit_penalty(self):
-        if self.type == 'boolean':
+        if self.type == "boolean":
             return BOOLEAN_QUIZ_CREDIT_PENALTY[self.difficulty]
         else:
             return MULTIPLE_QUIZ_CREDIT_PENALTY[self.difficulty]

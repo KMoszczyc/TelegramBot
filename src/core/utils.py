@@ -797,7 +797,7 @@ async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE, messa
                 chat_id=update.effective_chat.id,
                 text=text,
                 parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                message_thread_id=update.message.message_thread_id,
+                message_thread_id=update.effective_message.message_thread_id,
             )
 
 
