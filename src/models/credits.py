@@ -101,13 +101,19 @@ class Credits:
         steal_history_df = filtered_credit_history_df[filtered_credit_history_df["action_type"] == CreditActionType.STEAL.value]
         steal_history_df = steal_history_df[filtered_credit_history_df["success"]]
         steal_history_df["steal_amount"] = steal_history_df["credit_change"].abs()
-        steal_history_grouped_df = steal_history_df.groupby("user_id").agg({"steal_amount": "sum"}).reset_index()
+
+        grouping_user_col = "target_user_id" if command_args.user_id else "user_id"
+        steal_history_grouped_df = steal_history_df.groupby(grouping_user_col).agg({"steal_amount": "sum"}).reset_index()
         steal_history_grouped_df = steal_history_grouped_df.sort_values(by="steal_amount", ascending=False)
-        text = "``` TOTAL steal leaderboard: \n"
+
+        if command_args.user_id:
+            text = core_utils.generate_response_headline(command_args, label="``` People robbed", text_before_user="by")
+        else:
+            text = core_utils.generate_response_headline(command_args, label="``` Steal leaderboard")
         max_len_username = core_utils.max_str_length_in_list(users_map.values())
         for i, (_, row) in enumerate(steal_history_grouped_df.head(10).iterrows()):
-            username = users_map[row["user_id"]]
-            text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{row['steal_amount']}"
+            username = users_map[row[grouping_user_col]]
+            text += f"\n{i + 1}.".ljust(4) + f" {username}:".ljust(max_len_username + 5) + f"{int(row['steal_amount'])}"
         text += "```"
         return stats_utils.escape_special_characters(text)
 

@@ -751,10 +751,10 @@ def calculate_skewed_probability(value, max_value):
     return (1 - ((value / max_value) ** 0.5)) / 2 if max_value > 0 else 0
 
 
-def generate_response_headline(command_args, label):
+def generate_response_headline(command_args, label, text_before_str="of", text_before_user="for"):
     text = label
-    text += f' of "{command_args.string}"' if command_args.string != "" else ""
-    text += f" for {command_args.user}" if command_args.user is not None else " "
+    text += f' {text_before_str} "{command_args.string}"' if command_args.string != "" else ""
+    text += f" {text_before_user} {command_args.user}" if command_args.user is not None else " "
     text += f" ({generate_period_headline(command_args)}):"
     return text
 

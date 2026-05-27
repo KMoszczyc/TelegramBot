@@ -88,7 +88,7 @@ credit_history_schema = pa.DataFrameSchema(
     {
         "timestamp": pa.Column(pandas_engine.DateTime(tz=TIMEZONE)),  # datetime64[ns]
         "user_id": pa.Column(int),
-        "robbed_user_id": pa.Column(int),
+        "target_user_id": pa.Column(int),
         "credit_change": pa.Column(int),
         "action_type": pa.Column(str),
         "bet_type": pa.Column(str),
