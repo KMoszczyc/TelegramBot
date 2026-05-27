@@ -401,8 +401,8 @@ def parse_period(command_args, arg_str) -> [CommandArgs, str]:
         if "s" in arg_str and has_numbers(arg_str):
             command_args.period_time, error = parse_int(arg_str.replace("s", ""), positive_only=True)
             period_mode_str = "second"
-        elif "m" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("m", ""), positive_only=True)
+        elif "min" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("min", ""), positive_only=True)
             period_mode_str = "minute"
         elif "h" in arg_str and has_numbers(arg_str):
             command_args.period_time, error = parse_int(arg_str.replace("h", ""), positive_only=True)
@@ -413,6 +413,12 @@ def parse_period(command_args, arg_str) -> [CommandArgs, str]:
         elif "w" in arg_str and has_numbers(arg_str):
             command_args.period_time, error = parse_int(arg_str.replace("w", ""), positive_only=True)
             period_mode_str = "week"
+        elif "m" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("m", ""), positive_only=True)
+            period_mode_str = "month"
+        elif "y" in arg_str and has_numbers(arg_str):
+            command_args.period_time, error = parse_int(arg_str.replace("y", ""), positive_only=True)
+            period_mode_str = "year"
 
         if error == "":
             command_args.period_mode = PeriodFilterMode(period_mode_str)
@@ -647,10 +653,24 @@ def generate_period_headline(command_args):
             return f"past {command_args.period_time} seconds"
         case PeriodFilterMode.MINUTE:
             return f"past {command_args.period_time} minutes"
+        case PeriodFilterMode.TODAY:
+            return "today"
+        case PeriodFilterMode.YESTERDAY:
+            return "yesterday"
         case PeriodFilterMode.DAY:
             return f"past {command_args.period_time} days"
         case PeriodFilterMode.WEEK:
+            if command_args.period_time == -1:
+                return "past week"
             return f"past {command_args.period_time} weeks"
+        case PeriodFilterMode.MONTH:
+            if command_args.period_time == -1:
+                return "past month"
+            return f"past {command_args.period_time} months"
+        case PeriodFilterMode.YEAR:
+            if command_args.period_time == -1:
+                return "past year"
+            return f"past {command_args.period_time} years"
         case PeriodFilterMode.DATE:
             return command_args.dt.strftime(command_args.dt_format.value)
         case PeriodFilterMode.DATE_RANGE:
