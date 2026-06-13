@@ -388,7 +388,7 @@ class CreditCommands:
             del self.bot_state.map_quiz_cache[user_id]
 
             if chat_id and person:
-                display_name = self._get_person_display_name(person)
+                display_name = MapQuiz.get_person_display_name(person)
                 message = stats_utils.escape_special_characters(f"Time's up! The person was *{display_name}*.\n\n{person['description']}")
                 await context.bot.send_message(
                     chat_id=chat_id,
@@ -396,20 +396,6 @@ class CreditCommands:
                     parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                     message_thread_id=thread_id,
                 )
-
-    def _get_person_display_name(self, person) -> str:
-        is_polish = False
-        for field in ["citizenship", "birth_country", "death_country"]:
-            val = str(person.get(field, "")).lower()
-            if any(keyword in val for keyword in ["poland", "polska", "polish", "warsaw"]):
-                is_polish = True
-                break
-
-        display_name = person.get("name_pl") if is_polish else person.get("name_en")
-        if not display_name or str(display_name).lower() == "nan":
-            display_name = person.get("name_pl")
-
-        return str(display_name)
 
     async def handle_map_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.text:
@@ -428,22 +414,14 @@ class CreditCommands:
             return
 
         person = cached_quiz["person"]
-
-        valid_answers = set()
-        for field in ["name_pl", "name_en"]:
-            name = str(person.get(field, "")).lower()
-            if name and name != "nan":
-                valid_answers.add(name)
-                for part in name.split():
-                    valid_answers.add(part)
-
+        valid_answers = MapQuiz.get_valid_answers(person)
         user_answer = update.message.text.lower().strip()
         log.info(f"handle_map_quiz_answer: answer={user_answer}, valid={valid_answers}")
 
         cached_quiz["job"].schedule_removal()
         del self.bot_state.map_quiz_cache[user_id]
 
-        display_name = self._get_person_display_name(person)
+        display_name = MapQuiz.get_person_display_name(person)
 
         if user_answer in valid_answers:
             reward = MapQuiz.REWARD_LEVELS.get(cached_quiz.get("difficulty", "crazy"), MapQuiz.REWARD_LEVELS["crazy"])

@@ -44,9 +44,9 @@ def test_compute_extent_half_includes_padding(quiz):
     _, _, lon_half, lat_half = quiz._compute_extent(locations)
 
     # Spread is 20 deg for both lon and lat.
-    # Dynamic pad = min(15.0, max(5.0, 20 * 0.2)) = 5.0
-    assert lon_half == pytest.approx(10.0 + 5.0)
-    assert lat_half == pytest.approx(10.0 + 5.0)
+    # Dynamic pad = max(10.0, min(15.0, 20 * 0.4)) = 10.0
+    assert lon_half == pytest.approx(10.0 + 10.0)
+    assert lat_half == pytest.approx(10.0 + 10.0)
 
 
 @pytest.mark.parametrize(
@@ -68,9 +68,9 @@ def test_compute_extent_single_location_uses_padding_only(quiz):
 
     _, _, lon_half, lat_half = quiz._compute_extent(locations)
 
-    # Spread is 0. Dynamic pad = min(15.0, max(5.0, 0)) = 5.0
-    assert lon_half == pytest.approx(5.0)
-    assert lat_half == pytest.approx(5.0)
+    # Spread is 0. Dynamic pad = max(10.0, min(15.0, 0)) = 10.0
+    assert lon_half == pytest.approx(10.0)
+    assert lat_half == pytest.approx(10.0)
 
 
 # ── generate_image (fast, mocked IO) ────────────────────────────────

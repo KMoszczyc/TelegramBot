@@ -55,6 +55,32 @@ class MapQuiz:
         return "crazy"
 
     @staticmethod
+    def get_person_display_name(person: dict) -> str:
+        is_polish = False
+        for field in ["citizenship", "birth_country", "death_country"]:
+            val = str(person.get(field, "")).lower()
+            if any(keyword in val for keyword in ["poland", "polska", "polish", "warsaw"]):
+                is_polish = True
+                break
+
+        display_name = person.get("name_pl") if is_polish else person.get("name_en")
+        if not display_name or str(display_name).lower() == "nan":
+            display_name = person.get("name_pl")
+
+        return str(display_name)
+
+    @staticmethod
+    def get_valid_answers(person: dict) -> set[str]:
+        valid_answers = set()
+        for field in ["name_pl", "name_en"]:
+            name = str(person.get(field, "")).lower()
+            if name and name != "nan":
+                valid_answers.add(name)
+                for part in name.split():
+                    valid_answers.add(part)
+        return valid_answers
+
+    @staticmethod
     def _extract_year(date_str) -> str:
         if not date_str or str(date_str).lower() == "nan":
             return "?"
