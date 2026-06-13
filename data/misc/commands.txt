@@ -16,6 +16,7 @@ fun - (period[?]) fun metric for all users
 funchart - (username[?], period[?]) fun metric chart
 getcredits - get your daily credits depending on /starababa decision
 gift - (username, amount[int]) give credits to another user
+guessperson - (--category, --difficulty) - guess the person based on his place and date of birth and death
 handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description

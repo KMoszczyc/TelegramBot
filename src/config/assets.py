@@ -7,6 +7,7 @@ from src.config.paths import (
     BOCZEK_PATH,
     COMMANDS_PATH,
     EUROPEJSKAFIRMA_PATH,
+    FAMOUS_PEOPLE_TRIVIA_PATH,
     KIEPSCY_PATH,
     OZJASZ_PHRASES_PATH,
     POLISH_HOLIDAYS_PATH,
@@ -38,6 +39,7 @@ class Assets:
         self.polish_stopwords = self.read_str_file(str(POLISH_STOPWORDS_PATH))
         self.quiz_df = pd.read_parquet(str(QUIZ_DATABASE_PATH))
         self.polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")
+        self.famous_people_trivia_df = pd.read_parquet(str(FAMOUS_PEOPLE_TRIVIA_PATH))
 
     def read_str_file(self, path):
         with open(path) as f:

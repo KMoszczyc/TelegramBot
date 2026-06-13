@@ -9,7 +9,12 @@ from telegram.ext import ContextTypes
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.config.assets import Assets
-from src.config.constants import CRITICAL_FAILURE_CHANCE, CRITICAL_SUCCESS_CHANCE, MIN_QUIZ_TIME_TO_ANSWER_SECONDS
+from src.config.constants import (
+    CRITICAL_FAILURE_CHANCE,
+    CRITICAL_SUCCESS_CHANCE,
+    MAP_QUIZ_TIMEOUT_SECONDS,
+    MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
+)
 from src.config.enums import BET_EVENTS, QUIZ_EVENTS, STEAL_EVENTS, ArgType, CreditActionType, MessageType, Table
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
@@ -18,6 +23,7 @@ from src.models.command_args import CommandArgs
 from src.models.credits import Credits
 from src.models.db.db import DB
 from src.models.event_manager import EventManager
+from src.models.map_quiz import MapQuiz
 from src.models.quiz_model import QuizModel
 from src.models.roulette import Roulette
 from src.stats import charts
@@ -298,12 +304,135 @@ class CreditCommands:
         message = stats_utils.escape_special_characters(message)
         await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
+    async def cmd_guess_person_on_a_map(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(args=context.args, available_named_args={"category": ArgType.STRING, "difficulty": ArgType.STRING})
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != "":
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        if user_id in self.bot_state.map_quiz_cache:
+            message = "You already have an active map quiz! Answer it first or wait for the timeout."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        famous_people_trivia_df = copy.deepcopy(self.assets.famous_people_trivia_df)
+        if "category" in command_args.named_args:
+            filtered_df = famous_people_trivia_df[
+                famous_people_trivia_df["category"].str.contains(command_args.named_args["category"], case=False)
+            ]
+        else:
+            filtered_df = famous_people_trivia_df
+
+        available_difficulties = []
+        for diff, (start_idx, end_idx) in MapQuiz.DIFFICULTY_INDEX_RANGES.items():
+            if not filtered_df[(filtered_df.index >= start_idx) & (filtered_df.index < end_idx)].empty:
+                available_difficulties.append(diff)
+
+        if not available_difficulties:
+            if "category" in command_args.named_args:
+                categories = sorted(famous_people_trivia_df["category"].dropna().unique().tolist())
+                cats_str = ", ".join(categories)
+                message = f"No persons found for the specified category.\nAvailable categories:\n{cats_str}"
+            else:
+                message = "No persons found."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        if "difficulty" in command_args.named_args:
+            difficulty = command_args.named_args["difficulty"].lower()
+            if difficulty not in MapQuiz.DIFFICULTY_INDEX_RANGES:
+                message = f"Invalid difficulty. Available: {', '.join(MapQuiz.DIFFICULTY_INDEX_RANGES.keys())}"
+                await core_utils.send_message(update, context, MessageType.TEXT, message)
+                return
+            if difficulty not in available_difficulties:
+                message = "No persons found for the specified category and difficulty."
+                await core_utils.send_message(update, context, MessageType.TEXT, message)
+                return
+            chosen_diff = difficulty
+        else:
+            import random
+
+            chosen_diff = random.choice(available_difficulties)
+
+        start_idx, end_idx = MapQuiz.DIFFICULTY_INDEX_RANGES[chosen_diff]
+        filtered_df = filtered_df[(filtered_df.index >= start_idx) & (filtered_df.index < end_idx)]
+
+        map_quiz = MapQuiz()
+        image_path, person = map_quiz.guess_random_person_on_map(filtered_df)
+
+        caption = f"Difficulty: {chosen_diff.replace('_', ' ').title()}\nTime to answer: {MAP_QUIZ_TIMEOUT_SECONDS}s"
+        if "category" in command_args.named_args:
+            caption += f"\nCategory: {person['category']}"
+
+        await core_utils.send_message(update, context, MessageType.IMAGE, caption, image_path)
+
+        self.bot_state.map_quiz_cache[user_id] = {
+            "thread_id": update.message.message_thread_id,
+            "person": person,
+            "difficulty": chosen_diff,
+            "category_specified": "category" in command_args.named_args,
+            "job": context.job_queue.run_once(self.map_quiz_timeout, MAP_QUIZ_TIMEOUT_SECONDS, data=user_id),
+        }
+
+    async def map_quiz_timeout(self, context: ContextTypes.DEFAULT_TYPE):
+        user_id = context.job.data
+        if user_id in self.bot_state.map_quiz_cache:
+            del self.bot_state.map_quiz_cache[user_id]
+
+    async def handle_map_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not update.message or not update.message.text:
+            return
+
+        user_id = update.effective_user.id
+        if user_id not in self.bot_state.map_quiz_cache:
+            log.info(f"handle_map_quiz_answer: user {user_id} not in cache")
+            return
+
+        cached_quiz = self.bot_state.map_quiz_cache[user_id]
+        if update.message.message_thread_id != cached_quiz["thread_id"]:
+            log.info(
+                f"handle_map_quiz_answer: thread_id mismatch. Msg: {update.message.message_thread_id}, Cache: {cached_quiz['thread_id']}"
+            )
+            return
+
+        person = cached_quiz["person"]
+        correct_name = str(person["name_pl"]).lower()
+        parts = correct_name.split()
+        correct_surname = parts[-1] if len(parts) > 1 else correct_name
+
+        user_answer = update.message.text.lower().strip()
+        log.info(f"handle_map_quiz_answer: answer={user_answer}, correct={correct_name}, surname={correct_surname}")
+
+        cached_quiz["job"].schedule_removal()
+        del self.bot_state.map_quiz_cache[user_id]
+
+        if user_answer in (correct_name, correct_surname):
+            reward = MapQuiz.REWARD_LEVELS.get(cached_quiz.get("difficulty", "crazy"), MapQuiz.REWARD_LEVELS["crazy"])
+            if cached_quiz.get("category_specified"):
+                reward = reward // 2
+
+            user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
+            message = f"Correct! The person is *{person['name_pl']}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{person['description']}"
+        else:
+            message = f"Wrong! The correct answer was *{person['name_pl']}*.\n\n {person['description']}"
+
+        message = stats_utils.escape_special_characters(message)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            reply_to_message_id=update.message.message_id,
+            text=message,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            message_thread_id=update.message.message_thread_id,
+        )
+
     async def cmd_steal_graph(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
             args=context.args,
             expected_args=[ArgType.USER, ArgType.PERIOD],
             optional=[True, True],
-            available_named_args={"all_attempts": ArgType.NONE},
+            available_named_args={"all_attempts": ArgType.NONE, "credits": ArgType.NONE},
         )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
@@ -319,6 +448,11 @@ class CreditCommands:
         filtered_credits_df["robbed_username"] = filtered_credits_df["target_user_id"].apply(lambda x: self.users_map[x])
 
         text = core_utils.generate_response_headline(command_args, label="Steal Graph")
-        path = charts.create_bidirectional_relationship_graph(filtered_credits_df, "robbing_username", "robbed_username", "Steal Network")
+        path = charts.create_bidirectional_relationship_graph(
+            filtered_credits_df,
+            "robbing_username",
+            "robbed_username",
+            "Steal Network",
+        )
         current_message_type = MessageType.IMAGE
         await core_utils.send_message(update, context, current_message_type, text, path)
