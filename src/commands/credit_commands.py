@@ -369,6 +369,7 @@ class CreditCommands:
         await core_utils.send_message(update, context, MessageType.IMAGE, caption, image_path)
 
         self.bot_state.map_quiz_cache[user_id] = {
+            "chat_id": update.effective_chat.id,
             "thread_id": update.message.message_thread_id,
             "person": person,
             "difficulty": chosen_diff,
@@ -379,7 +380,36 @@ class CreditCommands:
     async def map_quiz_timeout(self, context: ContextTypes.DEFAULT_TYPE):
         user_id = context.job.data
         if user_id in self.bot_state.map_quiz_cache:
+            cached_quiz = self.bot_state.map_quiz_cache[user_id]
+            chat_id = cached_quiz.get("chat_id")
+            thread_id = cached_quiz.get("thread_id")
+            person = cached_quiz.get("person")
+
             del self.bot_state.map_quiz_cache[user_id]
+
+            if chat_id and person:
+                display_name = self._get_person_display_name(person)
+                message = stats_utils.escape_special_characters(f"Time's up! The person was *{display_name}*.\n\n{person['description']}")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    message_thread_id=thread_id,
+                )
+
+    def _get_person_display_name(self, person) -> str:
+        is_polish = False
+        for field in ["citizenship", "birth_country", "death_country"]:
+            val = str(person.get(field, "")).lower()
+            if any(keyword in val for keyword in ["poland", "polska", "polish", "warsaw"]):
+                is_polish = True
+                break
+
+        display_name = person.get("name_pl") if is_polish else person.get("name_en")
+        if not display_name or str(display_name).lower() == "nan":
+            display_name = person.get("name_pl")
+
+        return str(display_name)
 
     async def handle_map_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.text:
@@ -398,25 +428,32 @@ class CreditCommands:
             return
 
         person = cached_quiz["person"]
-        correct_name = str(person["name_pl"]).lower()
-        parts = correct_name.split()
-        correct_surname = parts[-1] if len(parts) > 1 else correct_name
+
+        valid_answers = set()
+        for field in ["name_pl", "name_en"]:
+            name = str(person.get(field, "")).lower()
+            if name and name != "nan":
+                valid_answers.add(name)
+                for part in name.split():
+                    valid_answers.add(part)
 
         user_answer = update.message.text.lower().strip()
-        log.info(f"handle_map_quiz_answer: answer={user_answer}, correct={correct_name}, surname={correct_surname}")
+        log.info(f"handle_map_quiz_answer: answer={user_answer}, valid={valid_answers}")
 
         cached_quiz["job"].schedule_removal()
         del self.bot_state.map_quiz_cache[user_id]
 
-        if user_answer in (correct_name, correct_surname):
+        display_name = self._get_person_display_name(person)
+
+        if user_answer in valid_answers:
             reward = MapQuiz.REWARD_LEVELS.get(cached_quiz.get("difficulty", "crazy"), MapQuiz.REWARD_LEVELS["crazy"])
             if cached_quiz.get("category_specified"):
                 reward = reward // 2
 
             user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
-            message = f"Correct! The person is *{person['name_pl']}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{person['description']}"
+            message = f"Correct! The person is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{person['description']}"
         else:
-            message = f"Wrong! The correct answer was *{person['name_pl']}*.\n\n {person['description']}"
+            message = f"Wrong! The correct answer was *{display_name}*.\n\n {person['description']}"
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(
