@@ -20,3 +20,4 @@ nltk
 yt_dlp
 ffmpeg-python
 unidecode
+cartopy
