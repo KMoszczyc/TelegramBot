@@ -139,3 +139,31 @@ def test_generate_image_visual(locations, filename):
 
     print(f"\n  📍 Saved: {dest}")
     assert os.path.exists(dest)
+
+
+# ── is_answer_correct ──────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "user_answer, valid_answers, expected",
+    [
+        # Exact and partial word subsets
+        pytest.param("henryk viii", {"henryk viii tudor", "henryk", "viii", "tudor"}, True, id="exact_words_subset"),
+        pytest.param("katarzyna wielka", {"katarzyna ii wielka", "katarzyna", "ii", "wielka"}, True, id="partial_multi_word"),
+        pytest.param("tudor", {"henryk viii tudor", "henryk", "viii", "tudor"}, True, id="last_name_only"),
+        # Fuzzy matching (typos and diacritics)
+        pytest.param("katarzyna wielk", {"katarzyna ii wielka", "katarzyna", "ii", "wielka"}, True, id="fuzzy_match_typo"),
+        pytest.param("jozef", {"józef piłsudski", "józef", "piłsudski"}, True, id="fuzzy_diacritic_jozef"),
+        pytest.param("wladyslaw", {"władysław łokietek", "władysław", "łokietek"}, True, id="fuzzy_diacritic_wladyslaw"),
+        # Roman numerals protection (should NOT fuzzy match)
+        pytest.param("henryk vi", {"henryk viii tudor", "henryk", "viii", "tudor"}, False, id="roman_numeral_vi_viii_rejected"),
+        pytest.param("vii", {"viii"}, False, id="roman_numeral_vii_viii_rejected"),
+        pytest.param("viii", {"viii"}, True, id="roman_numeral_exact_match"),
+        # Fail cases
+        pytest.param("henryk smith", {"henryk viii tudor", "henryk", "viii", "tudor"}, False, id="one_correct_one_wrong_word"),
+        pytest.param("og", {"óg"}, False, id="short_word_rejected_due_to_length"),
+        pytest.param("random", {"henryk viii tudor", "henryk", "viii", "tudor"}, False, id="completely_wrong"),
+    ],
+)
+def test_is_answer_correct(user_answer, valid_answers, expected):
+    assert MapQuiz.is_answer_correct(user_answer, valid_answers) == expected

@@ -366,7 +366,7 @@ class CreditCommands:
         if "category" in command_args.named_args:
             caption += f"\nCategory: {person['category']}"
 
-        await core_utils.send_message(update, context, MessageType.IMAGE, caption, image_path)
+        await update.message.reply_photo(photo=image_path, caption=caption, message_thread_id=update.message.message_thread_id)
 
         self.bot_state.map_quiz_cache[user_id] = {
             "chat_id": update.effective_chat.id,
@@ -385,11 +385,12 @@ class CreditCommands:
             thread_id = cached_quiz.get("thread_id")
             person = cached_quiz.get("person")
 
-            del self.bot_state.map_quiz_cache[user_id]
+            self.bot_state.map_quiz_cache.pop(user_id, None)
 
-            if chat_id and person:
+            if chat_id is not None and person is not None:
                 display_name = MapQuiz.get_person_display_name(person)
-                message = stats_utils.escape_special_characters(f"Time's up! The person was *{display_name}*.\n\n{person['description']}")
+                description = person.get("description", "")
+                message = stats_utils.escape_special_characters(f"Time's up! The person was *{display_name}*.\n\n{description}")
                 await context.bot.send_message(
                     chat_id=chat_id,
                     text=message,
@@ -419,19 +420,25 @@ class CreditCommands:
         log.info(f"handle_map_quiz_answer: answer={user_answer}, valid={valid_answers}")
 
         cached_quiz["job"].schedule_removal()
-        del self.bot_state.map_quiz_cache[user_id]
+        self.bot_state.map_quiz_cache.pop(user_id, None)
 
         display_name = MapQuiz.get_person_display_name(person)
 
-        if user_answer in valid_answers:
+        is_correct = MapQuiz.is_answer_correct(user_answer, valid_answers)
+
+        if is_correct:
             reward = MapQuiz.REWARD_LEVELS.get(cached_quiz.get("difficulty", "crazy"), MapQuiz.REWARD_LEVELS["crazy"])
             if cached_quiz.get("category_specified"):
                 reward = reward // 2
 
             user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
-            message = f"Correct! The person is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{person['description']}"
+            description = person.get("description", "")
+            message = (
+                f"Correct! The person is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{description}"
+            )
         else:
-            message = f"Wrong! The correct answer was *{display_name}*.\n\n {person['description']}"
+            description = person.get("description", "")
+            message = f"Wrong! The correct answer was *{display_name}*.\n\n {description}"
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(

@@ -1,4 +1,6 @@
+import difflib
 import os
+import re
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -79,6 +81,27 @@ class MapQuiz:
                 for part in name.split():
                     valid_answers.add(part)
         return valid_answers
+
+    @staticmethod
+    def is_answer_correct(user_answer: str, valid_answers: set[str]) -> bool:
+        if user_answer in valid_answers:
+            return True
+
+        user_words = user_answer.split()
+        if not user_words:
+            return False
+
+        valid_parts = {w for w in valid_answers if len(w.split()) == 1}
+        matched_words = 0
+        for word in user_words:
+            if word in valid_answers or (
+                len(word) >= 3
+                and not re.match(r"^m{0,4}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$", word)
+                and difflib.get_close_matches(word, valid_parts, n=1, cutoff=0.75)
+            ):
+                matched_words += 1
+
+        return matched_words == len(user_words)
 
     @staticmethod
     def _extract_year(date_str) -> str:
