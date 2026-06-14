@@ -438,7 +438,7 @@ class CreditCommands:
             )
         else:
             description = person.get("description", "")
-            message = f"Wrong! The correct answer was *{display_name}*.\n\n {description}"
+            message = f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(
