@@ -35,6 +35,7 @@ CREDITS_PATH = DATA_DIR / "chat" / "credits.pkl"
 CREDIT_HISTORY_PATH = DATA_DIR / "chat" / "credit_history.parquet"
 
 # Miscellaneous
+MAP_QUIZ_IMAGES_DIR_PATH = DATA_DIR / "misc" / "map_quiz_images"
 TVP_HEADLINES_PATH = DATA_DIR / "misc" / "paski-tvp.txt"
 TVP_LATEST_HEADLINES_PATH = DATA_DIR / "misc" / "tvp_latest_headlines.txt"
 OZJASZ_PHRASES_PATH = DATA_DIR / "misc" / "ozjasz-wypowiedzi.txt"

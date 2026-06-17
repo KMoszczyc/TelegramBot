@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.config.paths import TEMP_DIR
+from src.config.paths import MAP_QUIZ_IMAGES_DIR_PATH, TEMP_DIR
 from src.core import utils as core_utils
 
 _FEATURE_RESOLUTION = "50m"
@@ -57,6 +57,19 @@ class MapQuiz:
         return "crazy"
 
     @staticmethod
+    def get_reward(difficulty: str, category_specified: bool, tips_given: int = 0) -> tuple[int, int]:
+        base_reward = MapQuiz.REWARD_LEVELS.get(difficulty, MapQuiz.REWARD_LEVELS["crazy"])
+        if category_specified:
+            base_reward = base_reward // 2
+
+        if tips_given == 0:
+            return base_reward, 0
+
+        current_reward = int(base_reward * 0.5 * (0.75 ** (tips_given - 1)))
+        decrease_pct = int(round((base_reward - current_reward) / base_reward * 100)) if base_reward > 0 else 0
+        return current_reward, decrease_pct
+
+    @staticmethod
     def get_person_display_name(person: dict) -> str:
         is_polish = False
         for field in ["citizenship", "birth_country", "death_country"]:
@@ -70,6 +83,86 @@ class MapQuiz:
             display_name = person.get("name_pl")
 
         return str(display_name)
+
+    @staticmethod
+    def get_person_description(person: dict, max_length: int = 3500, extended: bool = False) -> str:
+        desc = str(person.get("description", "")).strip()
+        if desc.lower() in ("", "nan", "none"):
+            return ""
+
+        def mask_dots(match):
+            return match.group(0).replace(".", "<DOT>")
+
+        if not extended:
+            temp_desc = re.sub(r"\([^)]+\)", mask_dots, desc)
+            temp_desc = re.sub(r"\[[^]]+\]", mask_dots, temp_desc)
+            abbrevs = r"\b(ur|zm|ok|in|im|ps|np|tzw|tzn|ul|prof|dr|ks|m|r|w|św|hr|właśc|zw|łac|[A-Za-zŚĆŻŹŁśąćżźł])"
+            temp_desc = re.sub(rf"{abbrevs}\.\s+", r"\1<DOT> ", temp_desc)
+            temp_desc = re.sub(r"\.\s+(?=[a-z0-9ąćęłńóśźż])", r"<DOT> ", temp_desc)
+            parts = re.split(r"(?<=\.)(\s+)", temp_desc)
+            if len(parts) > 19:
+                desc = "".join(parts[:19]).replace("<DOT>", ".") + " [...]"
+
+        if len(desc) <= max_length:
+            return desc
+
+        truncated = desc[:max_length]
+        last_period_idx = truncated.rfind(".")
+        if last_period_idx != -1:
+            return truncated[: last_period_idx + 1]
+
+        return truncated + "..."
+
+    @staticmethod
+    def get_tips(person: dict) -> list[str]:
+        desc = str(person.get("description", "")).strip()
+        if desc.lower() in ("", "nan", "none"):
+            return []
+
+        def mask_dots(match):
+            return match.group(0).replace(".", "<DOT>")
+
+        temp_desc = re.sub(r"\([^)]+\)", mask_dots, desc)
+        temp_desc = re.sub(r"\[[^]]+\]", mask_dots, temp_desc)
+
+        # Prevent splitting on common abbreviations and initials
+        abbrevs = r"\b(ur|zm|ok|in|im|ps|np|tzw|tzn|ul|prof|dr|ks|m|r|w|św|hr|właśc|łac|gr|ros|arab|[A-Za-zŚĆŻŹŁśąćżźł])"
+        temp_desc = re.sub(rf"{abbrevs}\.\s+", r"\1<DOT> ", temp_desc)
+        temp_desc = re.sub(r"\.\s+(?=[a-z0-9ąćęłńóśźż])", r"<DOT> ", temp_desc)
+        tips = re.split(r"(?<=\.)\s+", temp_desc)
+        tips = [t.replace("<DOT>", ".") for t in tips]
+
+        if not tips or not tips[0]:
+            return []
+
+        # 1. Clean up the first sentence (remove name/dates before the dash)
+        match = re.search(r"\)\s*[-–—]\s+", tips[0])
+        if match:
+            first_tip = tips[0][match.end() :].strip()
+            tips[0] = first_tip or tips[0]
+        else:
+            match = re.search(r"^[^()]*?\s+[-–—]\s+", tips[0])
+            if match:
+                first_tip = tips[0][match.end() :].strip()
+                tips[0] = first_tip or tips[0]
+
+        # 2. Pre-compile censorship patterns
+        valid_answers = MapQuiz.get_valid_answers(person)
+        answers_to_blur = sorted([ans for ans in valid_answers if len(ans) > 2], key=len, reverse=True)
+
+        patterns = []
+        for ans in answers_to_blur:
+            suffix = r"\w*" if len(ans) > 4 else ""
+            patterns.append(re.compile(rf"\b{re.escape(ans)}{suffix}\b", re.IGNORECASE))
+
+        # 3. Apply censorship
+        blurred_tips = []
+        for tip in tips:
+            for pattern in patterns:
+                tip = pattern.sub("🤔🤔🤔", tip)
+            blurred_tips.append(tip)
+
+        return blurred_tips[:3]
 
     @staticmethod
     def get_valid_answers(person: dict) -> set[str]:
@@ -121,19 +214,41 @@ class MapQuiz:
             year_num = year_part.lstrip("0") or "0"
             return year_num
 
-    def guess_random_person_on_map(self, people_trivia_df):
-        person = people_trivia_df.sample(n=1).iloc[0]
+    @staticmethod
+    def get_image_filename_for_person(person: dict) -> str:
+        name = person.get("name_en")
+        if not name or str(name).lower() == "nan":
+            name = person.get("name_pl")
+
+        name = str(name).lower()
+        name = re.sub(r"[^a-z0-9\s]", "", name)
+        name = re.sub(r"\s+", "_", name.strip())
+        return f"{name}.jpg"
+
+    @staticmethod
+    def get_locations_for_person(person: dict) -> list[tuple[float, float, str, str]]:
         locations = []
         if not pd.isna(person.get("birth_lon")) and not pd.isna(person.get("birth_lat")):
-            dob = self._extract_year(person.get("dob", ""))
+            dob = MapQuiz._extract_year(person.get("dob", ""))
             locations.append((float(person["birth_lon"]), float(person["birth_lat"]), dob, "green"))
 
         if not pd.isna(person.get("death_lon")) and not pd.isna(person.get("death_lat")):
-            dod = self._extract_year(person.get("dod", ""))
+            dod = MapQuiz._extract_year(person.get("dod", ""))
             locations.append((float(person["death_lon"]), float(person["death_lat"]), dod, "red"))
+        return locations
 
-        image_path = self.generate_image(locations)
-        return image_path, person
+    def guess_random_person_on_map(self, people_trivia_df):
+        person = people_trivia_df.sample(n=1).iloc[0]
+
+        filename = MapQuiz.get_image_filename_for_person(person)
+        image_path = os.path.join(MAP_QUIZ_IMAGES_DIR_PATH, filename)
+
+        if os.path.exists(image_path):
+            return image_path, person
+
+        locations = MapQuiz.get_locations_for_person(person)
+        fallback_path = self.generate_image(locations)
+        return fallback_path, person
 
     def generate_image(self, locations: list[tuple[float, float, str, str]]) -> str:
         """Generate a map quiz image with ring markers at given locations.
@@ -150,13 +265,13 @@ class MapQuiz:
 
         fig = plt.figure(figsize=self.figsize)
         ax = fig.add_subplot(1, 1, 1, projection=projection)
-        # res = "10m" if lon_half <= 15 else _FEATURE_RESOLUTION
-        self._add_base_layers(ax, _FEATURE_RESOLUTION)
+        res = "10m" if lon_half <= 15 else _FEATURE_RESOLUTION
+        self._add_base_layers(ax, res, show_borders=(lon_half <= 15))
 
-        lon_min = max(lon_center - lon_half * _LON_ASPECT_RATIO, -180)
-        lon_max = min(lon_center + lon_half * _LON_ASPECT_RATIO, 180)
-        lat_min = max(lat_center - lat_half, -85)
-        lat_max = min(lat_center + lat_half, 85)
+        lon_min = max(lon_center - lon_half * _LON_ASPECT_RATIO, -179.9)
+        lon_max = min(lon_center + lon_half * _LON_ASPECT_RATIO, 179.9)
+        lat_min = max(lat_center - lat_half, -80.0)
+        lat_max = min(lat_center + lat_half, 80.0)
         ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=data_crs)
         ax.axis("off")
 
@@ -188,6 +303,9 @@ class MapQuiz:
 
     def _compute_extent(self, locations: list[tuple[float, float, str, str]]) -> tuple[float, float, float, float]:
         """Returns (lon_center, lat_center, lon_half, lat_half) for the bounding box."""
+        if not locations:
+            return 0.0, 0.0, 180.0, 85.0
+
         lons = [loc[0] for loc in locations]
         lats = [loc[1] for loc in locations]
         lon_spread = max(lons) - min(lons)
@@ -196,7 +314,7 @@ class MapQuiz:
         lat_center = float(np.mean(lats))
 
         # Dynamic padding: scale with the spread, but ensure a wider view (less zoom)
-        pad = max(10.0, min(self.padding_deg, max(lon_spread, lat_spread) * 0.4))
+        pad = max(6.0, min(self.padding_deg, max(lon_spread, lat_spread) * 0.4))
 
         lon_half = lon_spread / 2 + pad
         lat_half = lat_spread / 2 + pad
@@ -205,7 +323,7 @@ class MapQuiz:
         return lon_center, lat_center, lon_half, lat_half
 
     @staticmethod
-    def _add_base_layers(ax, res: str = _FEATURE_RESOLUTION) -> None:
+    def _add_base_layers(ax, res: str = _FEATURE_RESOLUTION, show_borders: bool = False) -> None:
         ax.set_facecolor(_WATER_COLOR)
         ax.add_feature(cfeature.NaturalEarthFeature("physical", "ocean", res, facecolor=_WATER_COLOR, edgecolor="none"), zorder=0)
         ax.add_feature(cfeature.NaturalEarthFeature("physical", "land", res, facecolor=_LAND_COLOR, edgecolor="none"), zorder=1)
@@ -215,6 +333,13 @@ class MapQuiz:
         ax.add_feature(
             cfeature.NaturalEarthFeature("physical", "coastline", res, edgecolor=_BORDER_COLOR, facecolor="none", linewidth=0.5), zorder=3
         )
+        if show_borders:
+            ax.add_feature(
+                cfeature.NaturalEarthFeature(
+                    "cultural", "admin_0_boundary_lines_land", res, edgecolor=_BORDER_COLOR, facecolor="none", linewidth=0.5
+                ),
+                zorder=4,
+            )
 
     @staticmethod
     def _draw_marker(ax, lon: float, lat: float, label: str, color: str, data_crs, offset: tuple[float, float], ha: str, va: str) -> None:

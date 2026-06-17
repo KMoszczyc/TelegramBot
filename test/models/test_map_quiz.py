@@ -44,9 +44,9 @@ def test_compute_extent_half_includes_padding(quiz):
     _, _, lon_half, lat_half = quiz._compute_extent(locations)
 
     # Spread is 20 deg for both lon and lat.
-    # Dynamic pad = max(10.0, min(15.0, 20 * 0.4)) = 10.0
-    assert lon_half == pytest.approx(10.0 + 10.0)
-    assert lat_half == pytest.approx(10.0 + 10.0)
+    # Dynamic pad = max(3.0, min(15.0, 20 * 0.4)) = 8.0
+    assert lon_half == pytest.approx(10.0 + 8.0)
+    assert lat_half == pytest.approx(10.0 + 8.0)
 
 
 @pytest.mark.parametrize(
@@ -68,9 +68,9 @@ def test_compute_extent_single_location_uses_padding_only(quiz):
 
     _, _, lon_half, lat_half = quiz._compute_extent(locations)
 
-    # Spread is 0. Dynamic pad = max(10.0, min(15.0, 0)) = 10.0
-    assert lon_half == pytest.approx(10.0)
-    assert lat_half == pytest.approx(10.0)
+    # Spread is 0. Dynamic pad = max(6.0, min(15.0, 0)) = 6.0
+    assert lon_half == pytest.approx(6.0)
+    assert lat_half == pytest.approx(6.0)
 
 
 # ── generate_image (fast, mocked IO) ────────────────────────────────
@@ -167,3 +167,44 @@ def test_generate_image_visual(locations, filename):
 )
 def test_is_answer_correct(user_answer, valid_answers, expected):
     assert MapQuiz.is_answer_correct(user_answer, valid_answers) == expected
+
+
+# ── get_tips ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "description, expected_tips",
+    [
+        pytest.param("", [], id="empty_desc"),
+        pytest.param("NaN", [], id="nan_desc"),
+        pytest.param("None", [], id="none_desc"),
+        pytest.param("Jan Kowalski. Was a good man.", ["Jan Kowalski.", "Was a good man."], id="no_dash"),
+        pytest.param("Jan Kowalski (ur. 1900) – polski bohater. Zrobił dużo.", ["polski bohater.", "Zrobił dużo."], id="standard_dash"),
+    ],
+)
+def test_get_tips_sentence_parsing(description, expected_tips):
+    person = {"name_pl": "Someone", "description": description}
+    assert MapQuiz.get_tips(person) == expected_tips
+
+
+@pytest.mark.parametrize(
+    "name, description, expected_tips",
+    [
+        pytest.param(
+            "Janek Kowalski",
+            "Janek Kowalski (ur. 1900) – polski Janek bohater. Kowalski to on.",
+            ["polski 🤔🤔🤔 bohater.", "🤔🤔🤔 to on."],
+            id="censorship",
+        ),
+        pytest.param(
+            "Jan Kowalczyk",
+            "Kowalczyk (ur. 1900) – kowalczykowi było smutno.",
+            ["🤔🤔🤔 było smutno."],
+            id="declension_censorship_long_name",
+        ),
+        pytest.param("Jan", "Jan (ur. 1900) – Janka nie było.", ["Janka nie było."], id="no_declension_censorship_short_name"),
+    ],
+)
+def test_get_tips_censorship(name, description, expected_tips):
+    person = {"name_pl": name, "description": description}
+    assert MapQuiz.get_tips(person) == expected_tips

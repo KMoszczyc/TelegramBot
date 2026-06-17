@@ -305,7 +305,10 @@ class CreditCommands:
         await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_guess_person_on_a_map(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, available_named_args={"category": ArgType.STRING, "difficulty": ArgType.STRING})
+        command_args = CommandArgs(
+            args=context.args,
+            available_named_args={"category": ArgType.STRING, "difficulty": ArgType.STRING, "extended_description": ArgType.NONE},
+        )
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
             await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
@@ -362,7 +365,10 @@ class CreditCommands:
         map_quiz = MapQuiz()
         image_path, person = map_quiz.guess_random_person_on_map(filtered_df)
 
-        caption = f"Difficulty: {chosen_diff.replace('_', ' ').title()}\nTime to answer: {MAP_QUIZ_TIMEOUT_SECONDS}s"
+        reward, _ = MapQuiz.get_reward(chosen_diff, "category" in command_args.named_args, 0)
+        caption = (
+            f"Difficulty: {chosen_diff.replace('_', ' ').title()}\nTime to answer: {MAP_QUIZ_TIMEOUT_SECONDS}s\nReward: {reward} credits"
+        )
         if "category" in command_args.named_args:
             caption += f"\nCategory: {person['category']}"
 
@@ -374,6 +380,8 @@ class CreditCommands:
             "person": person,
             "difficulty": chosen_diff,
             "category_specified": "category" in command_args.named_args,
+            "extended_description": "extended_description" in command_args.named_args,
+            "tips_given": 0,
             "job": context.job_queue.run_once(self.map_quiz_timeout, MAP_QUIZ_TIMEOUT_SECONDS, data=user_id),
         }
 
@@ -389,7 +397,8 @@ class CreditCommands:
 
             if chat_id is not None and person is not None:
                 display_name = MapQuiz.get_person_display_name(person)
-                description = person.get("description", "")
+                extended = cached_quiz.get("extended_description", False)
+                description = MapQuiz.get_person_description(person, extended=extended)
                 message = stats_utils.escape_special_characters(f"Time's up! The person was *{display_name}*.\n\n{description}")
                 await context.bot.send_message(
                     chat_id=chat_id,
@@ -417,7 +426,34 @@ class CreditCommands:
         person = cached_quiz["person"]
         valid_answers = MapQuiz.get_valid_answers(person)
         user_answer = update.message.text.lower().strip()
-        log.info(f"handle_map_quiz_answer: answer={user_answer}, valid={valid_answers}")
+        extended = cached_quiz.get("extended_description", False)
+        log.info(f"handle_map_quiz_answer: answer={user_answer}, extended={extended}, valid={valid_answers}")
+
+        if user_answer == "!tip":
+            tips = MapQuiz.get_tips(person)
+            tips_given = cached_quiz.get("tips_given", 0)
+            if tips_given < len(tips):
+                tip_text = tips[tips_given]
+                cached_quiz["tips_given"] = tips_given + 1
+
+                current_reward, decrease = MapQuiz.get_reward(
+                    cached_quiz.get("difficulty", "crazy"), cached_quiz.get("category_specified", False), cached_quiz["tips_given"]
+                )
+
+                message = stats_utils.escape_special_characters(
+                    f"💡 Tip {tips_given + 1}/{len(tips)} - [{current_reward} credits, -{decrease}%]:\n\n{tip_text}"
+                )
+            else:
+                message = stats_utils.escape_special_characters("No more tips available for this person!")
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                reply_to_message_id=update.message.message_id,
+                text=message,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
+            )
+            return
 
         cached_quiz["job"].schedule_removal()
         self.bot_state.map_quiz_cache.pop(user_id, None)
@@ -427,17 +463,17 @@ class CreditCommands:
         is_correct = MapQuiz.is_answer_correct(user_answer, valid_answers)
 
         if is_correct:
-            reward = MapQuiz.REWARD_LEVELS.get(cached_quiz.get("difficulty", "crazy"), MapQuiz.REWARD_LEVELS["crazy"])
-            if cached_quiz.get("category_specified"):
-                reward = reward // 2
+            reward, _ = MapQuiz.get_reward(
+                cached_quiz.get("difficulty", "crazy"), cached_quiz.get("category_specified", False), cached_quiz.get("tips_given", 0)
+            )
 
             user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
-            description = person.get("description", "")
+            description = MapQuiz.get_person_description(person, extended=extended)
             message = (
                 f"Correct! The person is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{description}"
             )
         else:
-            description = person.get("description", "")
+            description = MapQuiz.get_person_description(person, extended=extended)
             message = f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
 
         message = stats_utils.escape_special_characters(message)
