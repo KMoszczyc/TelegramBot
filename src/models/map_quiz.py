@@ -96,7 +96,7 @@ class MapQuiz:
         if not extended:
             temp_desc = re.sub(r"\([^)]+\)", mask_dots, desc)
             temp_desc = re.sub(r"\[[^]]+\]", mask_dots, temp_desc)
-            abbrevs = r"\b(ur|zm|ok|in|im|ps|np|tzw|tzn|ul|prof|dr|ks|m|r|w|św|hr|właśc|zw|łac|[A-Za-zŚĆŻŹŁśąćżźł])"
+            abbrevs = r"\b(ur|zm|ok|in|im|ps|np|tzw|tzn|ul|prof|dr|ks|m|r|w|św|hr|właśc|zw|[A-Za-zŚĆŻŹŁśąćżźł])"
             temp_desc = re.sub(rf"{abbrevs}\.\s+", r"\1<DOT> ", temp_desc)
             temp_desc = re.sub(r"\.\s+(?=[a-z0-9ąćęłńóśźż])", r"<DOT> ", temp_desc)
             parts = re.split(r"(?<=\.)(\s+)", temp_desc)
@@ -119,6 +119,15 @@ class MapQuiz:
         if desc.lower() in ("", "nan", "none"):
             return []
 
+        # 1. Clean up the introductory part before the dash (do this before ANY splitting)
+        match = re.search(r"\)\s*[-–—]\s+", desc)
+        if match:
+            desc = desc[match.end() :].strip()
+        else:
+            match = re.search(r"^[^()]*?\s+[-–—]\s+", desc)
+            if match:
+                desc = desc[match.end() :].strip()
+
         def mask_dots(match):
             return match.group(0).replace(".", "<DOT>")
 
@@ -126,7 +135,7 @@ class MapQuiz:
         temp_desc = re.sub(r"\[[^]]+\]", mask_dots, temp_desc)
 
         # Prevent splitting on common abbreviations and initials
-        abbrevs = r"\b(ur|zm|ok|in|im|ps|np|tzw|tzn|ul|prof|dr|ks|m|r|w|św|hr|właśc|łac|gr|ros|arab|[A-Za-zŚĆŻŹŁśąćżźł])"
+        abbrevs = r"\b(ur|zm|ok|in|im|ps|np|tzw|tzn|ul|prof|dr|ks|m|r|w|św|hr|właśc|zw|[A-Za-zŚĆŻŹŁśąćżźł])"
         temp_desc = re.sub(rf"{abbrevs}\.\s+", r"\1<DOT> ", temp_desc)
         temp_desc = re.sub(r"\.\s+(?=[a-z0-9ąćęłńóśźż])", r"<DOT> ", temp_desc)
         tips = re.split(r"(?<=\.)\s+", temp_desc)
@@ -134,17 +143,6 @@ class MapQuiz:
 
         if not tips or not tips[0]:
             return []
-
-        # 1. Clean up the first sentence (remove name/dates before the dash)
-        match = re.search(r"\)\s*[-–—]\s+", tips[0])
-        if match:
-            first_tip = tips[0][match.end() :].strip()
-            tips[0] = first_tip or tips[0]
-        else:
-            match = re.search(r"^[^()]*?\s+[-–—]\s+", tips[0])
-            if match:
-                first_tip = tips[0][match.end() :].strip()
-                tips[0] = first_tip or tips[0]
 
         # 2. Pre-compile censorship patterns
         valid_answers = MapQuiz.get_valid_answers(person)
