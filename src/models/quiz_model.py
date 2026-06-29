@@ -13,22 +13,12 @@ class QuizModel:
     quiz_id: int
     user_id: str
     question: str
+    difficulty: str
+    type: str
     correct_answer: str
     display_answer: str
     start_dt: datetime
     seconds_to_answer: int
-    difficulty: str
-
-    def __init__(self, quiz_id, user_id, question, difficulty, type, correct_answer, display_answer, start_dt, seconds_to_answer):
-        self.quiz_id = quiz_id
-        self.user_id = user_id
-        self.question = question
-        self.difficulty = difficulty
-        self.type = type
-        self.correct_answer = correct_answer
-        self.display_answer = display_answer
-        self.start_dt = start_dt
-        self.seconds_to_answer = seconds_to_answer
 
     def get_credit_penalty(self):
         if self.type == "boolean":

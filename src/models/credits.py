@@ -7,6 +7,7 @@ import src.stats.utils as stats_utils
 from src.config.constants import CREDIT_HISTORY_COLUMNS
 from src.config.enums import CreditActionType, DBSaveMode, LuckyScoreType, RouletteBetType, Table
 from src.models.command_args import CommandArgs
+from src.models.schemas import CreditHistoryRow
 
 
 class Credits:
@@ -70,8 +71,16 @@ class Credits:
         target_user_id=None,
     ):
         bet_type = bet_type.value if bet_type is not None else None
-        data = [stats_utils.get_dt_now(), user_id, target_user_id, credit_change, action_type.value, bet_type, success]
-        new_entry = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=[data])
+        row = CreditHistoryRow(
+            timestamp=stats_utils.get_dt_now(),
+            user_id=user_id,
+            target_user_id=target_user_id,
+            credit_change=credit_change,
+            action_type=action_type.value,
+            bet_type=bet_type,
+            success=success,
+        )
+        new_entry = pd.DataFrame(columns=CREDIT_HISTORY_COLUMNS, data=[row.to_list()])
         self.save_credits(new_entry)
 
     def preprocess_credit_history(self, command_args):

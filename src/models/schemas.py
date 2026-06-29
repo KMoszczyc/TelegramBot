@@ -1,7 +1,44 @@
+from dataclasses import dataclass
+from datetime import datetime
+
 import pandera.pandas as pa
 from pandera.engines import pandas_engine
+from pydantic import BaseModel
 
 from src.config.constants import TIMEZONE
+
+
+class ChatMessageRow(BaseModel):
+    """Per-row model for validating chat messages before DataFrame construction."""
+
+    message_id: int
+    timestamp: datetime
+    user_id: int
+    first_name: str | None
+    last_name: str | None
+    username: str | None
+    text: str | None
+    image_text: str | None = ""
+    reaction_emojis: list = []
+    reaction_user_ids: list = []
+    message_type: str
+
+
+@dataclass
+class CreditHistoryRow:
+    """Per-row model for credit history entries."""
+
+    timestamp: datetime
+    user_id: int
+    target_user_id: int | None
+    credit_change: int
+    action_type: str
+    bet_type: str | None
+    success: bool
+
+    def to_list(self) -> list:
+        return [self.timestamp, self.user_id, self.target_user_id, self.credit_change, self.action_type, self.bet_type, self.success]
+
 
 chat_history_schema = pa.DataFrameSchema(
     {

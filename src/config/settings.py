@@ -1,25 +1,33 @@
 import logging
-import os
 
-try:
-    from dotenv import load_dotenv
-except ModuleNotFoundError:
-    load_dotenv = None
-
-if load_dotenv is not None:
-    load_dotenv()
+from pydantic_settings import BaseSettings
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-RUNTIME_ENV = os.getenv("RUNTIME_ENV")
-TOKEN = os.getenv("TOKEN")
-TEST_TOKEN = os.getenv("TEST_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID")) if os.getenv("CHAT_ID") else None
-TEST_CHAT_ID = int(os.getenv("TEST_CHAT_ID")) if os.getenv("TEST_CHAT_ID") else None
-API_ID = int(os.getenv("API_ID")) if os.getenv("API_ID") else None
-API_HASH = os.getenv("API_HASH")
-SESSION = os.getenv("SESSION")
-BOT_ID = int(os.getenv("BOT_ID")) if os.getenv("BOT_ID") else None
+
+class Settings(BaseSettings):
+    RUNTIME_ENV: str | None = None
+    TOKEN: str | None = None
+    TEST_TOKEN: str | None = None
+    CHAT_ID: int | None = None
+    TEST_CHAT_ID: int | None = None
+    API_ID: int | None = None
+    API_HASH: str | None = None
+    SESSION: str | None = None
+    BOT_ID: int | None = None
+
+
+settings = Settings()
+
+RUNTIME_ENV = settings.RUNTIME_ENV
+TOKEN = settings.TOKEN
+TEST_TOKEN = settings.TEST_TOKEN
+CHAT_ID = settings.CHAT_ID
+TEST_CHAT_ID = settings.TEST_CHAT_ID
+API_ID = settings.API_ID
+API_HASH = settings.API_HASH
+SESSION = settings.SESSION
+BOT_ID = settings.BOT_ID
 
 log.info(f"============ RUNTIME ENVIRONMENT: {RUNTIME_ENV} ============")

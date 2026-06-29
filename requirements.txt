@@ -21,3 +21,4 @@ yt_dlp
 ffmpeg-python
 unidecode
 cartopy
+pydantic-settings

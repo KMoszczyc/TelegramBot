@@ -15,7 +15,14 @@ from src.config.paths import TEMP_DIR, USERS_PATH
 from src.config.settings import BOT_ID
 from src.core.client_api_handler import ClientAPIHandler
 from src.models.db.db import DB
-from src.models.schemas import chat_history_schema, cleaned_chat_history_schema, commands_usage_schema, reactions_schema, users_schema
+from src.models.schemas import (
+    ChatMessageRow,
+    chat_history_schema,
+    cleaned_chat_history_schema,
+    commands_usage_schema,
+    reactions_schema,
+    users_schema,
+)
 from src.stats.ocr import OCR
 
 pd.set_option("display.max_columns", None)
@@ -54,19 +61,6 @@ class ChatETL:
 
     def download_chat_history(self, days):
         latest_messages, message_types = self.client_api_handler.get_chat_history(days)
-        columns = [
-            "message_id",
-            "timestamp",
-            "user_id",
-            "first_name",
-            "last_name",
-            "username",
-            "text",
-            "image_text",
-            "reaction_emojis",
-            "reaction_user_ids",
-            "message_type",
-        ]
         data = []
 
         malformed_count = 0
@@ -102,22 +96,22 @@ class ChatETL:
             #     image_text = OCR.extract_text_from_image(path)
             #     ocr_count += 1
 
-            single_message_data = [
-                int(message.id),
-                message.date,
-                int(message.sender_id),
-                message.sender.first_name,
-                message.sender.last_name,
-                message.sender.username,
-                message.text,
-                image_text,
-                reaction_emojis,
-                reaction_user_ids,
-                message_type.value,
-            ]
-            data.append(single_message_data)
+            row = ChatMessageRow(
+                message_id=int(message.id),
+                timestamp=message.date,
+                user_id=int(message.sender_id),
+                first_name=message.sender.first_name,
+                last_name=message.sender.last_name,
+                username=message.sender.username,
+                text=message.text,
+                image_text=image_text,
+                reaction_emojis=reaction_emojis,
+                reaction_user_ids=reaction_user_ids,
+                message_type=message_type.value,
+            )
+            data.append(row.model_dump())
 
-        latest_chat_df = pd.DataFrame(data, columns=columns)
+        latest_chat_df = pd.DataFrame(data)
         data_pull_start_dt = (datetime.now(tz=ZoneInfo(TIMEZONE)) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
         latest_chat_df["timestamp"] = (
             pd.to_datetime(latest_chat_df["timestamp"], utc=True).dt.tz_convert(TIMEZONE).astype(f"datetime64[ns, {TIMEZONE}]")

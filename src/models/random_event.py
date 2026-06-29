@@ -1,17 +1,18 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 
 
+@dataclass
 class EffectResult:
-    def __init__(self, credit_change: int, message: str):
-        self.credit_change = credit_change
-        self.message = message
+    credit_change: int
+    message: str
 
 
+@dataclass
 class RandomEvent:
-    def __init__(self, description: str, effect_func: Callable, event_type: str):
-        self.description = description
-        self.effect_func = effect_func
-        self.event_type = event_type
+    description: str
+    effect_func: Callable
+    event_type: str
 
     def apply_effect(self, **kwargs) -> EffectResult:
         credit_change = self.effect_func(**kwargs)
