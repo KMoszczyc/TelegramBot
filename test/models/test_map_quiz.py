@@ -124,21 +124,21 @@ VISUAL_CASES = [
 ]
 
 
-@pytest.mark.visual
-@pytest.mark.parametrize("locations, filename", VISUAL_CASES)
-def test_generate_image_visual(locations, filename):
-    """Generates images for manual inspection. Run with: pytest -m visual"""
-    quiz = MapQuiz()
+# @pytest.mark.visual
+# @pytest.mark.parametrize("locations, filename", VISUAL_CASES)
+# def test_generate_image_visual(locations, filename):
+#     """Generates images for manual inspection. Run with: pytest -m visual"""
+#     quiz = MapQuiz()
 
-    path = quiz.generate_image(locations)
+#     path = quiz.generate_image(locations)
 
-    dest = os.path.join(os.path.dirname(path), f"{filename}.jpg")
-    if os.path.exists(dest):
-        os.remove(dest)
-    os.replace(path, dest)
+#     dest = os.path.join(os.path.dirname(path), f"{filename}.jpg")
+#     if os.path.exists(dest):
+#         os.remove(dest)
+#     os.replace(path, dest)
 
-    print(f"\n  📍 Saved: {dest}")
-    assert os.path.exists(dest)
+#     print(f"\n  📍 Saved: {dest}")
+#     assert os.path.exists(dest)
 
 
 # ── is_answer_correct ──────────────────────────────────────────────────

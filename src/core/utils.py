@@ -1,10 +1,8 @@
-import copy
 import json
 import locale
 import logging
 import os
 import random
-import re
 import string
 import sys
 import uuid
@@ -18,8 +16,8 @@ import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from src.config.constants import MAX_INT, TIMEZONE
-from src.config.enums import ArgType, DatetimeFormat, ErrorMessage, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
+from src.config.constants import TIMEZONE
+from src.config.enums import ArgType, ErrorMessage, HolyTextType, LuckyScoreType, MessageType, PeriodFilterMode, SiglumType
 from src.config.paths import (
     CHAT_AUDIO_DIR_PATH,
     CHAT_GIFS_DIR_PATH,
@@ -27,6 +25,7 @@ from src.config.paths import (
     CHAT_VIDEO_NOTES_DIR_PATH,
     CHAT_VIDEOS_DIR_PATH,
 )
+from src.core.arg_parser import ArgParser
 from src.models.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
@@ -62,126 +61,23 @@ def save_df(df, path):
 
 
 def preprocess_input(users_df: pd.DataFrame, command_args: CommandArgs):
-    command_args = parse_args(users_df, command_args)
-    filtered_phrases, command_args = filter_phrases(command_args)
-    return filtered_phrases, command_args
-
-
-# def parse_args(users_df: pd.DataFrame, command_args: CommandArgs) -> CommandArgs:
-#     command_args = merge_spaced_args(command_args)
-#     command_args = parse_named_args(users_df, command_args)
-#     command_args.joined_args = ' '.join(command_args.args)
-#     command_args.joined_args_lower = ' '.join(command_args.args).lower()
-#     command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
-#     command_args.error = get_error(command_args)
-#
-#     return command_args
+    return ArgParser.preprocess_input(users_df, command_args)
 
 
 def parse_args(users_df, command_args: CommandArgs) -> CommandArgs:
-    """
-    A function to parse arguments and return a tuple with period mode, mode time, user, and error.
-    Parameters:
-        users_df: DataFrame - The DataFrame containing user data.
-        command_args: CommandArgs - Dataclass with the command arguments related data
-
-    Returns:
-        command_args: Dataclass with the command arguments related data
-    """
-    command_args = merge_spaced_args(command_args)
-    command_args = parse_named_args(users_df, command_args)
-    command_args.joined_args = " ".join(command_args.args)
-    command_args.joined_args_lower = " ".join(command_args.args).lower()
-    if command_args.is_text_arg:
-        command_args.args = [command_args.joined_args]
-        command_args.arg_type = ArgType.REGEX if is_inside_square_brackets(command_args.joined_args) else ArgType.TEXT
-        return command_args
-
-    args_num = len(command_args.args)
-    expected_args_num = len(command_args.expected_args)
-    if not command_args.optional and args_num != expected_args_num:
-        command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
-        return command_args
-
-    # Handle args
-    command_args = handle_args(users_df, command_args)
-    command_args.error = get_error(command_args)
-    return command_args
-
-    # # Parse args
-    # for i, arg_type in enumerate(command_args.handled_expected_args):
-    #     arg = ' '.join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
-    #     _, command_args = parse_arg(users_df, command_args, arg, arg_type)
-
-    # command_args.error = get_error(command_args)
-    # return command_args
+    return ArgParser.parse_args(users_df, command_args)
 
 
 def handle_args(users_df, command_args_ref: CommandArgs):
-    """Handle optional arguments like Period or User."""
-    if len(command_args_ref.args) == 0:
-        return command_args_ref
-
-    command_args = copy.deepcopy(command_args_ref)
-    successes = []
-    expected_args = command_args.expected_args.copy()
-    for i, arg_type in enumerate(expected_args):
-        if not command_args.optional[i]:
-            arg = " ".join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
-            _, command_args = parse_arg(users_df, command_args, arg, arg_type, is_optional=False)
-            continue
-
-        if sum(successes) == len(command_args.args):
-            continue
-
-        # handle optional arg
-        for arg in command_args.args:
-            _, command_args = parse_arg(users_df, command_args, arg, arg_type, is_optional=True)
-            if command_args.optional_errors[-1] != "":
-                successes.append(False)
-            else:
-                successes.append(True)
-
-    if not any(successes):
-        log.info("None optional args were parsed successfully, despite there being an argument send by user.")
-        command_args.errors.extend(command_args.optional_errors)
-        return command_args
-
-    log.info("All args were parsed successfully.")
-    return command_args
+    return ArgParser.handle_args(users_df, command_args_ref)
 
 
 def merge_spaced_args(command_args: CommandArgs):
-    new_args = []
-    quotation_opened = False
-    current_spaced_args = []
-    for arg in command_args.args:
-        if '"' in arg and not quotation_opened:
-            quotation_opened = True
-            current_spaced_args.append(arg.replace('"', ""))
-        elif '"' in arg and quotation_opened:
-            current_spaced_args.append(arg.replace('"', ""))
-            new_args.append(" ".join(current_spaced_args))
-            quotation_opened = False
-            current_spaced_args = []
-        elif quotation_opened:
-            current_spaced_args.append(arg)
-        else:
-            new_args.append(arg)
-    if len(current_spaced_args) == 1:
-        new_args.append(current_spaced_args[0])
-    command_args.args = new_args
-
-    return command_args
+    return ArgParser.merge_spaced_args(command_args)
 
 
 def filter_phrases(command_args: CommandArgs):
-    log.info(f"Command received: {command_args.arg_type} - {command_args.joined_args}")
-    match command_args.arg_type:
-        case ArgType.TEXT:
-            return text_filter(command_args)
-        case ArgType.REGEX:
-            return regex_filter(command_args)
+    return ArgParser.filter_phrases(command_args)
 
 
 def is_word_in_list_of_multiple_words(word, list_of_multiple_words):
@@ -190,22 +86,15 @@ def is_word_in_list_of_multiple_words(word, list_of_multiple_words):
 
 
 def text_filter(command_args):
-    return [phrase for phrase in command_args.phrases if command_args.joined_args_lower in phrase.lower()], command_args
+    return ArgParser.text_filter(command_args)
 
 
 def regex_filter(command_args):
-    pattern = command_args.joined_args[1:-1]  # removes brackets
-    try:
-        return [phrase for phrase in command_args.phrases if re.search(pattern, phrase, flags=re.IGNORECASE)], command_args
-    except re.error as e:
-        command_args.error = f"{pattern} - is and invalid regex pattern."
-        log.info(f"{command_args.error} - {e}")
-
-        return [], command_args
+    return ArgParser.regex_filter(command_args)
 
 
 def is_inside_square_brackets(text):
-    return text.startswith("[") and text.endswith("]")
+    return ArgParser.is_inside_square_brackets(text)
 
 
 def select_random_phrase(phrases, error_message: ErrorMessage):
@@ -317,254 +206,63 @@ async def download_media(message, message_type):
 
 
 def parse_arg(users_df, command_args_ref, arg_str, arg_type: ArgType, is_optional=False) -> tuple[str | int, CommandArgs]:
-    command_args = copy.deepcopy(command_args_ref)
-    value = None
-    error = ""
-    match arg_type:
-        case ArgType.USER:
-            command_args, error = parse_user(users_df, command_args, arg_str)
-        case ArgType.PERIOD:
-            command_args, error = parse_period(command_args, arg_str)
-        case ArgType.POSITIVE_INT:
-            value, command_args, error = parse_number(command_args, arg_str, positive_only=True)
-        case ArgType.STRING | ArgType.TEXT | ArgType.TEXT_MULTISPACED:
-            value, command_args, error = parse_string(command_args, arg_str)
-        case _:
-            command_args = command_args
-
-    if is_optional:
-        command_args.optional_errors.append(error)
-    else:
-        command_args.errors.append(error)
-
-    return value, command_args
+    return ArgParser.parse_arg(users_df, command_args_ref, arg_str, arg_type, is_optional)
 
 
 def parse_named_args(users_df, command_args_ref: CommandArgs):
-    command_args = copy.deepcopy(command_args_ref)
-    command_args.args = [arg.replace("—", "--") for arg in command_args.args]
-    if not command_args.available_named_args_aliases:
-        command_args.available_named_args_aliases = {arg[0]: arg for arg in command_args.available_named_args}
-    args = copy.deepcopy(command_args.args)
-    for i, arg in enumerate(args):
-        named_arg = parse_named_arg(arg, command_args)
-        if named_arg is None:
-            continue
-        if command_args.available_named_args[named_arg] == ArgType.NONE:
-            command_args.named_args[named_arg] = None
-        elif i + 1 < len(args) and not is_named_arg(args[i + 1], command_args):  # this arg has a value
-            arg_type = command_args.available_named_args[named_arg]
-            value, command_args = parse_arg(users_df, command_args, args[i + 1], arg_type)
-            command_args.args.remove(args[i + 1])
-            if get_error(command_args) == "":
-                command_args.named_args[named_arg] = value
-        else:
-            command_args.errors.append(f"Argument {named_arg} requires a value")
-        command_args.args.remove(arg)
-
-    command_args.error = get_error(command_args)
-    return command_args
+    return ArgParser.parse_named_args(users_df, command_args_ref)
 
 
 def parse_named_arg(arg, command_args):
-    if is_normal_named_arg(arg, command_args.available_named_args):
-        return arg.replace("-", "")
-    elif is_aliased_named_arg(arg, command_args.available_named_args_aliases):
-        alias = arg.replace("-", "")
-        return command_args.available_named_args_aliases[alias]
-    return None
+    return ArgParser.parse_named_arg(arg, command_args)
 
 
 def is_aliased_named_arg(arg, shortened_available_named_args):
-    return arg.startswith("-") and arg[1:] in shortened_available_named_args
+    return ArgParser.is_aliased_named_arg(arg, shortened_available_named_args)
 
 
 def is_normal_named_arg(arg, available_named_args):
-    return arg.startswith("--") and arg[2:] in available_named_args
+    return ArgParser.is_normal_named_arg(arg, available_named_args)
 
 
 def is_named_arg(arg, commands_args):
-    return is_aliased_named_arg(arg, commands_args.available_named_args_aliases) or is_normal_named_arg(
-        arg, commands_args.available_named_args
-    )
+    return ArgParser.is_named_arg(arg, commands_args)
 
 
-def parse_period(command_args, arg_str) -> [CommandArgs, str]:
-    error = ""
-    if arg_str == "":
-        error = "Period cannot be empty."
-        log.error(error)
-        return command_args, error
-
-    period_mode_str = arg_str
-    try:
-        if "s" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("s", ""), positive_only=True)
-            period_mode_str = "second"
-        elif "min" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("min", ""), positive_only=True)
-            period_mode_str = "minute"
-        elif "h" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("h", ""), positive_only=True)
-            period_mode_str = "hour"
-        elif "d" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("d", ""), positive_only=True)
-            period_mode_str = "day"
-        elif "w" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("w", ""), positive_only=True)
-            period_mode_str = "week"
-        elif "m" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("m", ""), positive_only=True)
-            period_mode_str = "month"
-        elif "y" in arg_str and has_numbers(arg_str):
-            command_args.period_time, error = parse_int(arg_str.replace("y", ""), positive_only=True)
-            period_mode_str = "year"
-
-        if error == "":
-            command_args.period_mode = PeriodFilterMode(period_mode_str)
-
-        if command_args.period_mode == PeriodFilterMode.ERROR and ";" in arg_str:
-            command_args.start_dt, command_args.end_dt, command_args.dt_format, error = parse_date_range(arg_str)
-            command_args.period_mode = PeriodFilterMode.DATE_RANGE
-        elif command_args.period_mode == PeriodFilterMode.ERROR:
-            command_args.dt, command_args.dt_format, error = parse_date(arg_str)
-            command_args.period_mode = PeriodFilterMode.DATE
-
-        command_args.parse_error = error
-    except ValueError:
-        error = f"There is no such time period as {arg_str}."
-        log.error(error)
-
-    if error != "":
-        command_args.period_mode = PeriodFilterMode.ERROR
-
-    return command_args, error
+def parse_period(command_args, arg_str):
+    return ArgParser.parse_period(command_args, arg_str)
 
 
-def parse_date(date_str: str) -> tuple[datetime, DatetimeFormat, str] | tuple[None, None, str]:
-    dt_formats = [
-        DatetimeFormat.DATE,
-        DatetimeFormat.HOUR,
-        DatetimeFormat.MINUTE,
-        DatetimeFormat.SECOND,
-    ]
-
-    for dt_format in dt_formats:
-        try:
-            return datetime.strptime(date_str, dt_format.value).replace(tzinfo=ZoneInfo(TIMEZONE)), dt_format, ""
-        except ValueError:
-            pass
-    return None, None, f"Could not parse date: {date_str}"
+def parse_date(date_str: str):
+    return ArgParser.parse_date(date_str)
 
 
-def parse_date_range(date_range_str: str) -> tuple[datetime, datetime, DatetimeFormat, str] | tuple[None, None, None, str]:
-    date_range_split = date_range_str.split(";")
-    if len(date_range_split) != 2:
-        error = f"Could not parse date range: {date_range_str}"
-        return None, None, None, error
-    start_date, dt_format, start_date_error = parse_date(date_range_split[0])
-    end_date, dt_format, end_date_error = parse_date(date_range_split[1])
-    error = start_date_error + end_date_error
-
-    if error == "" and start_date > end_date:
-        error = "The start date cannot be after the end date of the range u dummy!"
-
-    return start_date, end_date, dt_format, error
+def parse_date_range(date_range_str: str):
+    return ArgParser.parse_date_range(date_range_str)
 
 
-def parse_user(users_df, command_args, arg_str) -> [CommandArgs, str]:
-    if arg_str == "":
-        error = "User cannot be empty."
-        # command_args.errors.append(error)
-        log.error(error)
-        return command_args, error
-
-    user_str = arg_str.replace("@", "")
-
-    exact_matching_users = users_df[users_df["final_username"].str.lower() == user_str.lower()]
-    partially_matching_users = users_df[users_df["final_username"].str.contains(user_str, case=False)]
-
-    if not exact_matching_users.empty:
-        command_args.user = exact_matching_users.iloc[0]["final_username"]
-        command_args.user_id = exact_matching_users.index[0]
-    elif len(user_str) >= 3 and not partially_matching_users.empty:
-        command_args.user = partially_matching_users.iloc[0]["final_username"]
-        command_args.user_id = partially_matching_users.index[0]
-    else:
-        error = f"User {user_str} doesn't exist and cannot hurt you. Existing users are: {users_df['final_username'].tolist()}"
-        log.error(error)
-        return command_args, error
-
-    return command_args, ""
+def parse_user(users_df, command_args, arg_str):
+    return ArgParser.parse_user(users_df, command_args, arg_str)
 
 
-def parse_number(command_args, arg_str, positive_only=False) -> [int, CommandArgs, str]:
-    if arg_str == "":
-        return None, command_args, ""
-
-    number, error = parse_int(arg_str, positive_only)
-    if error != "":
-        return None, command_args, error
-
-    if number > command_args.max_number:
-        error = f"Given number is too big ({x_to_light_years_str(number)}), make it smaller!"
-        log.error(error)
-        return number, command_args, error
-
-    if number < command_args.min_number:
-        error = f"Given number is too small ({number}), it has to be in range <{command_args.min_number}, {command_args.max_number}>!"
-        log.error(error)
-        return number, command_args, error
-
-    command_args.number = number
-    return number, command_args, ""
+def parse_number(command_args, arg_str, positive_only=False):
+    return ArgParser.parse_number(command_args, arg_str, positive_only)
 
 
 def get_error(command_args: CommandArgs) -> str:
-    return "\n".join(command_args.errors).strip()
+    return ArgParser.get_error(command_args)
 
 
 def parse_int(num_str, positive_only=False):
-    error = ""
-    num = None
-    try:
-        num = int(num_str)
-        if num > MAX_INT:
-            error = f"Kuba's dick is too big ({x_to_light_years_str(num)}), make it smaller!"
-            log.error(error)
-        if positive_only and num < 0:
-            error = "Number cannot be negative!"
-            num = -1
-            log.error(error)
-    except ValueError:
-        error = f"{num_str} is not a number."
-        log.error(error)
-
-    return num, error
+    return ArgParser.parse_int(num_str, positive_only)
 
 
 def x_to_light_years_str(x):
-    """Kinda to last years, keep small numbers the same."""
-    if x < 10000000:
-        return str(x)
-
-    ly = x / 9460730472580.8
-    ly = round(ly, 6) if ly < 1 else round(ly, 2)
-    return f"{ly} light years"
+    return ArgParser.x_to_light_years_str(x)
 
 
-def parse_string(command_args: CommandArgs, text: str) -> [str, CommandArgs, str]:
-    error = ""
-    if len(text) < command_args.min_string_length:
-        error = f"{command_args.label} {text} is too short, it should have at least {command_args.min_string_length} characters."
-    if len(text) > command_args.max_string_length:
-        error = f"{command_args.label} {text} is too long, it should have {command_args.max_string_length} characters or less."
-
-    if "&" in text and "http" not in text:  # user for 'AND' filtering but don't do it for links
-        command_args.strings = text.split("&")
-    else:
-        command_args.string = text
-    return text, command_args, error
+def parse_string(command_args: CommandArgs, text: str):
+    return ArgParser.parse_string(command_args, text)
 
 
 def display_shopping_sunday(dt):
@@ -633,7 +331,7 @@ def get_username(first_name, last_name):
 
 
 def has_numbers(num_str):
-    return any(char.isdigit() for char in num_str)
+    return ArgParser.has_numbers(num_str)
 
 
 def file_exists(path):
