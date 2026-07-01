@@ -123,6 +123,12 @@ class RouletteTournament(BaseTournament):
         zeroed = [r.user_id for r in results if r.tournament_credits_after == 0]
         result_message = self._format_round_results(n, color, results, zeroed)
 
+        for player in self.players.values():
+            if player.user_id in self.bets:
+                player.bet_history.append(self.bets[player.user_id])
+            else:
+                player.bet_history.append(None)
+
         self.bets = {}
         return result_message
 

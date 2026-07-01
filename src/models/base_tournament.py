@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import floor
 from typing import Any
 
@@ -15,6 +15,7 @@ class TournamentPlayer:
     tournament_credits: int
     correct_bets: int = 0
     total_bets: int = 0
+    bet_history: list[Any] = field(default_factory=list)
 
 
 @dataclass
@@ -135,6 +136,17 @@ class BaseTournament(ABC):
     def get_ranking(self) -> list[TournamentPlayer]:
         return sorted(self.players.values(), key=lambda p: p.tournament_credits, reverse=True)
 
+    def _get_penalized_players(self) -> tuple[set[int], set[int]]:
+        no_bet_user_ids = {p.user_id for p in self.players.values() if p.total_bets == 0}
+        mirror_user_ids = set()
+        active_players = [p for p in self.players.values() if p.total_bets > 0 and len(p.bet_history) > 0]
+        for i, p1 in enumerate(active_players):
+            for p2 in active_players[i + 1 :]:
+                if p1.bet_history == p2.bet_history:
+                    mirror_user_ids.add(p1.user_id)
+                    mirror_user_ids.add(p2.user_id)
+        return no_bet_user_ids, mirror_user_ids
+
     def apply_final_multipliers(self) -> dict[int, int]:
         """Returns {user_id: real_credit_payout} after applying placement multipliers.
         Tied players share the highest multiplier among their tied positions.
@@ -142,13 +154,19 @@ class BaseTournament(ABC):
         ranking = self.get_ranking()
         n = len(ranking)
         payouts = {}
+        no_bet_user_ids, mirror_user_ids = self._get_penalized_players()
+        last_place_multiplier = self._get_multiplier(n - 1, n)
 
         place = 0
         for i, player in enumerate(ranking):
             if i == 0 or ranking[i - 1].tournament_credits != player.tournament_credits:
                 place = i
 
-            multiplier = self._get_multiplier(place, n)
+            if player.user_id in no_bet_user_ids or player.user_id in mirror_user_ids:
+                multiplier = last_place_multiplier
+            else:
+                multiplier = self._get_multiplier(place, n)
+
             payout = floor(player.tournament_credits * multiplier)
             payouts[player.user_id] = payout
 
@@ -179,6 +197,8 @@ class BaseTournament(ABC):
         ranking = self.get_ranking()
         n = len(ranking)
         zeroed_user_ids = [p.user_id for p in ranking if p.tournament_credits == 0]
+        no_bet_user_ids, mirror_user_ids = self._get_penalized_players()
+        last_place_multiplier = self._get_multiplier(n - 1, n)
 
         lines = [f"{self.format_header()}\n", "*🏆 Final Results:*\n"]
 
@@ -187,16 +207,34 @@ class BaseTournament(ABC):
             if i == 0 or ranking[i - 1].tournament_credits != player.tournament_credits:
                 place = i
 
-            multiplier = self._get_multiplier(place, n)
+            if player.user_id in no_bet_user_ids or player.user_id in mirror_user_ids:
+                multiplier = last_place_multiplier
+            else:
+                multiplier = self._get_multiplier(place, n)
+
             payout = payouts[player.user_id]
             accuracy = f"{player.correct_bets}/{player.total_bets}" if player.total_bets > 0 else "0/0"
             medal = self._get_medal(place + 1)
             ban_note = " ⛔ BANNED" if player.tournament_credits == 0 else ""
 
+            penalty_note = ""
+            if player.user_id in no_bet_user_ids:
+                penalty_note = " ⚠️ NO BETS PENALTY"
+            elif player.user_id in mirror_user_ids:
+                penalty_note = " ⚠️ MIRROR BETS PENALTY"
+
             lines.append(
                 f"{medal} *{place + 1}.* {player.username} — *{player.tournament_credits}* credits "
-                f"(x{multiplier} → *{payout}*) | Accuracy: {accuracy}{ban_note}"
+                f"(x{multiplier} → *{payout}*) | Accuracy: {accuracy}{ban_note}{penalty_note}"
             )
+
+        penalties_msg = []
+        if no_bet_user_ids:
+            penalties_msg.append("⚠️ *Note:* Players who placed no bets received last place multipliers.")
+        if mirror_user_ids:
+            penalties_msg.append("⚠️ *Note:* Players who mirrored identical bets in all rounds received last place multipliers.")
+        if penalties_msg:
+            lines.append("\n" + "\n".join(penalties_msg))
 
         lines.append(f"\n{self.get_tournament_stats()}")
 

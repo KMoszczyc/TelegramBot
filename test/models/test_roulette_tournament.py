@@ -482,7 +482,11 @@ def test_multiplier_4_players():
 
 def test_apply_multipliers_2_players(tournament_with_players):
     tournament_with_players.players[USER_1].tournament_credits = 2000
+    tournament_with_players.players[USER_1].total_bets = 1
+    tournament_with_players.players[USER_1].bet_history = [1]
     tournament_with_players.players[USER_2].tournament_credits = 500
+    tournament_with_players.players[USER_2].total_bets = 1
+    tournament_with_players.players[USER_2].bet_history = [2]
 
     payouts = tournament_with_players.apply_final_multipliers()
 
@@ -491,6 +495,9 @@ def test_apply_multipliers_2_players(tournament_with_players):
 
 
 def test_apply_multipliers_3_players(tournament_3_players):
+    for i, uid in enumerate([USER_1, USER_2, USER_3]):
+        tournament_3_players.players[uid].total_bets = 1
+        tournament_3_players.players[uid].bet_history = [i]
     tournament_3_players.players[USER_1].tournament_credits = 3000
     tournament_3_players.players[USER_2].tournament_credits = 2000
     tournament_3_players.players[USER_3].tournament_credits = 1000
@@ -508,6 +515,10 @@ def test_apply_multipliers_4_players(credits_mock):
     t.add_player(USER_3, "P3")
     t.add_player(USER_4, "P4")
 
+    for i, uid in enumerate([USER_1, USER_2, USER_3, USER_4]):
+        t.players[uid].total_bets = 1
+        t.players[uid].bet_history = [i]
+
     t.players[USER_1].tournament_credits = 4000
     t.players[USER_2].tournament_credits = 3000
     t.players[USER_3].tournament_credits = 2000
@@ -522,6 +533,9 @@ def test_apply_multipliers_4_players(credits_mock):
 
 
 def test_apply_multipliers_tied_players_share_higher(tournament_with_players):
+    for i, uid in enumerate([USER_1, USER_2]):
+        tournament_with_players.players[uid].total_bets = 1
+        tournament_with_players.players[uid].bet_history = [i]
     tournament_with_players.players[USER_1].tournament_credits = 2000
     tournament_with_players.players[USER_2].tournament_credits = 2000
 
@@ -532,6 +546,9 @@ def test_apply_multipliers_tied_players_share_higher(tournament_with_players):
 
 
 def test_apply_multipliers_tied_3_players_1st_2nd(tournament_3_players):
+    for i, uid in enumerate([USER_1, USER_2, USER_3]):
+        tournament_3_players.players[uid].total_bets = 1
+        tournament_3_players.players[uid].bet_history = [i]
     tournament_3_players.players[USER_1].tournament_credits = 3000
     tournament_3_players.players[USER_2].tournament_credits = 3000
     tournament_3_players.players[USER_3].tournament_credits = 1000
@@ -565,6 +582,9 @@ def test_distribute_payouts(tournament_with_players, credits_mock):
 
 
 def test_finish_updates_state_and_real_credits(tournament_with_players, credits_mock):
+    for i, uid in enumerate([USER_1, USER_2]):
+        tournament_with_players.players[uid].total_bets = 1
+        tournament_with_players.players[uid].bet_history = [i]
     tournament_with_players.players[USER_1].tournament_credits = 2000
     tournament_with_players.players[USER_2].tournament_credits = 500
     initial_1 = credits_mock.credits[USER_1]
@@ -817,3 +837,36 @@ def test_format_round_results_shows_didnt_bet_no_standings(mocker, tournament_wi
     assert "Standings:" not in result
     assert "*Didn't bet:* 😴" in result
     assert f"• Player2: *{BUY_IN}* credits" in result
+
+
+def test_no_bets_penalty(tournament_with_players):
+    tournament_with_players.players[USER_1].tournament_credits = 1000
+    tournament_with_players.players[USER_1].total_bets = 0
+    tournament_with_players.players[USER_2].tournament_credits = 1000
+    tournament_with_players.players[USER_2].total_bets = 0
+
+    payouts = tournament_with_players.apply_final_multipliers()
+    # Both placed 0 bets, both get last place multiplier (0.5x) instead of 2.0x
+    assert payouts[USER_1] == int(1000 * 0.5)
+    assert payouts[USER_2] == int(1000 * 0.5)
+
+    msg, _ = tournament_with_players.finish()
+    assert "⚠️ NO BETS PENALTY" in msg
+    assert "Players who placed no bets received last place multipliers" in msg
+
+
+def test_mirror_bets_penalty(mocker, tournament_with_players):
+    mocker.patch("src.models.roulette_tournament.random.choice", return_value=1)
+    tournament_with_players.start_betting_round()
+    tournament_with_players.handle_game_message(USER_1, "bet red 100")
+    tournament_with_players.handle_game_message(USER_2, "bet red 100")
+    tournament_with_players.resolve_round()
+
+    payouts = tournament_with_players.apply_final_multipliers()
+    # Both have total_bets > 0 and identical bet_history, so both receive mirror bets penalty (0.5x)
+    assert payouts[USER_1] == int(tournament_with_players.players[USER_1].tournament_credits * 0.5)
+    assert payouts[USER_2] == int(tournament_with_players.players[USER_2].tournament_credits * 0.5)
+
+    msg, _ = tournament_with_players.finish()
+    assert "⚠️ MIRROR BETS PENALTY" in msg
+    assert "Players who mirrored identical bets in all rounds received last place multipliers" in msg
