@@ -38,6 +38,7 @@ class BaseTournament(ABC):
         self.credits = credits_obj
         self.buy_in = buy_in
         self.max_rounds = max_rounds
+        self.host_user_id = host_user_id
         self.round_number = 0
         self.state = TournamentState.JOINING
         self.players: dict[int, TournamentPlayer] = {}
@@ -112,12 +113,7 @@ class BaseTournament(ABC):
         return self._format_round_start()
 
     def _format_round_start(self) -> str:
-        active = self.get_active_player_count()
-        lines = [
-            f"*Round {self.round_number}/{self.max_rounds}*",
-            f"{active} player(s) can bet. Place your bets!",
-        ]
-        return "\n\n".join(lines)
+        return "Place your bets!"
 
     def get_standings(self) -> str:
         sorted_players = sorted(self.players.values(), key=lambda p: p.tournament_credits, reverse=True)
@@ -131,7 +127,7 @@ class BaseTournament(ABC):
         return sum(1 for p in self.players.values() if p.tournament_credits > 0)
 
     def is_last_round(self) -> bool:
-        return self.round_number >= self.max_rounds
+        return self.round_number >= self.max_rounds or self.get_active_player_count() == 0
 
     def get_ranking(self) -> list[TournamentPlayer]:
         return sorted(self.players.values(), key=lambda p: p.tournament_credits, reverse=True)

@@ -537,7 +537,7 @@ class CreditCommands:
             args=context.args,
             expected_args=[ArgType.TEXT, ArgType.POSITIVE_INT],
             optional=[False, False],
-            available_named_args={"rounds": ArgType.POSITIVE_INT},
+            available_named_args={"rounds": ArgType.POSITIVE_INT, "wait": ArgType.POSITIVE_INT},
             min_number=1,
             max_number=100_000_000,
         )
@@ -575,6 +575,11 @@ class CreditCommands:
             max_rounds = min(int(command_args.named_args["rounds"]), TOURNAMENT_MAX_ROUNDS)
             max_rounds = max(max_rounds, 1)
 
+        join_timeout = TOURNAMENT_JOIN_TIMEOUT_SECONDS
+        if "wait" in command_args.named_args:
+            join_timeout = min(int(command_args.named_args["wait"]), 300)
+            join_timeout = max(join_timeout, 1)
+
         username = core_utils.get_username(update.effective_user.first_name, update.effective_user.last_name)
         thread_id = update.message.message_thread_id
 
@@ -585,14 +590,15 @@ class CreditCommands:
         message = stats_utils.escape_special_characters(
             f"{header}\n\nBuy-in: *{buy_in}* credits | Rounds: *{max_rounds}*\n"
             f"*{username}* started the tournament!\n\n"
-            f"Type *join* within {TOURNAMENT_JOIN_TIMEOUT_SECONDS}s to enter!"
+            f"Type *join* within {join_timeout}s to enter or *start* to begin early!"
         )
         await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
         context.job_queue.run_once(
             self._on_join_timeout,
-            TOURNAMENT_JOIN_TIMEOUT_SECONDS,
+            join_timeout,
             data={"chat_id": chat_id, "thread_id": thread_id},
+            name=f"tournament_join_{chat_id}",
         )
 
     async def _on_join_timeout(self, context: ContextTypes.DEFAULT_TYPE):
@@ -614,6 +620,34 @@ class CreditCommands:
             )
             return
 
+        await self._announce_tournament_start(context, chat_id, thread_id)
+
+    async def _announce_tournament_start(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int, thread_id: int):
+        tournament = self.active_tournaments.get(chat_id)
+        if not tournament or not tournament.is_active:
+            return
+
+        tournament.state = TournamentState.STARTING
+        players_list = "\n".join(f"• {p.username}" for p in tournament.players.values())
+        msg = f"🎰 *Roulette Tournament* starts in *10 seconds!*\n\n*Players:*\n{players_list}"
+        message = stats_utils.escape_special_characters(msg)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=message,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            message_thread_id=thread_id,
+        )
+
+        context.job_queue.run_once(
+            self._on_start_countdown_finished,
+            10,
+            data={"chat_id": chat_id, "thread_id": thread_id},
+            name=f"tournament_start_{chat_id}",
+        )
+
+    async def _on_start_countdown_finished(self, context: ContextTypes.DEFAULT_TYPE):
+        data = context.job.data
+        chat_id, thread_id = data["chat_id"], data["thread_id"]
         await self._start_betting_round(context, chat_id, thread_id)
 
     async def _start_betting_round(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int, thread_id: int):
@@ -727,6 +761,26 @@ class CreditCommands:
                 response = "You are banned from this tournament type today."
             else:
                 response, _ = tournament.add_player(user_id, username)
+            response = stats_utils.escape_special_characters(f"{tournament.format_header()}\n\n{response}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=response,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
+            )
+            return
+
+        if text == "start" and tournament.state.value == "joining":
+            if user_id != tournament.host_user_id:
+                response = "Only the tournament host can start early."
+            elif not tournament.has_enough_players():
+                response = "At least 2 players are needed to start the tournament."
+            else:
+                jobs = context.job_queue.get_jobs_by_name(f"tournament_join_{chat_id}")
+                for job in jobs:
+                    job.schedule_removal()
+                await self._announce_tournament_start(context, chat_id, update.message.message_thread_id)
+                return
             response = stats_utils.escape_special_characters(f"{tournament.format_header()}\n\n{response}")
             await context.bot.send_message(
                 chat_id=chat_id,

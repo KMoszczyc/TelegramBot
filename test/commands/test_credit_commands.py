@@ -130,3 +130,59 @@ async def test_cmd_tournament_valid_args(mocker, commands, update, context):
 
     send_mock.assert_called_once()
     assert 999 in commands.active_tournaments
+
+
+@pytest.mark.asyncio
+async def test_handle_tournament_message_start_command(mocker, commands, update, context):
+    context.args = ["roulette", "100"]
+    commands.bot_state.is_tournament_banned.return_value = False
+    commands.credits.credits = {111: 500, 222: 500}
+    mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
+
+    await commands.cmd_tournament(update, context)
+    t = commands.active_tournaments[999]
+
+    # Non-host tries to start
+    update.effective_user.id = 222
+    update.message.text = "start"
+    await commands.handle_tournament_message(update, context)
+    assert t.state.value == "joining"
+
+    # Host tries to start when < 2 players
+    update.effective_user.id = 111
+    update.message.text = "start"
+    await commands.handle_tournament_message(update, context)
+    assert t.state.value == "joining"
+
+    # Player 2 joins
+    update.effective_user.id = 222
+    update.message.text = "join"
+    await commands.handle_tournament_message(update, context)
+    assert len(t.players) == 2
+
+    # Host starts early
+    update.effective_user.id = 111
+    update.message.text = "start"
+    await commands.handle_tournament_message(update, context)
+    assert t.state.value == "starting"
+
+    # Countdown finished
+    job_mock = MagicMock()
+    job_mock.data = {"chat_id": 999, "thread_id": 42}
+    context.job = job_mock
+    await commands._on_start_countdown_finished(context)
+    assert t.state.value == "betting"
+
+
+@pytest.mark.asyncio
+async def test_cmd_tournament_wait_arg(mocker, commands, update, context):
+    context.args = ["roulette", "100", "--wait", "120"]
+    commands.bot_state.is_tournament_banned.return_value = False
+    commands.credits.credits = {111: 500}
+    mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
+
+    await commands.cmd_tournament(update, context)
+
+    context.job_queue.run_once.assert_called_once()
+    timeout_arg = context.job_queue.run_once.call_args[0][1]
+    assert timeout_arg == 120

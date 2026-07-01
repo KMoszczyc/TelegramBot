@@ -133,6 +133,7 @@ class TournamentType(Enum):
 
 class TournamentState(Enum):
     JOINING = "joining"
+    STARTING = "starting"
     BETTING = "betting"
     SPINNING = "spinning"
     ROUND_RESULT = "round_result"

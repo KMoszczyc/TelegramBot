@@ -21,7 +21,10 @@ class RouletteTournament(BaseTournament):
         return TournamentType.ROULETTE
 
     def format_header(self) -> str:
-        return "🎰 *Roulette Tournament*"
+        base = "🎰 *Roulette Tournament*"
+        if self.round_number > 0 and self.state != TournamentState.FINISHED:
+            return f"{base} — Round {self.round_number}/{self.max_rounds}"
+        return base
 
     def handle_game_message(self, user_id: int, text: str) -> str | None:
         if self.state != TournamentState.BETTING:
@@ -78,7 +81,7 @@ class RouletteTournament(BaseTournament):
 
         skipped = [p.username for p in self.players.values() if p.tournament_credits > 0 and p.user_id not in self.bets]
         if skipped:
-            lines.append(f"\n_Skipped: {', '.join(skipped)}_")
+            lines.append(f"\nSkipped: {', '.join(skipped)}")
 
         return "\n".join(lines)
 

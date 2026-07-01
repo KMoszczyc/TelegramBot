@@ -823,8 +823,9 @@ def test_credits_update_credit_history_defaults(mocker):
 def test_format_round_start_no_standings_no_underscores(tournament_with_players):
     msg = tournament_with_players.start_betting_round()
     assert "Standings:" not in msg
-    assert "player(s) can bet. Place your bets!" in msg
+    assert msg == "Place your bets!"
     assert "_2 player(s) can bet. Place your bets!_" not in msg
+    assert "🎰 *Roulette Tournament* — Round 1/" in tournament_with_players.format_header()
 
 
 def test_format_round_results_shows_didnt_bet_no_standings(mocker, tournament_with_players):
@@ -870,3 +871,11 @@ def test_mirror_bets_penalty(mocker, tournament_with_players):
     msg, _ = tournament_with_players.finish()
     assert "⚠️ MIRROR BETS PENALTY" in msg
     assert "Players who mirrored identical bets in all rounds received last place multipliers" in msg
+
+
+def test_is_last_round_when_all_zeroed(tournament_with_players):
+    tournament_with_players.start_betting_round()
+    assert not tournament_with_players.is_last_round()
+    tournament_with_players.players[USER_1].tournament_credits = 0
+    tournament_with_players.players[USER_2].tournament_credits = 0
+    assert tournament_with_players.is_last_round()
