@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import telegram
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import ContextTypes
 
 from src.config.constants import TIMEZONE
@@ -24,6 +24,7 @@ from src.config.paths import (
     CHAT_IMAGES_DIR_PATH,
     CHAT_VIDEO_NOTES_DIR_PATH,
     CHAT_VIDEOS_DIR_PATH,
+    COMMANDS_PATH,
 )
 from src.core.arg_parser import ArgParser
 from src.models.command_args import CommandArgs
@@ -40,6 +41,18 @@ def read_str_file(path):
     with open(path) as f:
         lines = f.read().splitlines()
     return lines
+
+
+def get_bot_commands(path=COMMANDS_PATH):
+    lines = read_str_file(path)
+    commands = []
+    for line in lines:
+        line = line.strip()
+        if not line or " - " not in line:
+            continue
+        cmd, desc = line.split(" - ", 1)
+        commands.append(BotCommand(command=cmd.strip().lower()[:32], description=desc.strip()[:256]))
+    return commands
 
 
 def create_dir(path):

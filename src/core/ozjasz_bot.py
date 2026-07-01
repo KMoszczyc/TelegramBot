@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 import src.commands.misc_commands as commands
 import src.core.utils as core_utils
@@ -24,11 +24,12 @@ log = logging.getLogger(__name__)
 class OzjaszBot:
     def __init__(self, test=False):
         token = TEST_TOKEN if test else TOKEN
-        print(token)
         init_message = "Starting Ozjasz in test mode" if test else "Starting Ozjasz in prod mode"
         log.info(init_message)
         self.allowed_chat_ids = [CHAT_ID, TEST_CHAT_ID]
-        self.application = ApplicationBuilder().token(token).read_timeout(30).write_timeout(30).concurrent_updates(True).build()
+        self.application = (
+            ApplicationBuilder().token(token).read_timeout(30).write_timeout(30).concurrent_updates(True).post_init(self.post_init).build()
+        )
         self.assets = Assets()
         self.db = DB()
         self.bot_state = BotState(self.application.job_queue, self.assets)
@@ -43,6 +44,15 @@ class OzjaszBot:
 
         self.add_commands()
         self.application.run_polling()
+
+    async def post_init(self, application: Application) -> None:
+        try:
+            bot_commands = core_utils.get_bot_commands()
+            print(bot_commands)
+            await application.bot.set_my_commands(bot_commands)
+            log.info("Successfully registered bot commands on startup.")
+        except Exception as e:
+            log.error(f"Failed to register bot commands on startup: {e}")
 
     def add_commands(self):
         commands_map = self.get_commands_map()

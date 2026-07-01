@@ -14,6 +14,7 @@ from src.core.utils import (
     dt_to_pretty_str,
     generate_period_headline,
     generate_unique_number,
+    get_bot_commands,
     get_error,
     get_username,
     has_numbers,
@@ -627,3 +628,34 @@ def test_message_id_to_path(message_id, message_type, expected_extension):
     assert result is not None
     assert result.endswith(expected_extension)
     assert str(message_id) in result
+
+
+@pytest.mark.parametrize(
+    "file_content, expected_commands",
+    [
+        pytest.param(
+            "start - Start the bot\nHELP - Get help description",
+            [("start", "Start the bot"), ("help", "Get help description")],
+            id="basic_parsing_and_lowercase",
+        ),
+        pytest.param(
+            "invalidline\n\ncmd - desc",
+            [("cmd", "desc")],
+            id="ignore_empty_or_invalid_lines",
+        ),
+        pytest.param(
+            f"{'A'*40} - {'B'*300}",
+            [("a" * 32, "B" * 256)],
+            id="truncation_limits",
+        ),
+    ],
+)
+def test_get_bot_commands(tmp_path, file_content, expected_commands):
+    """Test parsing bot commands from text file."""
+    test_file = tmp_path / "commands.txt"
+    test_file.write_text(file_content, encoding="utf-8")
+    result = get_bot_commands(test_file)
+    assert len(result) == len(expected_commands)
+    for bot_cmd, (exp_cmd, exp_desc) in zip(result, expected_commands, strict=False):
+        assert bot_cmd.command == exp_cmd
+        assert bot_cmd.description == exp_desc
