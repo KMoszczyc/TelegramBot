@@ -38,7 +38,7 @@ class ArgParser:
 
         args_num = len(command_args.args)
         expected_args_num = len(command_args.expected_args)
-        if not command_args.optional and args_num != expected_args_num:
+        if args_num > expected_args_num:
             command_args.error = f"Invalid number of arguments. Expected {command_args.expected_args}, got {command_args.args}"
             return command_args
 
@@ -58,6 +58,9 @@ class ArgParser:
         expected_args = command_args.expected_args.copy()
         for i, arg_type in enumerate(expected_args):
             if not command_args.optional[i]:
+                if i >= len(command_args.args):
+                    command_args.errors.append(f"Missing required argument: {arg_type.value}")
+                    continue
                 arg = " ".join(command_args.args[i:]) if arg_type == ArgType.TEXT_MULTISPACED else command_args.args[i]
                 _, command_args = ArgParser.parse_arg(users_df, command_args, arg, arg_type, is_optional=False)
                 continue

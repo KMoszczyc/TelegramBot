@@ -12,12 +12,21 @@ class TestSettings:
         monkeypatch.setenv("API_ID", "99999")
         monkeypatch.setenv("BOT_ID", "77777")
 
-        s = Settings()
+        s = Settings(_env_file=None)
         assert s.RUNTIME_ENV == "test"
         assert s.TOKEN == "test-token-123"
         assert s.CHAT_ID == 12345
         assert s.API_ID == 99999
         assert s.BOT_ID == 77777
+
+    def test_settings_loads_from_env_file(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("TOKEN", raising=False)
+        monkeypatch.delenv("CHAT_ID", raising=False)
+        env_file = tmp_path / ".env"
+        env_file.write_text("TOKEN=file-token-999\nCHAT_ID=8888\n", encoding="utf-8")
+        s = Settings(_env_file=env_file)
+        assert s.TOKEN == "file-token-999"
+        assert s.CHAT_ID == 8888
 
     def test_settings_defaults_to_none(self, monkeypatch):
         monkeypatch.delenv("RUNTIME_ENV", raising=False)
@@ -30,7 +39,7 @@ class TestSettings:
         monkeypatch.delenv("BOT_ID", raising=False)
         monkeypatch.delenv("TEST_TOKEN", raising=False)
 
-        s = Settings()
+        s = Settings(_env_file=None)
         assert s.RUNTIME_ENV is None
         assert s.TOKEN is None
         assert s.CHAT_ID is None
@@ -43,4 +52,4 @@ class TestSettings:
         monkeypatch.setenv("CHAT_ID", env_val)
         monkeypatch.delenv("TOKEN", raising=False)
         with pytest.raises(ValidationError):
-            Settings()
+            Settings(_env_file=None)

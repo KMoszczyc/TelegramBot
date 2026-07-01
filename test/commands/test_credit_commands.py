@@ -105,3 +105,28 @@ async def test_handle_map_quiz_answer_logic(mocker, commands, update, context, u
         commands.credits.update_credits.assert_called_once()
     else:
         commands.credits.update_credits.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cmd_tournament_missing_buyin_arg(mocker, commands, update, context):
+    context.args = ["roulette"]
+    send_mock = mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
+
+    await commands.cmd_tournament(update, context)
+
+    send_mock.assert_called_once()
+    message = send_mock.call_args[0][3]
+    assert "Missing required argument" in message
+
+
+@pytest.mark.asyncio
+async def test_cmd_tournament_valid_args(mocker, commands, update, context):
+    context.args = ["roulette", "100"]
+    commands.bot_state.is_tournament_banned.return_value = False
+    commands.credits.credits = {111: 500}
+    send_mock = mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
+
+    await commands.cmd_tournament(update, context)
+
+    send_mock.assert_called_once()
+    assert 999 in commands.active_tournaments

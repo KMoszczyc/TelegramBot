@@ -783,3 +783,18 @@ def test_full_tournament_player_zeroes_out(mocker, credits_mock):
     assert t.all_bets_placed() is False
     t.handle_game_message(USER_2, "bet black 200")
     assert t.all_bets_placed() is True
+
+
+def test_credits_update_credit_history_defaults(mocker):
+    from unittest.mock import MagicMock
+
+    from src.config.enums import CreditActionType
+    from src.models.credits import Credits
+
+    c = Credits(MagicMock())
+    save_mock = mocker.patch.object(c, "save_credits")
+    c.update_credit_history(123, -100, CreditActionType.TOURNAMENT)
+    save_mock.assert_called_once()
+    df = save_mock.call_args[0][0]
+    assert df.iloc[0]["bet_type"] is None
+    assert bool(df.iloc[0]["success"]) is True

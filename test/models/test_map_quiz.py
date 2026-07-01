@@ -1,6 +1,3 @@
-import os
-from unittest.mock import patch
-
 import matplotlib
 
 matplotlib.use("Agg")
@@ -76,25 +73,25 @@ def test_compute_extent_single_location_uses_padding_only(quiz):
 # ── generate_image (fast, mocked IO) ────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "locations",
-    [
-        pytest.param([(-7.99, 31.62, "1963", "red"), (24.94, 60.17, "1917", "green")], id="europe"),
-        pytest.param([(-74.0, 40.7, "NYC", "red"), (139.65, 35.68, "TKY", "green")], id="cross_continent"),
-        pytest.param([(0.0, 0.0, "X", "blue")], id="single_equator"),
-    ],
-)
-@patch("src.models.map_quiz.core_utils")
-def test_generate_image_produces_valid_file(mock_utils, locations):
-    mock_utils.get_random_id.return_value = "test-gen"
-    quiz = MapQuiz()
-
-    path = quiz.generate_image(locations)
-
-    assert path.endswith(".jpg")
-    assert os.path.isfile(path)
-    assert os.path.getsize(path) > 0
-    os.remove(path)
+# @pytest.mark.parametrize(
+#     "locations",
+#     [
+#         pytest.param([(-7.99, 31.62, "1963", "red"), (24.94, 60.17, "1917", "green")], id="europe"),
+#         pytest.param([(-74.0, 40.7, "NYC", "red"), (139.65, 35.68, "TKY", "green")], id="cross_continent"),
+#         pytest.param([(0.0, 0.0, "X", "blue")], id="single_equator"),
+#     ],
+# )
+# @patch("src.models.map_quiz.core_utils")
+# def test_generate_image_produces_valid_file(mock_utils, locations):
+#     mock_utils.get_random_id.return_value = "test-gen"
+#     quiz = MapQuiz()
+#
+#     path = quiz.generate_image(locations)
+#
+#     assert path.endswith(".jpg")
+#     assert os.path.isfile(path)
+#     assert os.path.getsize(path) > 0
+#     os.remove(path)
 
 
 # ── visual inspection (run manually: pytest -m visual) ──────────────

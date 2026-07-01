@@ -42,7 +42,7 @@ class Credits:
 
         return stats_utils.escape_special_characters(message)
 
-    def update_credits(self, user_id, credit_change, action_type, bet_type=None, success=None, target_user_id=None):
+    def update_credits(self, user_id, credit_change, action_type, bet_type=None, success=True, target_user_id=None):
         if self.credits[user_id] + credit_change < 0:
             return 0, False
         self.credits[user_id] += credit_change
@@ -66,10 +66,12 @@ class Credits:
         user_id: int,
         credit_change: int,
         action_type: CreditActionType | None,
-        bet_type: RouletteBetType | None,
-        success: bool,
+        bet_type: RouletteBetType | None = None,
+        success: bool | None = True,
         target_user_id=None,
     ):
+        if success is None:
+            success = True
         bet_type = bet_type.value if bet_type is not None else None
         row = CreditHistoryRow(
             timestamp=stats_utils.get_dt_now(),

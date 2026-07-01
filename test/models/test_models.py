@@ -316,3 +316,16 @@ class TestCreditHistoryRow:
             timestamp=ts, user_id=1, target_user_id=None, credit_change=100, action_type="get", bet_type=None, success=True
         )
         assert a == b
+
+    def test_defaults(self):
+        row = CreditHistoryRow(
+            timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+            user_id=100,
+            target_user_id=None,
+            credit_change=-50,
+            action_type=CreditActionType.TOURNAMENT.value,
+            bet_type=None,
+            success=True,
+        )
+        assert row.bet_type is None
+        assert row.success is True
