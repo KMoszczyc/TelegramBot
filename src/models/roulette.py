@@ -2,6 +2,7 @@ import random
 
 import pandas as pd
 
+from src.config.constants import ROULETTE_COLORS, ROULETTE_NUMBERS
 from src.config.enums import CreditActionType, ErrorMessage, RouletteBetType
 
 pd.options.mode.chained_assignment = None
@@ -12,46 +13,8 @@ pd.set_option("display.width", 1000)
 
 class Roulette:
     def __init__(self, credits_obj):
-        self.all_numbers = range(37)
-        self.roulette_colors = [
-            "green",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-            "black",
-            "red",
-        ]
+        self.all_numbers = ROULETTE_NUMBERS
+        self.roulette_colors = ROULETTE_COLORS
         self.credits = credits_obj
 
     def play(self, user_id, bet_size, bet_type_arg: str) -> tuple[str, str]:

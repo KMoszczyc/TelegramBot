@@ -18,3 +18,51 @@ BOT_MESSAGE_RETENION_IN_MINUTES = 5
 negative_emojis = ["👎", "😢", "😭", "🤬", "🤡", "💩", "😫", "😩", "🥶", "🤨", "🧐", "🙃", "😒", "😠", "😣", "🗿"]
 CREDIT_HISTORY_COLUMNS = ["timestamp", "user_id", "target_user_id", "credit_change", "action_type", "bet_type", "success"]
 TIMEZONE = "Europe/Warsaw"
+
+TOURNAMENT_JOIN_TIMEOUT_SECONDS = 30
+TOURNAMENT_BET_TIMEOUT_SECONDS = 15
+TOURNAMENT_SPIN_DELAY_SECONDS = 5
+TOURNAMENT_DEFAULT_ROUNDS = 10
+TOURNAMENT_MAX_ROUNDS = 50
+MIN_TOURNAMENT_PLAYERS = 2
+
+ROULETTE_NUMBERS = range(37)
+ROULETTE_COLORS = [
+    "green",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+    "black",
+    "red",
+]

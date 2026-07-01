@@ -124,6 +124,19 @@ class CreditActionType(Enum):
     STEAL = "steal"
     QUIZ = "quiz"
     GIFT = "gift"
+    TOURNAMENT = "tournament"
+
+
+class TournamentType(Enum):
+    ROULETTE = "roulette"
+
+
+class TournamentState(Enum):
+    JOINING = "joining"
+    BETTING = "betting"
+    SPINNING = "spinning"
+    ROUND_RESULT = "round_result"
+    FINISHED = "finished"
 
 
 class Table(Enum):

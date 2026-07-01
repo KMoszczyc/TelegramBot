@@ -45,7 +45,8 @@ topcwel - (period[?]) - display top cwels
 topgifs - (username[?], period[?])
 topmemes - (username[?], period[?])
 topmessages - (username[?], period[?], --text[string]
-topvideos - (username[?], period[?]) ==
+topvideos - (username[?], period[?]) 
+tournament - (tournament_type[roulette], buy_in[int], --rounds[int]) - start a tournament
 tvp - text_filter or [regex] - all TVP headlines, from the past few years
 tvp_latest - text_filter or [regex] - latest TVP headlines
 tusk - text_filter or [regex] - epic TVP Tusk reference

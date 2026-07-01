@@ -22,6 +22,7 @@ class BotState:
         self.quiz_cache = {}
         self.map_quiz_cache = {}
         self.available_quiz_id_map = {}
+        self.tournament_daily_bans = defaultdict(set)
 
         self.run_schedules(job_queue)
 
@@ -88,6 +89,7 @@ class BotState:
         self.steal_credits_daily_count_map = defaultdict(int)
         self.quiz_cache = {}
         self.map_quiz_cache = {}
+        self.tournament_daily_bans = defaultdict(set)
 
         log.info("Remindme, cwel, get_credits and steal_credits usage limits have been reset.")
 
@@ -99,3 +101,11 @@ class BotState:
 
     def get_cwels_left(self, user_id):
         return MAX_CWEL_USAGE_DAILY - self.cwel_usage_daily_count_map[user_id]
+
+    def is_tournament_banned(self, user_id: int, tournament_type: str) -> bool:
+        return user_id in self.tournament_daily_bans.get(tournament_type, set())
+
+    def ban_from_tournament(self, user_id: int, tournament_type: str):
+        if tournament_type not in self.tournament_daily_bans:
+            self.tournament_daily_bans[tournament_type] = set()
+        self.tournament_daily_bans[tournament_type].add(user_id)
