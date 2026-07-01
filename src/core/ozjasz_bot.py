@@ -48,7 +48,6 @@ class OzjaszBot:
     async def post_init(self, application: Application) -> None:
         try:
             bot_commands = core_utils.get_bot_commands()
-            print(bot_commands)
             await application.bot.set_my_commands(bot_commands)
             log.info("Successfully registered bot commands on startup.")
         except Exception as e:
