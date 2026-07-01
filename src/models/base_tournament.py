@@ -111,11 +111,12 @@ class BaseTournament(ABC):
         return self._format_round_start()
 
     def _format_round_start(self) -> str:
-        lines = [f"*Round {self.round_number}/{self.max_rounds}*\n"]
-        lines.append(self.get_standings())
         active = self.get_active_player_count()
-        lines.append(f"\n_{active} player(s) can bet. Place your bets!_")
-        return "\n".join(lines)
+        lines = [
+            f"*Round {self.round_number}/{self.max_rounds}*",
+            f"{active} player(s) can bet. Place your bets!",
+        ]
+        return "\n\n".join(lines)
 
     def get_standings(self) -> str:
         sorted_players = sorted(self.players.values(), key=lambda p: p.tournament_credits, reverse=True)

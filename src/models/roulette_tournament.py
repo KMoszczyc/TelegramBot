@@ -163,11 +163,17 @@ class RouletteTournament(BaseTournament):
             for r in losers:
                 lines.append(f"• {r.username}: *{r.credit_change}* → *{r.tournament_credits_after}* credits")
 
+        bet_user_ids = {r.user_id for r in results}
+        didnt_bet = [player for player in self.players.values() if player.user_id not in bet_user_ids and player.tournament_credits > 0]
+        if didnt_bet:
+            lines.append("*Didn't bet:* 😴")
+            for p in didnt_bet:
+                lines.append(f"• {p.username}: *{p.tournament_credits}* credits")
+
         if zeroed:
             zeroed_names = [self.players[uid].username for uid in zeroed]
             lines.append(f"\n⚠️ *Eliminated:* {', '.join(zeroed_names)}")
 
-        lines.append(f"\n{self.get_standings()}")
         return "\n".join(lines)
 
     def get_final_results(self) -> tuple[str, list[int]]:

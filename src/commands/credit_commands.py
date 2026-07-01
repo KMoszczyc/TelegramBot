@@ -20,7 +20,17 @@ from src.config.constants import (
     TOURNAMENT_MAX_ROUNDS,
     TOURNAMENT_SPIN_DELAY_SECONDS,
 )
-from src.config.enums import BET_EVENTS, QUIZ_EVENTS, STEAL_EVENTS, ArgType, CreditActionType, MessageType, Table, TournamentType
+from src.config.enums import (
+    BET_EVENTS,
+    QUIZ_EVENTS,
+    STEAL_EVENTS,
+    ArgType,
+    CreditActionType,
+    MessageType,
+    Table,
+    TournamentState,
+    TournamentType,
+)
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.bot_state import BotState
@@ -638,10 +648,14 @@ class CreditCommands:
         if not tournament or not tournament.is_active:
             return
 
+        if tournament.state != TournamentState.BETTING:
+            return
+
         if not tournament.has_active_bets():
             await self._finish_tournament(context, chat_id, thread_id, "No bets placed. Tournament ending.")
             return
 
+        tournament.state = TournamentState.SPINNING
         header = tournament.format_header()
         bets_msg = tournament.format_bets_summary()
         message = stats_utils.escape_special_characters(f"{header}\n\n{bets_msg}\n\nThe roulette is spinning...")

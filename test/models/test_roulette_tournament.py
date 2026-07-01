@@ -798,3 +798,22 @@ def test_credits_update_credit_history_defaults(mocker):
     df = save_mock.call_args[0][0]
     assert df.iloc[0]["bet_type"] is None
     assert bool(df.iloc[0]["success"]) is True
+
+
+def test_format_round_start_no_standings_no_underscores(tournament_with_players):
+    msg = tournament_with_players.start_betting_round()
+    assert "Standings:" not in msg
+    assert "player(s) can bet. Place your bets!" in msg
+    assert "_2 player(s) can bet. Place your bets!_" not in msg
+
+
+def test_format_round_results_shows_didnt_bet_no_standings(mocker, tournament_with_players):
+    mocker.patch("src.models.roulette_tournament.random.choice", return_value=1)
+    tournament_with_players.start_betting_round()
+    tournament_with_players.handle_game_message(USER_1, "bet red 100")
+    # USER_2 does not bet
+
+    result = tournament_with_players.resolve_round()
+    assert "Standings:" not in result
+    assert "*Didn't bet:* 😴" in result
+    assert f"• Player2: *{BUY_IN}* credits" in result
