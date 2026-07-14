@@ -38,6 +38,7 @@ def credits():
 def bot_state():
     bs = MagicMock()
     bs.map_quiz_cache = {}
+    bs.flag_quiz_cache = {}
     return bs
 
 

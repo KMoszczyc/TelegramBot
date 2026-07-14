@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import logging
+import random
 
 import telegram
 from telegram import InlineKeyboardButton, Update
@@ -12,6 +13,7 @@ from src.config.assets import Assets
 from src.config.constants import (
     CRITICAL_FAILURE_CHANCE,
     CRITICAL_SUCCESS_CHANCE,
+    FLAG_QUIZ_TIMEOUT_SECONDS,
     MAP_QUIZ_TIMEOUT_SECONDS,
     MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
     TOURNAMENT_BET_TIMEOUT_SECONDS,
@@ -38,6 +40,7 @@ from src.models.command_args import CommandArgs
 from src.models.credits import Credits
 from src.models.db.db import DB
 from src.models.event_manager import EventManager
+from src.models.flag_quiz import FlagQuiz
 from src.models.map_quiz import MapQuiz
 from src.models.quiz_model import QuizModel
 from src.models.roulette import Roulette
@@ -332,8 +335,8 @@ class CreditCommands:
             return
 
         user_id = update.effective_user.id
-        if user_id in self.bot_state.map_quiz_cache:
-            message = "You already have an active map quiz! Answer it first or wait for the timeout."
+        if user_id in self.bot_state.map_quiz_cache or user_id in self.bot_state.flag_quiz_cache:
+            message = "You already have an active quiz! Answer it first or wait for the timeout."
             await core_utils.send_message(update, context, MessageType.TEXT, message)
             return
 
@@ -430,7 +433,7 @@ class CreditCommands:
 
         user_id = update.effective_user.id
         if user_id not in self.bot_state.map_quiz_cache:
-            log.info(f"handle_map_quiz_answer: user {user_id} not in cache")
+            log.debug(f"handle_map_quiz_answer: user {user_id} not in cache")
             return
 
         cached_quiz = self.bot_state.map_quiz_cache[user_id]
@@ -491,6 +494,181 @@ class CreditCommands:
             )
         else:
             description = MapQuiz.get_person_description(person, extended=extended)
+            message = f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
+
+        message = stats_utils.escape_special_characters(message)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            reply_to_message_id=update.message.message_id,
+            text=message,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            message_thread_id=update.message.message_thread_id,
+        )
+
+    async def cmd_guess_flag(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(
+            args=context.args,
+            available_named_args={"continent": ArgType.STRING, "difficulty": ArgType.STRING},
+        )
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != "":
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        if user_id in self.bot_state.map_quiz_cache or user_id in self.bot_state.flag_quiz_cache:
+            message = "You already have an active quiz! Answer it first or wait for the timeout."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        continent_specified = "continent" in command_args.named_args
+        if continent_specified:
+            raw_continent = command_args.named_args["continent"]
+            countries_df = self.assets.countries.get_countries(continent=raw_continent)
+        else:
+            countries_df = self.assets.countries.df
+
+        if countries_df.empty:
+            if continent_specified:
+                continents = sorted(self.assets.countries.df["continent"].dropna().unique().tolist())
+                conts_str = ", ".join(continents)
+                message = f"No flags found for the specified continent.\nAvailable continents:\n{conts_str}"
+            else:
+                message = "No flags found."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        available_difficulties = [
+            diff for diff in ["easy", "medium", "hard", "crazy"] if not countries_df[countries_df["difficulty"] == diff].empty
+        ]
+        if not available_difficulties:
+            message = "No flags found."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        if "difficulty" in command_args.named_args:
+            difficulty = command_args.named_args["difficulty"].lower()
+            if difficulty not in ["easy", "medium", "hard", "crazy"]:
+                message = "Invalid difficulty. Available: easy, medium, hard, crazy"
+                await core_utils.send_message(update, context, MessageType.TEXT, message)
+                return
+            if difficulty not in available_difficulties:
+                message = "No flags found for the specified continent and difficulty."
+                await core_utils.send_message(update, context, MessageType.TEXT, message)
+                return
+            chosen_diff = difficulty
+        else:
+            chosen_diff = random.choice(available_difficulties)
+
+        filtered_countries = countries_df[countries_df["difficulty"] == chosen_diff]
+        flag_quiz = FlagQuiz()
+        image_path, country = flag_quiz.guess_random_flag(filtered_countries)
+
+        reward, _ = FlagQuiz.get_reward(chosen_diff, continent_specified, 0)
+        caption = (
+            f"Difficulty: {chosen_diff.replace('_', ' ').title()}\nTime to answer: {FLAG_QUIZ_TIMEOUT_SECONDS}s\nReward: {reward} credits"
+        )
+        if continent_specified:
+            caption += f"\nContinent: {country['continent']}"
+
+        await update.message.reply_photo(photo=image_path, caption=caption, message_thread_id=update.message.message_thread_id)
+
+        self.bot_state.flag_quiz_cache[user_id] = {
+            "chat_id": update.effective_chat.id,
+            "thread_id": update.message.message_thread_id,
+            "country": country,
+            "difficulty": chosen_diff,
+            "continent_specified": continent_specified,
+            "tips_given": 0,
+            "job": context.job_queue.run_once(self.flag_quiz_timeout, FLAG_QUIZ_TIMEOUT_SECONDS, data=user_id),
+        }
+
+    async def flag_quiz_timeout(self, context: ContextTypes.DEFAULT_TYPE):
+        user_id = context.job.data
+        if user_id in self.bot_state.flag_quiz_cache:
+            cached_quiz = self.bot_state.flag_quiz_cache[user_id]
+            chat_id = cached_quiz.get("chat_id")
+            thread_id = cached_quiz.get("thread_id")
+            country = cached_quiz.get("country")
+
+            self.bot_state.flag_quiz_cache.pop(user_id, None)
+
+            if chat_id is not None and country is not None:
+                display_name = FlagQuiz.get_country_display_name(country)
+                description = FlagQuiz.get_country_description(country)
+                message = stats_utils.escape_special_characters(f"Time's up! The country was *{display_name}*.\n\n{description}")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    message_thread_id=thread_id,
+                )
+
+    async def handle_flag_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not update.message or not update.message.text:
+            return
+
+        user_id = update.effective_user.id
+        if user_id not in self.bot_state.flag_quiz_cache:
+            log.debug(f"handle_flag_quiz_answer: user {user_id} not in cache")
+            return
+
+        cached_quiz = self.bot_state.flag_quiz_cache[user_id]
+        if update.message.message_thread_id != cached_quiz["thread_id"]:
+            log.info(
+                f"handle_flag_quiz_answer: thread_id mismatch. Msg: {update.message.message_thread_id}, Cache: {cached_quiz['thread_id']}"
+            )
+            return
+
+        country = cached_quiz["country"]
+        valid_answers = FlagQuiz.get_valid_answers(country)
+        user_answer = update.message.text.lower().strip()
+        log.info(f"handle_flag_quiz_answer: answer={user_answer}, valid={valid_answers}")
+
+        if user_answer == "!tip":
+            tips = FlagQuiz.get_tips(country, continent_specified=cached_quiz.get("continent_specified", False))
+            tips_given = cached_quiz.get("tips_given", 0)
+            if tips_given < len(tips):
+                tip_text = tips[tips_given]
+                cached_quiz["tips_given"] = tips_given + 1
+
+                current_reward, decrease = FlagQuiz.get_reward(
+                    cached_quiz.get("difficulty", "crazy"), cached_quiz.get("continent_specified", False), cached_quiz["tips_given"]
+                )
+
+                message = stats_utils.escape_special_characters(
+                    f"💡 Tip {tips_given + 1}/{len(tips)} - [{current_reward} credits, -{decrease}%]:\n\n{tip_text}"
+                )
+            else:
+                message = stats_utils.escape_special_characters("No more tips available for this flag!")
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                reply_to_message_id=update.message.message_id,
+                text=message,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
+            )
+            return
+
+        cached_quiz["job"].schedule_removal()
+        self.bot_state.flag_quiz_cache.pop(user_id, None)
+
+        display_name = FlagQuiz.get_country_display_name(country)
+        is_correct = FlagQuiz.is_answer_correct(user_answer, valid_answers)
+
+        if is_correct:
+            reward, _ = FlagQuiz.get_reward(
+                cached_quiz.get("difficulty", "crazy"), cached_quiz.get("continent_specified", False), cached_quiz.get("tips_given", 0)
+            )
+
+            user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
+            description = FlagQuiz.get_country_description(country)
+            message = (
+                f"Correct! The country is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{description}"
+            )
+        else:
+            description = FlagQuiz.get_country_description(country)
             message = f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
 
         message = stats_utils.escape_special_characters(message)

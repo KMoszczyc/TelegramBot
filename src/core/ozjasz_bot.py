@@ -69,6 +69,9 @@ class OzjaszBot:
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_map_quiz_answer), group=1
         )
         self.application.add_handler(
+            MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_flag_quiz_answer), group=3
+        )
+        self.application.add_handler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_tournament_message), group=2
         )
 
@@ -105,6 +108,8 @@ class OzjaszBot:
             "stealgraph": self.credit_commands.cmd_steal_graph,
             "quiz": self.credit_commands.cmd_quiz,
             "guessperson": self.credit_commands.cmd_guess_person_on_a_map,
+            "guessflag": self.credit_commands.cmd_guess_flag,
+            "guess_flag": self.credit_commands.cmd_guess_flag,
             "tournament": self.credit_commands.cmd_tournament,
             "topmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             "sadmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),

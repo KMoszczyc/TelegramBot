@@ -21,6 +21,7 @@ class BotState:
         self.steal_credits_daily_count_map = defaultdict(int)
         self.quiz_cache = {}
         self.map_quiz_cache = {}
+        self.flag_quiz_cache = {}
         self.available_quiz_id_map = {}
         self.tournament_daily_bans = defaultdict(set)
 
@@ -89,6 +90,7 @@ class BotState:
         self.steal_credits_daily_count_map = defaultdict(int)
         self.quiz_cache = {}
         self.map_quiz_cache = {}
+        self.flag_quiz_cache = {}
         self.tournament_daily_bans = defaultdict(set)
 
         log.info("Remindme, cwel, get_credits and steal_credits usage limits have been reset.")

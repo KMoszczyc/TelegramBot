@@ -6,6 +6,7 @@ from src.config.paths import (
     BIBLE_PATH,
     BOCZEK_PATH,
     COMMANDS_PATH,
+    COUNTRIES_PATH,
     EUROPEJSKAFIRMA_PATH,
     FAMOUS_PEOPLE_TRIVIA_PATH,
     KIEPSCY_PATH,
@@ -19,6 +20,7 @@ from src.config.paths import (
     TVP_LATEST_HEADLINES_PATH,
     WALESA_PATH,
 )
+from src.models.countries import Countries
 
 
 class Assets:
@@ -40,6 +42,7 @@ class Assets:
         self.quiz_df = pd.read_parquet(str(QUIZ_DATABASE_PATH))
         self.polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")
         self.famous_people_trivia_df = pd.read_parquet(str(FAMOUS_PEOPLE_TRIVIA_PATH))
+        self.countries = Countries(COUNTRIES_PATH)
 
     def read_str_file(self, path):
         with open(path) as f:
