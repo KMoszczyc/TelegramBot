@@ -90,7 +90,12 @@ def assets(users_df):
             df = df[df["difficulty"] == difficulty.lower()]
         return df
 
+    def mock_pop_random_country(filtered_df=None):
+        df = filtered_df if filtered_df is not None else countries_df
+        return df.sample(n=1).iloc[0].to_dict()
+
     a.countries.get_countries.side_effect = mock_get_countries
+    a.countries.pop_random_country.side_effect = mock_pop_random_country
     return a
 
 

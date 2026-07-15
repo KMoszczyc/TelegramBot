@@ -100,6 +100,10 @@ class FlagQuiz:
 
     def guess_random_flag(self, countries_df: pd.DataFrame) -> tuple[str, dict]:
         country = countries_df.sample(n=1).iloc[0].to_dict()
-        filename = FlagQuiz.get_flag_filename_for_country(country)
-        image_path = os.path.join(FLAGS_DIR_PATH, filename)
+        image_path = self.get_image_path(country)
         return image_path, country
+
+    def get_image_path(self, country: dict | pd.Series) -> str:
+        """Return the absolute path to the flag image for *country*."""
+        filename = FlagQuiz.get_flag_filename_for_country(country)
+        return os.path.join(FLAGS_DIR_PATH, filename)

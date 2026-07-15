@@ -1,7 +1,6 @@
 import asyncio
 import copy
 import logging
-import random
 
 import telegram
 from telegram import InlineKeyboardButton, Update
@@ -556,13 +555,20 @@ class CreditCommands:
                 message = "No flags found for the specified continent and difficulty."
                 await core_utils.send_message(update, context, MessageType.TEXT, message)
                 return
+            filtered_countries = countries_df[countries_df["difficulty"] == difficulty]
+            country = self.assets.countries.pop_random_country(filtered_df=filtered_countries)
             chosen_diff = difficulty
         else:
-            chosen_diff = random.choice(available_difficulties)
+            # No difficulty filter — use the shuffle queue so every country appears
+            # exactly once before any repeats (eliminates birthday-paradox clustering).
+            # Pass filtered_df only when a continent was specified, so the queue is
+            # still used for the pure "random" case.
+            filter_df = countries_df if continent_specified else None
+            country = self.assets.countries.pop_random_country(filtered_df=filter_df)
+            chosen_diff = country["difficulty"]
 
-        filtered_countries = countries_df[countries_df["difficulty"] == chosen_diff]
         flag_quiz = FlagQuiz()
-        image_path, country = flag_quiz.guess_random_flag(filtered_countries)
+        image_path = flag_quiz.get_image_path(country)
 
         reward, _ = FlagQuiz.get_reward(chosen_diff, continent_specified, 0)
         caption = (
