@@ -644,7 +644,7 @@ def test_message_id_to_path(message_id, message_type, expected_extension):
             id="ignore_empty_or_invalid_lines",
         ),
         pytest.param(
-            f"{'A'*40} - {'B'*300}",
+            f"{'A' * 40} - {'B' * 300}",
             [("a" * 32, "B" * 256)],
             id="truncation_limits",
         ),
