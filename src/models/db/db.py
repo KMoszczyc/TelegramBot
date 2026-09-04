@@ -18,7 +18,7 @@ from src.config.paths import (
     REACTIONS_PATH,
     USERS_PATH,
 )
-from src.models.credits import Credits
+from src.models.core.credits import Credits
 
 log = logging.getLogger(__name__)
 

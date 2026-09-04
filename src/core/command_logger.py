@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 
 from src.config.constants import TIMEZONE
 from src.config.enums import DBSaveMode, Table
-from src.models.command_args import CommandArgs
+from src.models.data.command_args import CommandArgs
 from src.stats.utils import filter_by_time_df
 
 

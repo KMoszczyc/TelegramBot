@@ -14,8 +14,7 @@ from src.config.enums import DBSaveMode, MessageType, Table
 from src.config.paths import TEMP_DIR, USERS_PATH
 from src.config.settings import BOT_ID
 from src.core.client_api_handler import ClientAPIHandler
-from src.models.db.db import DB
-from src.models.schemas import (
+from src.models.data.schemas import (
     ChatMessageRow,
     chat_history_schema,
     cleaned_chat_history_schema,
@@ -23,6 +22,7 @@ from src.models.schemas import (
     reactions_schema,
     users_schema,
 )
+from src.models.db.db import DB
 from src.stats.ocr import OCR
 
 pd.set_option("display.max_columns", None)

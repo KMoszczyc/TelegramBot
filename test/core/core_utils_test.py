@@ -42,7 +42,7 @@ from src.core.utils import (
     text_to_number,
     x_to_light_years_str,
 )
-from src.models.command_args import CommandArgs
+from src.models.data.command_args import CommandArgs
 
 # Test constants
 TEST_DT_2024_01_15 = datetime(2024, 1, 15, tzinfo=ZoneInfo(TIMEZONE))

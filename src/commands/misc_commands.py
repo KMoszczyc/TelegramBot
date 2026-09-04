@@ -12,8 +12,8 @@ from src.config.constants import LONG_MESSAGE_LIMIT
 from src.config.enums import ArgType, ErrorMessage, HolyTextType, MessageType, SiglumType, Table
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
-from src.models.bot_state import BotState
-from src.models.command_args import CommandArgs
+from src.models.core.bot_state import BotState
+from src.models.data.command_args import CommandArgs
 from src.models.db.db import DB
 
 log = logging.getLogger(__name__)

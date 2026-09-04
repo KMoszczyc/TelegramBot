@@ -20,7 +20,7 @@ from src.config.paths import (
     TVP_LATEST_HEADLINES_PATH,
     WALESA_PATH,
 )
-from src.models.countries import Countries
+from src.models.data.countries import Countries
 
 
 class Assets:

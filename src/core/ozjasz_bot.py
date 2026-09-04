@@ -13,10 +13,10 @@ from src.config.enums import EmojiType, MessageType
 from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
-from src.models.bot_state import BotState
-from src.models.credits import Credits
+from src.models.core.bot_state import BotState
+from src.models.core.credits import Credits
 from src.models.db.db import DB
-from src.models.holidays import Holidays
+from src.models.events.holidays import Holidays
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +74,9 @@ class OzjaszBot:
         self.application.add_handler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_tournament_message), group=2
         )
+        self.application.add_handler(
+            MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_capital_quiz_answer), group=4
+        )
 
     def get_commands_map(self):
         return {
@@ -110,6 +113,8 @@ class OzjaszBot:
             "guessperson": self.credit_commands.cmd_guess_person_on_a_map,
             "guessflag": self.credit_commands.cmd_guess_flag,
             "guess_flag": self.credit_commands.cmd_guess_flag,
+            "guesscapital": self.credit_commands.cmd_guess_capital,
+            "guess_capital": self.credit_commands.cmd_guess_capital,
             "tournament": self.credit_commands.cmd_tournament,
             "topmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             "sadmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),

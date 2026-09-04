@@ -1,6 +1,6 @@
 from enum import Enum
 
-from src.models.random_event import RandomFailureEvent, RandomSuccessEvent
+from src.models.events.random_event import RandomFailureEvent, RandomSuccessEvent
 
 
 class PeriodFilterMode(Enum):

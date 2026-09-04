@@ -14,10 +14,10 @@ from src.config.paths import CHAT_VIDEO_NOTES_DIR_PATH, USERS_PATH
 from src.core.client_api_handler import BOT_ID
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
-from src.models.bot_state import BotState
-from src.models.command_args import CommandArgs
+from src.models.core.bot_state import BotState
+from src.models.data.command_args import CommandArgs
 from src.models.db.db import DB
-from src.models.youtube_download import YoutubeDownload
+from src.models.media.youtube_download import YoutubeDownload
 from src.stats import charts
 from src.stats.word_stats import WordStats
 

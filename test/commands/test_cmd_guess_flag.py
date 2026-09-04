@@ -5,6 +5,7 @@ import pytest
 
 from src.commands.credit_commands import CreditCommands
 from src.config.enums import CreditActionType
+from src.models.quizzes.flag_quiz import FlagQuiz
 
 
 @pytest.fixture()
@@ -298,7 +299,10 @@ async def test_handle_flag_quiz_answer_logic(commands, update, context, user_ans
     assert 111 not in commands.bot_state.flag_quiz_cache
 
     if is_correct:
-        commands.credits.update_credits.assert_called_once_with(user_id=111, credit_change=1000, action_type=CreditActionType.QUIZ)
+        expected_reward = FlagQuiz.REWARD_LEVELS["easy"]
+        commands.credits.update_credits.assert_called_once_with(
+            user_id=111, credit_change=expected_reward, action_type=CreditActionType.QUIZ
+        )
         assert "Correct\\! The country is *Polska*" in context.bot.send_message.call_args[1]["text"]
     else:
         commands.credits.update_credits.assert_not_called()

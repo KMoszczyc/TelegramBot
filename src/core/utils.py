@@ -27,7 +27,7 @@ from src.config.paths import (
     COMMANDS_PATH,
 )
 from src.core.arg_parser import ArgParser
-from src.models.command_args import CommandArgs
+from src.models.data.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 

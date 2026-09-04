@@ -5,9 +5,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.config.enums import CreditActionType
-from src.models.quiz_model import BOOLEAN_QUIZ_CREDIT_PENALTY, MULTIPLE_QUIZ_CREDIT_PENALTY, QUIZ_CREDIT_PAYOUT, QuizModel
-from src.models.random_event import EffectResult, RandomEvent, RandomFailureEvent, RandomSuccessEvent
-from src.models.schemas import ChatMessageRow, CreditHistoryRow
+from src.models.data.schemas import ChatMessageRow, CreditHistoryRow
+from src.models.events.random_event import EffectResult, RandomEvent, RandomFailureEvent, RandomSuccessEvent
+from src.models.quizzes.quiz_model import BOOLEAN_QUIZ_CREDIT_PENALTY, MULTIPLE_QUIZ_CREDIT_PENALTY, QUIZ_CREDIT_PAYOUT, QuizModel
 
 # ── EffectResult ────────────────────────────────────────────────────
 

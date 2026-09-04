@@ -6,7 +6,7 @@ from telegram.constants import ParseMode
 
 from src.commands.misc_commands import Commands
 from src.config.enums import ErrorMessage, HolyTextType, Table
-from src.models.bot_state import BotState
+from src.models.core.bot_state import BotState
 
 
 @pytest.fixture()

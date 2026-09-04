@@ -10,7 +10,7 @@ import pytest
 
 from src.config.constants import TIMEZONE
 from src.config.enums import DatetimeFormat, EmojiType, PeriodFilterMode
-from src.models.command_args import CommandArgs
+from src.models.data.command_args import CommandArgs
 from src.stats.utils import (
     are_text_characters_allowed,
     check_new_username,

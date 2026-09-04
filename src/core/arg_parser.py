@@ -8,7 +8,7 @@ import pandas as pd
 
 from src.config.constants import MAX_INT, TIMEZONE
 from src.config.enums import ArgType, DatetimeFormat, PeriodFilterMode
-from src.models.command_args import CommandArgs
+from src.models.data.command_args import CommandArgs
 
 log = logging.getLogger(__name__)
 

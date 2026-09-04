@@ -7,7 +7,7 @@ import time
 import pandas as pd
 
 from src.config.paths import MAP_QUIZ_IMAGES_DIR_PATH
-from src.models.map_quiz import MapQuiz
+from src.models.quizzes.map_quiz import MapQuiz
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")

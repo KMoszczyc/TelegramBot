@@ -9,7 +9,7 @@ import src.stats.utils as stats_utils
 from src.config.constants import STOPWORD_RATIO_THRESHOLD
 from src.config.enums import PeriodFilterMode, Table
 from src.config.paths import CHAT_WORD_STATS_DIR_PATH, WORD_STATS_UPDATE_LOCK_PATH
-from src.models.command_args import CommandArgs
+from src.models.data.command_args import CommandArgs
 
 pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)
@@ -93,10 +93,10 @@ class WordStats:
                 continue
 
             df = df_raw.copy(deep=True)
-            df["ngrams"] = df["text"].str.split().apply(lambda x: list(map(" ".join, ngrams(x, n=n))))
+            df["ngrams"] = df["text"].str.split().apply(lambda x: list(map(" ".join, ngrams(x, n=n))))  # noqa: B023
             df = df[df["ngrams"].str.len() > 0]  # remove empty ngram rows
             latest_ngram_df = df.explode("ngrams")
-            latest_ngram_df = latest_ngram_df[latest_ngram_df.apply(lambda row: self.stopword_filter(row["ngrams"], n), axis=1)]
+            latest_ngram_df = latest_ngram_df[latest_ngram_df.apply(lambda row: self.stopword_filter(row["ngrams"], n), axis=1)]  # noqa: B023
             latest_ngram_df["ngram_id"] = latest_ngram_df.groupby("message_id").cumcount() + 1
 
             self.update_ngram(n, latest_ngram_df)

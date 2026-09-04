@@ -5,7 +5,7 @@ import pytest
 
 from src.commands.chat_commands import ChatCommands
 from src.config.enums import EmojiType, ErrorMessage, MessageType, Table
-from src.models.bot_state import BotState
+from src.models.core.bot_state import BotState
 
 # ---------------------------------------------------------------------------
 # Fixture data
