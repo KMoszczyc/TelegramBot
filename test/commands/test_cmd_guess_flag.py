@@ -1,3 +1,4 @@
+from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
@@ -43,6 +44,7 @@ def bot_state():
     bs = MagicMock()
     bs.map_quiz_cache = {}
     bs.flag_quiz_cache = {}
+    bs.quiz_replay_cache = defaultdict(dict)
     return bs
 
 
@@ -308,6 +310,9 @@ async def test_handle_flag_quiz_answer_logic(commands, update, context, user_ans
         commands.credits.update_credits.assert_not_called()
         assert "Wrong\\! The correct answer was *Polska*" in context.bot.send_message.call_args[1]["text"]
 
+    reply_markup = context.bot.send_message.call_args[1]["reply_markup"]
+    assert reply_markup.inline_keyboard[0][0].callback_data == "quizreplay:flag:111"
+
 
 @pytest.mark.asyncio
 async def test_flag_quiz_timeout(commands, context):
@@ -329,3 +334,12 @@ async def test_flag_quiz_timeout(commands, context):
     assert 111 not in commands.bot_state.flag_quiz_cache
     context.bot.send_message.assert_called_once()
     assert "Time's up\\! The country was *Polska*" in context.bot.send_message.call_args[1]["text"]
+    reply_markup = context.bot.send_message.call_args[1]["reply_markup"]
+    assert reply_markup.inline_keyboard[0][0].callback_data == "quizreplay:flag:111"
+
+
+@pytest.mark.asyncio
+async def test_cmd_guess_flag_caches_replay_args(commands, update, context):
+    context.args = ["--continent", "Europe"]
+    await commands.cmd_guess_flag(update, context)
+    assert commands.bot_state.quiz_replay_cache[111]["flag"] == ["--continent", "Europe"]

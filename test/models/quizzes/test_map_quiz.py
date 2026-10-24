@@ -205,3 +205,29 @@ def test_get_tips_sentence_parsing(description, expected_tips):
 def test_get_tips_censorship(name, description, expected_tips):
     person = {"name_pl": name, "description": description}
     assert MapQuiz().get_tips(person) == expected_tips
+
+
+def test_map_quiz_prompt_and_outcome_formatting():
+    quiz = MapQuiz()
+    person = {
+        "name_pl": "Mikołaj Kopernik",
+        "description": "Mikołaj Kopernik – astronom.",
+        "category": "Science",
+    }
+    prompt = quiz.build_quiz_prompt_text(person, "easy", 60, filter_specified=True)
+    assert "Difficulty: Easy" in prompt
+    assert "Time to answer: 60s" in prompt
+    assert "Reward: 500 credits" in prompt
+    assert "Category: Science" in prompt
+
+    timeout_msg = quiz.format_timeout_message(person)
+    assert timeout_msg == "Time's up! The person was *Mikołaj Kopernik*.\n\nMikołaj Kopernik – astronom."
+
+    correct_msg = quiz.format_correct_message(person, reward=500, total_credits=1500)
+    assert (
+        correct_msg
+        == "Correct! The person is *Mikołaj Kopernik*.\nYou receive *500* credits! [*1500* in total]\n\nMikołaj Kopernik – astronom."
+    )
+
+    wrong_msg = quiz.format_wrong_message(person)
+    assert wrong_msg == "Wrong! The correct answer was *Mikołaj Kopernik*.\n\nMikołaj Kopernik – astronom."

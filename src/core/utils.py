@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import telegram
-from telegram import BotCommand, Update
+from telegram import BotCommand, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from src.config.constants import TIMEZONE
@@ -490,7 +490,14 @@ def generate_response_headline(command_args, label, text_before_str="of", text_b
     return text
 
 
-async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE, message_type: MessageType, text: str, path: str = ""):
+async def send_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    message_type: MessageType,
+    text: str,
+    path: str = "",
+    reply_markup: InlineKeyboardMarkup | None = None,
+):
     log.info(f"Sending message: {text} with media type: {message_type} and media path: {path}")
     match message_type:
         case MessageType.GIF:
@@ -511,7 +518,11 @@ async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE, messa
                 )
         case MessageType.IMAGE:
             await context.bot.send_photo(
-                chat_id=update.effective_chat.id, photo=path, caption=text, message_thread_id=update.message.message_thread_id
+                chat_id=update.effective_chat.id,
+                photo=path,
+                caption=text,
+                message_thread_id=update.message.message_thread_id,
+                reply_markup=reply_markup,
             )
         case MessageType.AUDIO:
             await context.bot.send_audio(
@@ -522,13 +533,19 @@ async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE, messa
                 chat_id=update.effective_chat.id, voice=path, caption=text, message_thread_id=update.message.message_thread_id
             )
         case MessageType.TEXT:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, message_thread_id=update.message.message_thread_id)
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text,
+                message_thread_id=update.message.message_thread_id,
+                reply_markup=reply_markup,
+            )
         case MessageType.MARKDOWN_TEXT:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=text,
                 parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                 message_thread_id=update.effective_message.message_thread_id,
+                reply_markup=reply_markup,
             )
 
 

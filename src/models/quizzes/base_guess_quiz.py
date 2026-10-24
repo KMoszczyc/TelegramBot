@@ -7,6 +7,10 @@ import pandas as pd
 
 class BaseGuessQuiz(ABC):
     REWARD_LEVELS: dict[str, int]
+    QUIZ_TYPE: str = ""
+    FILTER_LABEL: str = "Continent"
+    FILTER_KEY: str = "continent"
+    ITEM_KEY: str = "country"
 
     @classmethod
     def get_reward(cls, difficulty: str, continent_specified: bool = False, tips_given: int = 0) -> tuple[int, int]:
@@ -60,6 +64,50 @@ class BaseGuessQuiz(ABC):
     def get_valid_answers(self, item: dict | pd.Series) -> set[str]:
         pass
 
+    def get_image_path(self, item: dict | pd.Series) -> str | None:
+        """Return the image path for *item*, or None when the quiz is text-only."""
+        return None
+
+    def get_prompt(self, item: dict | pd.Series) -> str:
+        """Return the text shown to the user for text-only quizzes."""
+        return ""
+
+    def build_quiz_prompt_text(
+        self,
+        item: dict | pd.Series,
+        difficulty: str,
+        timeout_seconds: int,
+        filter_specified: bool = False,
+        title: str | None = None,
+    ) -> str:
+        """Format the initial prompt/caption displayed when the quiz starts."""
+        reward, _ = self.get_reward(difficulty, filter_specified, 0)
+        base_text = f"Difficulty: {difficulty.replace('_', ' ').title()}\nTime to answer: {timeout_seconds}s\nReward: {reward} credits"
+        if title:
+            base_text = f"{title}\n{base_text}"
+
+        if filter_specified:
+            filter_val = item.get(self.FILTER_KEY) if isinstance(item, dict) else item[self.FILTER_KEY]
+            base_text += f"\n{self.FILTER_LABEL}: {filter_val}"
+
+        if not self.get_image_path(item):
+            prompt = self.get_prompt(item)
+            if prompt:
+                base_text += f"\n\n{prompt}"
+
+        return base_text
+
     @abstractmethod
-    def get_image_path(self, item: dict | pd.Series) -> str:
+    def format_timeout_message(self, item: dict | pd.Series, **kwargs) -> str:
+        """Format the unescaped markdown message displayed when time runs out."""
+        pass
+
+    @abstractmethod
+    def format_correct_message(self, item: dict | pd.Series, reward: int, total_credits: int | None = None, **kwargs) -> str:
+        """Format the unescaped markdown message displayed when a user gives a correct answer."""
+        pass
+
+    @abstractmethod
+    def format_wrong_message(self, item: dict | pd.Series, **kwargs) -> str:
+        """Format the unescaped markdown message displayed when a user gives an incorrect answer."""
         pass

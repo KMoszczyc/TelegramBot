@@ -1,6 +1,8 @@
+import pandas as pd
 import pytest
 
 from src.models.quizzes.capital_quiz import CapitalQuiz
+from src.models.quizzes.flag_quiz import FlagQuiz
 
 
 @pytest.fixture
@@ -60,8 +62,8 @@ def test_get_country_description(mock_country_dict):
 @pytest.mark.parametrize(
     "continent_specified, expected_tips",
     [
-        (False, ["Country: Polska Rzeczpospolita", "First letter: W", "Second letter: a"]),
-        (True, ["Country: Polska Rzeczpospolita", "First letter: W", "Second letter: a"]),
+        (False, ["Continent: Europa", "First letter: W", "Second letter: a", "Next two letters: rs"]),
+        (True, ["First letter: W", "Second letter: a", "Next two letters: rs"]),
     ],
 )
 def test_get_tips(mock_country_dict, continent_specified, expected_tips):
@@ -91,3 +93,78 @@ def test_get_valid_answers_multi_word():
 def test_is_answer_correct(user_answer, is_correct):
     valid_answers = {"warszawa"}
     assert CapitalQuiz.is_answer_correct(user_answer, valid_answers) == is_correct
+
+
+@pytest.mark.parametrize(
+    "country, expected_prompt",
+    [
+        ({"country_name": "Polska", "capital": "Warszawa"}, "Country: *Polska*"),
+        ({"country_name": "Stany Zjednoczone", "capital": "Waszyngton"}, "Country: *Stany Zjednoczone*"),
+        (pd.Series({"country_name": "Niemcy", "capital": "Berlin"}), "Country: *Niemcy*"),
+    ],
+)
+def test_get_prompt(country, expected_prompt):
+    assert CapitalQuiz().get_prompt(country) == expected_prompt
+
+
+@pytest.mark.parametrize(
+    "country",
+    [
+        {"country_name": "Polska", "country_code": "PL", "capital": "Warszawa"},
+        pd.Series({"country_name": "Niemcy", "country_code": "DE", "capital": "Berlin"}),
+    ],
+)
+def test_get_image_path_is_none(country):
+    assert CapitalQuiz().get_image_path(country) is None
+
+
+def test_flag_quiz_still_has_image(mock_country_dict):
+    assert FlagQuiz().get_image_path(mock_country_dict).endswith("PL.jpg")
+    assert FlagQuiz().get_prompt(mock_country_dict) == ""
+
+
+@pytest.mark.parametrize(
+    "capital, expected_last_tip",
+    [
+        ("Berlin", "Next two letters: rl"),
+        ("Rome", "Next two letters: me"),
+        ("Oslo", "Next two letters: lo"),
+        ("Lima", "Next two letters: ma"),
+        ("Bern", "Next two letters: rn"),
+        ("Abu", "Next two letters: u"),
+        ("Ab", "Next two letters: (none)"),
+        ("A", "Next two letters: (none)"),
+        ("", "Next two letters: (none)"),
+    ],
+)
+def test_get_tips_next_two_letters(capital, expected_last_tip):
+    country = {"continent": "Europa", "capital": capital}
+    assert CapitalQuiz().get_tips(country)[-1] == expected_last_tip
+
+
+def test_capital_quiz_prompt_and_outcome_formatting(mock_country_dict):
+    quiz = CapitalQuiz()
+    prompt = quiz.build_quiz_prompt_text(mock_country_dict, "easy", 60, filter_specified=True)
+    assert "Difficulty: Easy" in prompt
+    assert "Time to answer: 60s" in prompt
+    assert "Reward: 1250 credits" in prompt
+    assert "Continent: Europa" in prompt
+    assert "Country: *Polska Rzeczpospolita*" in prompt
+
+    timeout_msg = quiz.format_timeout_message(mock_country_dict)
+    assert (
+        timeout_msg
+        == "Time's up! The capital of *Polska Rzeczpospolita* was *Warszawa*.\n\nCapital: Warszawa | Continent: Europa | Population: 38,000,000"
+    )
+
+    correct_msg = quiz.format_correct_message(mock_country_dict, reward=1250, total_credits=3000)
+    assert (
+        correct_msg
+        == "Correct! The capital of *Polska Rzeczpospolita* is *Warszawa*.\nYou receive *1250* credits! [*3000* in total]\n\nCapital: Warszawa | Continent: Europa | Population: 38,000,000"
+    )
+
+    wrong_msg = quiz.format_wrong_message(mock_country_dict)
+    assert (
+        wrong_msg
+        == "Wrong! The capital of *Polska Rzeczpospolita* was *Warszawa*.\n\nCapital: Warszawa | Continent: Europa | Population: 38,000,000"
+    )

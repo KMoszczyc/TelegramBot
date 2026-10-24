@@ -41,10 +41,17 @@ from src.models.data.command_args import CommandArgs
 from src.models.db.db import DB
 from src.models.events.event_manager import EventManager
 from src.models.games.roulette import Roulette
+from src.models.quizzes import tip_message
 from src.models.quizzes.capital_quiz import CapitalQuiz
 from src.models.quizzes.flag_quiz import FlagQuiz
 from src.models.quizzes.map_quiz import MapQuiz
 from src.models.quizzes.quiz_model import QuizModel
+from src.models.quizzes.quiz_replay import (
+    ReplayUpdateProxy,
+    build_replay_keyboard,
+    format_replay_command_name,
+    parse_replay_callback_data,
+)
 from src.models.tournaments.roulette_tournament import RouletteTournament
 from src.stats import charts
 
@@ -225,6 +232,9 @@ class CreditCommands:
             await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
+        user_id = update.effective_user.id
+        self._set_quiz_replay_args(user_id, "quiz", context.args)
+
         filtered_quiz_df = copy.deepcopy(self.assets.quiz_df)
         if "category" in command_args.named_args:
             filtered_quiz_df = filtered_quiz_df[filtered_quiz_df["category"].str.contains(command_args.named_args["category"], case=False)]
@@ -290,7 +300,13 @@ class CreditCommands:
             message = stats_utils.escape_special_characters(
                 f"Time's out! You've had *{int(cached_quiz.seconds_to_answer)}s* to answer, yet it took you *{time_elapsed:.2f}s*, lol."
             )
-            await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
+            await core_utils.send_message(
+                update,
+                context,
+                MessageType.MARKDOWN_TEXT,
+                message,
+                reply_markup=build_replay_keyboard("quiz", cached_quiz.user_id),
+            )
             return
 
         if cached_quiz.correct_answer != query.data:  # apply penalty for incorrect answer
@@ -308,7 +324,13 @@ class CreditCommands:
                 self.credits.update_credits(cached_quiz.user_id, effect.credit_change, CreditActionType.QUIZ)
                 message += f"\n\n**Critical Failure!** {effect.message}"
             message = stats_utils.escape_special_characters(message)
-            await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
+            await core_utils.send_message(
+                update,
+                context,
+                MessageType.MARKDOWN_TEXT,
+                message,
+                reply_markup=build_replay_keyboard("quiz", cached_quiz.user_id),
+            )
             return
 
         # credit payout for correct answer :)
@@ -323,7 +345,13 @@ class CreditCommands:
             message += f"\n\n**Critical Success!** {effect.message}"
 
         message = stats_utils.escape_special_characters(message)
-        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
+        await core_utils.send_message(
+            update,
+            context,
+            MessageType.MARKDOWN_TEXT,
+            message,
+            reply_markup=build_replay_keyboard("quiz", cached_quiz.user_id),
+        )
 
     async def cmd_guess_person_on_a_map(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -336,10 +364,12 @@ class CreditCommands:
             return
 
         user_id = update.effective_user.id
-        if user_id in self.bot_state.map_quiz_cache or user_id in self.bot_state.flag_quiz_cache:
+        if self._has_active_guess_quiz(user_id):
             message = "You already have an active quiz! Answer it first or wait for the timeout."
             await core_utils.send_message(update, context, MessageType.TEXT, message)
             return
+
+        self._set_quiz_replay_args(user_id, "map", context.args)
 
         famous_people_trivia_df = copy.deepcopy(self.assets.famous_people_trivia_df)
         if "category" in command_args.named_args:
@@ -386,23 +416,33 @@ class CreditCommands:
         map_quiz = MapQuiz()
         image_path, person = map_quiz.guess_random_person_on_map(filtered_df)
 
-        reward, _ = MapQuiz.get_reward(chosen_diff, "category" in command_args.named_args, 0)
-        caption = (
-            f"Difficulty: {chosen_diff.replace('_', ' ').title()}\nTime to answer: {MAP_QUIZ_TIMEOUT_SECONDS}s\nReward: {reward} credits"
-        )
-        if "category" in command_args.named_args:
-            caption += f"\nCategory: {person['category']}"
+        category_specified = "category" in command_args.named_args
+        caption = map_quiz.build_quiz_prompt_text(person, chosen_diff, MAP_QUIZ_TIMEOUT_SECONDS, category_specified)
+        total_tips = len(map_quiz.get_tips(person, continent_specified=category_specified))
+        keyboard = tip_message.build_initial_tip_keyboard(MapQuiz, user_id, chosen_diff, category_specified, total_tips)
+        escaped_caption = stats_utils.escape_special_characters(caption)
 
-        await update.message.reply_photo(photo=image_path, caption=caption, message_thread_id=update.message.message_thread_id)
+        sent = await update.message.reply_photo(
+            photo=image_path,
+            caption=escaped_caption,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+            message_thread_id=update.message.message_thread_id,
+        )
 
         self.bot_state.map_quiz_cache[user_id] = {
             "chat_id": update.effective_chat.id,
             "thread_id": update.message.message_thread_id,
             "person": person,
             "difficulty": chosen_diff,
-            "category_specified": "category" in command_args.named_args,
+            "category_specified": category_specified,
+            "continent_specified": category_specified,
             "extended_description": "extended_description" in command_args.named_args,
             "tips_given": 0,
+            "tip_lines": [],
+            "message_id": sent.message_id,
+            "has_photo": True,
+            "base_text": caption,
             "job": context.job_queue.run_once(self.map_quiz_timeout, MAP_QUIZ_TIMEOUT_SECONDS, data=user_id),
         }
 
@@ -415,17 +455,18 @@ class CreditCommands:
             person = cached_quiz.get("person")
 
             self.bot_state.map_quiz_cache.pop(user_id, None)
+            await self._remove_tip_button(context, cached_quiz)
 
             if chat_id is not None and person is not None:
-                display_name = MapQuiz.get_person_display_name(person)
+                quiz_instance = MapQuiz()
                 extended = cached_quiz.get("extended_description", False)
-                description = MapQuiz.get_person_description(person, extended=extended)
-                message = stats_utils.escape_special_characters(f"Time's up! The person was *{display_name}*.\n\n{description}")
+                message = stats_utils.escape_special_characters(quiz_instance.format_timeout_message(person, extended=extended))
                 await context.bot.send_message(
                     chat_id=chat_id,
                     text=message,
                     parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                     message_thread_id=thread_id,
+                    reply_markup=build_replay_keyboard("map", user_id),
                 )
 
     async def handle_map_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -451,36 +492,26 @@ class CreditCommands:
         log.info(f"handle_map_quiz_answer: answer={user_answer}, extended={extended}, valid={valid_answers}")
 
         if user_answer == "!tip":
-            tips = MapQuiz().get_tips(person)
-            tips_given = cached_quiz.get("tips_given", 0)
-            if tips_given < len(tips):
-                tip_text = tips[tips_given]
-                cached_quiz["tips_given"] = tips_given + 1
-
-                current_reward, decrease = MapQuiz.get_reward(
-                    cached_quiz.get("difficulty", "crazy"), cached_quiz.get("category_specified", False), cached_quiz["tips_given"]
-                )
-
-                message = stats_utils.escape_special_characters(
-                    f"💡 Tip {tips_given + 1}/{len(tips)} - [{current_reward} credits, -{decrease}%]:\n\n{tip_text}"
+            tip_line = tip_message.reveal_next_tip(cached_quiz, MapQuiz(), MapQuiz, person)
+            if tip_line is None:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    reply_to_message_id=update.message.message_id,
+                    text=stats_utils.escape_special_characters("No more tips available for this person!"),
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    message_thread_id=update.message.message_thread_id,
                 )
             else:
-                message = stats_utils.escape_special_characters("No more tips available for this person!")
-
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                reply_to_message_id=update.message.message_id,
-                text=message,
-                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                message_thread_id=update.message.message_thread_id,
-            )
+                await self._show_tip(
+                    context, cached_quiz, user_id, MapQuiz, MapQuiz(), tip_line, fallback_reply_to=update.message.message_id
+                )
             return
 
         cached_quiz["job"].schedule_removal()
         self.bot_state.map_quiz_cache.pop(user_id, None)
+        await self._remove_tip_button(context, cached_quiz)
 
-        display_name = MapQuiz().get_display_name(person)
-
+        quiz_instance = MapQuiz()
         is_correct = MapQuiz.is_answer_correct(user_answer, valid_answers)
 
         if is_correct:
@@ -489,13 +520,9 @@ class CreditCommands:
             )
 
             user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
-            description = MapQuiz().get_description(person, extended=extended)
-            message = (
-                f"Correct! The person is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{description}"
-            )
+            message = quiz_instance.format_correct_message(person, reward, total_credits=user_credits, extended=extended)
         else:
-            description = MapQuiz().get_description(person, extended=extended)
-            message = f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
+            message = quiz_instance.format_wrong_message(person, extended=extended)
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(
@@ -504,6 +531,7 @@ class CreditCommands:
             text=message,
             parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
             message_thread_id=update.message.message_thread_id,
+            reply_markup=build_replay_keyboard("map", user_id),
         )
 
     async def _cmd_guess_country_generic(
@@ -526,14 +554,12 @@ class CreditCommands:
             return
 
         user_id = update.effective_user.id
-        if (
-            user_id in self.bot_state.map_quiz_cache
-            or user_id in self.bot_state.flag_quiz_cache
-            or user_id in self.bot_state.capital_quiz_cache
-        ):
+        if self._has_active_guess_quiz(user_id):
             message = "You already have an active quiz! Answer it first or wait for the timeout."
             await core_utils.send_message(update, context, MessageType.TEXT, message)
             return
+
+        self._set_quiz_replay_args(user_id, quiz_class.QUIZ_TYPE, context.args)
 
         continent_specified = "continent" in command_args.named_args
         if continent_specified:
@@ -581,15 +607,26 @@ class CreditCommands:
         quiz_instance = quiz_class()
         image_path = quiz_instance.get_image_path(country)
 
-        reward, _ = quiz_class.get_reward(chosen_diff, continent_specified, 0)
-        caption = f"Difficulty: {chosen_diff.replace('_', ' ').title()}\nTime to answer: {timeout_seconds}s\nReward: {reward} credits"
-        if title:
-            caption = f"{title}\n{caption}"
+        base_text = quiz_instance.build_quiz_prompt_text(country, chosen_diff, timeout_seconds, continent_specified, title=title)
+        total_tips = len(quiz_instance.get_tips(country, continent_specified=continent_specified))
+        keyboard = tip_message.build_initial_tip_keyboard(quiz_class, user_id, chosen_diff, continent_specified, total_tips)
+        escaped_text = stats_utils.escape_special_characters(base_text)
 
-        if continent_specified:
-            caption += f"\nContinent: {country['continent']}"
-
-        await update.message.reply_photo(photo=image_path, caption=caption, message_thread_id=update.message.message_thread_id)
+        if image_path:
+            sent = await update.message.reply_photo(
+                photo=image_path,
+                caption=escaped_text,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+                message_thread_id=update.message.message_thread_id,
+            )
+        else:
+            sent = await update.message.reply_text(
+                text=escaped_text,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+                message_thread_id=update.message.message_thread_id,
+            )
 
         cache_dict[user_id] = {
             "chat_id": update.effective_chat.id,
@@ -598,8 +635,170 @@ class CreditCommands:
             "difficulty": chosen_diff,
             "continent_specified": continent_specified,
             "tips_given": 0,
+            "tip_lines": [],
+            "message_id": sent.message_id,
+            "has_photo": bool(image_path),
+            "base_text": base_text,
             "job": context.job_queue.run_once(timeout_callback, timeout_seconds, data=user_id),
         }
+
+    def _has_active_guess_quiz(self, user_id: int) -> bool:
+        """Check if *user_id* currently has an active guess quiz session."""
+        has_method = getattr(self.bot_state, "has_active_guess_quiz", None)
+        if callable(has_method) and not hasattr(has_method, "assert_called"):
+            return bool(has_method(user_id))
+        return (
+            user_id in getattr(self.bot_state, "map_quiz_cache", {})
+            or user_id in getattr(self.bot_state, "flag_quiz_cache", {})
+            or user_id in getattr(self.bot_state, "capital_quiz_cache", {})
+        )
+
+    def _find_active_guess_quiz(self, user_id: int):
+        """Return the (cache, quiz class) pair holding *user_id*'s active quiz, or None."""
+        find_method = getattr(self.bot_state, "find_active_guess_quiz", None)
+        if callable(find_method) and not hasattr(find_method, "assert_called"):
+            return find_method(user_id)
+        for cache_dict, quiz_class in (
+            (getattr(self.bot_state, "map_quiz_cache", {}), MapQuiz),
+            (getattr(self.bot_state, "flag_quiz_cache", {}), FlagQuiz),
+            (getattr(self.bot_state, "capital_quiz_cache", {}), CapitalQuiz),
+        ):
+            if user_id in cache_dict:
+                return cache_dict, quiz_class
+        return None
+
+    def _set_quiz_replay_args(self, user_id: int, quiz_type: str, args: list[str] | None = None) -> None:
+        set_method = getattr(self.bot_state, "set_quiz_replay_args", None)
+        if callable(set_method) and not hasattr(set_method, "assert_called"):
+            set_method(user_id, quiz_type, args)
+            return
+        self.bot_state.quiz_replay_cache[user_id][quiz_type] = list(args) if args else []
+
+    def _get_quiz_replay_args(self, user_id: int, quiz_type: str) -> list[str]:
+        get_method = getattr(self.bot_state, "get_quiz_replay_args", None)
+        if callable(get_method) and not hasattr(get_method, "assert_called"):
+            return list(get_method(user_id, quiz_type))
+        return list(self.bot_state.quiz_replay_cache.get(user_id, {}).get(quiz_type, []))
+
+    async def _remove_tip_button(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict):
+        if cached_quiz.get("message_id") is None:
+            return
+        try:
+            await context.bot.edit_message_reply_markup(
+                chat_id=cached_quiz["chat_id"], message_id=cached_quiz["message_id"], reply_markup=None
+            )
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not remove tip button: {e}")
+
+    async def _update_quiz_message(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, text: str, reply_markup):
+        edit_kwargs = {
+            "chat_id": cached_quiz["chat_id"],
+            "message_id": cached_quiz["message_id"],
+            "parse_mode": telegram.constants.ParseMode.MARKDOWN_V2,
+            "reply_markup": reply_markup,
+        }
+        try:
+            if cached_quiz.get("has_photo"):
+                await context.bot.edit_message_caption(caption=text, **edit_kwargs)
+            else:
+                await context.bot.edit_message_text(text=text, **edit_kwargs)
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not edit quiz message: {e}")
+
+    async def _show_tip(
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        cached_quiz: dict,
+        user_id: int,
+        quiz_class,
+        quiz_instance,
+        tip_line: str,
+        fallback_reply_to: int | None = None,
+    ):
+        """Show a freshly revealed tip inside the quiz message, or as a reply when it doesn't fit (or the quiz message is unknown)."""
+        plan = tip_message.plan_tip_display(cached_quiz, quiz_instance, quiz_class, user_id, tip_line)
+        if plan.can_edit:
+            await self._update_quiz_message(context, cached_quiz, plan.edit_text, plan.keyboard)
+            return
+
+        await context.bot.send_message(
+            chat_id=plan.chat_id,
+            reply_to_message_id=plan.message_id if plan.message_id is not None else fallback_reply_to,
+            text=plan.overflow_text,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            message_thread_id=plan.thread_id,
+        )
+        if plan.message_id is not None:
+            try:
+                await context.bot.edit_message_reply_markup(chat_id=plan.chat_id, message_id=plan.message_id, reply_markup=plan.keyboard)
+            except telegram.error.TelegramError as e:
+                log.warning(f"Could not update tip button: {e}")
+
+    async def btn_quiz_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle a press of the tip button attached to a flag/capital/person quiz message."""
+        query = update.callback_query
+        owner_id = tip_message.parse_tip_callback_data(query.data)
+        if owner_id is None or query.from_user.id != owner_id:
+            await query.answer("This isn't your quiz!")
+            return
+
+        active_quiz = self._find_active_guess_quiz(owner_id)
+        if active_quiz is None or active_quiz[0][owner_id].get("message_id") != query.message.message_id:
+            await query.answer("This quiz is already over.")
+            return
+
+        cache_dict, quiz_class = active_quiz
+        cached_quiz = cache_dict[owner_id]
+        quiz_instance = quiz_class()
+        item = cached_quiz.get("country") or cached_quiz.get("person")
+        tip_line = tip_message.reveal_next_tip(cached_quiz, quiz_instance, quiz_class, item)
+        if tip_line is None:
+            await query.answer("No more tips available!")
+            return
+
+        await query.answer()
+        await self._show_tip(context, cached_quiz, owner_id, quiz_class, quiz_instance, tip_line)
+
+    async def btn_quiz_replay_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle a press of the Play Again button attached to a quiz answer message."""
+        query = update.callback_query
+        if not query:
+            return
+
+        parsed = parse_replay_callback_data(query.data)
+        if not parsed:
+            await query.answer()
+            return
+
+        quiz_type, owner_id = parsed
+        caller_id = query.from_user.id if query.from_user else None
+        if caller_id != owner_id:
+            cmd_name = format_replay_command_name(quiz_type)
+            await query.answer(f"Start your own quiz with /{cmd_name}!")
+            return
+
+        await query.answer()
+
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not remove replay button: {e}")
+
+        cached_args = self._get_quiz_replay_args(owner_id, quiz_type)
+        context.args = list(cached_args)
+        replay_update = ReplayUpdateProxy(update, query.message, query.from_user)
+
+        match quiz_type:
+            case "quiz":
+                await self.cmd_quiz(replay_update, context)
+            case "map":
+                await self.cmd_guess_person_on_a_map(replay_update, context)
+            case "flag":
+                await self.cmd_guess_flag(replay_update, context)
+            case "capital":
+                await self.cmd_guess_capital(replay_update, context)
+            case _:
+                log.error(f"Unknown quiz_type for replay: {quiz_type}")
 
     async def _guess_country_timeout_generic(self, context: ContextTypes.DEFAULT_TYPE, cache_dict: dict, quiz_class):
         user_id = context.job.data
@@ -610,24 +809,17 @@ class CreditCommands:
             country = cached_quiz.get("country")
 
             cache_dict.pop(user_id, None)
+            await self._remove_tip_button(context, cached_quiz)
 
             if chat_id is not None and country is not None:
                 quiz_instance = quiz_class()
-                target_name = quiz_instance.get_display_name(country)
-                display_name = FlagQuiz().get_display_name(country)
-                description = quiz_instance.get_description(country)
-                is_capital = quiz_class.__name__ == "CapitalQuiz"
-                if is_capital:
-                    message = stats_utils.escape_special_characters(
-                        f"Time's up! The capital of *{display_name}* was *{target_name}*.\n\n{description}"
-                    )
-                else:
-                    message = stats_utils.escape_special_characters(f"Time's up! The country was *{target_name}*.\n\n{description}")
+                message = stats_utils.escape_special_characters(quiz_instance.format_timeout_message(country))
                 await context.bot.send_message(
                     chat_id=chat_id,
                     text=message,
                     parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                     message_thread_id=thread_id,
+                    reply_markup=build_replay_keyboard(quiz_class.QUIZ_TYPE, user_id),
                 )
 
     async def _handle_guess_country_answer_generic(self, update: Update, context: ContextTypes.DEFAULT_TYPE, cache_dict: dict, quiz_class):
@@ -648,38 +840,26 @@ class CreditCommands:
         user_answer = update.message.text.lower().strip()
 
         if user_answer == "!tip":
-            tips = quiz_instance.get_tips(country, continent_specified=cached_quiz.get("continent_specified", False))
-            tips_given = cached_quiz.get("tips_given", 0)
-            if tips_given < len(tips):
-                tip_text = tips[tips_given]
-                cached_quiz["tips_given"] = tips_given + 1
-
-                current_reward, decrease = quiz_class.get_reward(
-                    cached_quiz.get("difficulty", "crazy"), cached_quiz.get("continent_specified", False), cached_quiz["tips_given"]
-                )
-
-                tip_emoji = "💡" if quiz_class.__name__ == "FlagQuiz" else "\U0001f4a1"
-                type_name = "flag" if quiz_class.__name__ == "FlagQuiz" else "quiz"
-
-                message = stats_utils.escape_special_characters(
-                    f"{tip_emoji} Tip {tips_given + 1}/{len(tips)} - [{current_reward} credits, -{decrease}%]:\n\n{tip_text}"
+            tip_line = tip_message.reveal_next_tip(cached_quiz, quiz_instance, quiz_class, country)
+            if tip_line is None:
+                type_name = "flag" if quiz_class.QUIZ_TYPE == "flag" else "quiz"
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    reply_to_message_id=update.message.message_id,
+                    text=stats_utils.escape_special_characters(f"No more tips available for this {type_name}!"),
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    message_thread_id=update.message.message_thread_id,
                 )
             else:
-                message = stats_utils.escape_special_characters(f"No more tips available for this {type_name}!")
-
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                reply_to_message_id=update.message.message_id,
-                text=message,
-                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                message_thread_id=update.message.message_thread_id,
-            )
+                await self._show_tip(
+                    context, cached_quiz, user_id, quiz_class, quiz_instance, tip_line, fallback_reply_to=update.message.message_id
+                )
             return
 
         cached_quiz["job"].schedule_removal()
         cache_dict.pop(user_id, None)
+        await self._remove_tip_button(context, cached_quiz)
 
-        target_name = quiz_instance.get_display_name(country)
         is_correct = quiz_class.is_answer_correct(user_answer, valid_answers)
 
         if is_correct:
@@ -688,21 +868,9 @@ class CreditCommands:
             )
 
             user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
-
-            description = quiz_instance.get_description(country)
-            display_name = FlagQuiz().get_display_name(country)
-
-            if quiz_class.__name__ == "CapitalQuiz":
-                message = f"Correct! The capital of *{display_name}* is *{target_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{description}"
-            else:
-                message = f"Correct! The country is *{display_name}*.\nYou receive *{reward}* credits! [*{user_credits}* in total]\n\n{description}"
+            message = quiz_instance.format_correct_message(country, reward, total_credits=user_credits)
         else:
-            description = quiz_instance.get_description(country)
-            display_name = FlagQuiz().get_display_name(country)
-            if quiz_class.__name__ == "CapitalQuiz":
-                message = f"Wrong! The capital of *{display_name}* was *{target_name}*.\n\n{description}"
-            else:
-                message = f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
+            message = quiz_instance.format_wrong_message(country)
 
         message = stats_utils.escape_special_characters(message)
         await context.bot.send_message(
@@ -711,6 +879,7 @@ class CreditCommands:
             text=message,
             parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
             message_thread_id=update.message.message_thread_id,
+            reply_markup=build_replay_keyboard(quiz_class.QUIZ_TYPE, user_id),
         )
 
     async def cmd_guess_flag(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

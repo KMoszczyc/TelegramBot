@@ -9,6 +9,7 @@ import src.core.utils as core_utils
 from src.commands.chat_commands import ChatCommands
 from src.commands.credit_commands import CreditCommands
 from src.config.assets import Assets
+from src.config.constants import QUIZ_REPLAY_CALLBACK_PREFIX, QUIZ_TIP_CALLBACK_PREFIX
 from src.config.enums import EmojiType, MessageType
 from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
 from src.core.command_logger import CommandLogger
@@ -64,6 +65,12 @@ class OzjaszBot:
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
+        self.application.add_handler(
+            CallbackQueryHandler(self.credit_commands.btn_quiz_tip_callback, pattern=f"^{QUIZ_TIP_CALLBACK_PREFIX}")
+        )
+        self.application.add_handler(
+            CallbackQueryHandler(self.credit_commands.btn_quiz_replay_callback, pattern=f"^{QUIZ_REPLAY_CALLBACK_PREFIX}")
+        )
         self.application.add_handler(CallbackQueryHandler(self.credit_commands.btn_quiz_callback))
         self.application.add_handler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_map_quiz_answer), group=1

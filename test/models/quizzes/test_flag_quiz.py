@@ -100,3 +100,31 @@ def test_guess_random_flag():
     image_path, country = quiz.guess_random_flag(df)
     assert country["country_code"] == "PL"
     assert image_path.endswith("PL.jpg")
+
+
+def test_flag_quiz_prompt_and_outcome_formatting(mock_country_dict):
+    quiz = FlagQuiz()
+    prompt = quiz.build_quiz_prompt_text(mock_country_dict, "medium", 60, filter_specified=True, title="Which country's flag is this?")
+    assert "Which country's flag is this?" in prompt
+    assert "Difficulty: Medium" in prompt
+    assert "Time to answer: 60s" in prompt
+    assert "Reward: 1500 credits" in prompt
+    assert "Continent: Europa" in prompt
+
+    timeout_msg = quiz.format_timeout_message(mock_country_dict)
+    assert (
+        timeout_msg
+        == "Time's up! The country was *Polska Rzeczpospolita*.\n\nCapital: Warszawa | Continent: Europa | Population: 38,000,000"
+    )
+
+    correct_msg = quiz.format_correct_message(mock_country_dict, reward=1500, total_credits=5000)
+    assert (
+        correct_msg
+        == "Correct! The country is *Polska Rzeczpospolita*.\nYou receive *1500* credits! [*5000* in total]\n\nCapital: Warszawa | Continent: Europa | Population: 38,000,000"
+    )
+
+    wrong_msg = quiz.format_wrong_message(mock_country_dict)
+    assert (
+        wrong_msg
+        == "Wrong! The correct answer was *Polska Rzeczpospolita*.\n\nCapital: Warszawa | Continent: Europa | Population: 38,000,000"
+    )

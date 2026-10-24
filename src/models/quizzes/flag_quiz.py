@@ -10,6 +10,10 @@ log = logging.getLogger(__name__)
 
 
 class FlagQuiz(BaseGuessQuiz):
+    QUIZ_TYPE = "flag"
+    FILTER_LABEL = "Continent"
+    FILTER_KEY = "continent"
+    ITEM_KEY = "country"
     REWARD_LEVELS = {
         "easy": 1000,
         "medium": 3000,
@@ -84,3 +88,21 @@ class FlagQuiz(BaseGuessQuiz):
         """Return the absolute path to the flag image for *item*."""
         filename = self.get_flag_filename_for_country(item)
         return os.path.join(FLAGS_DIR_PATH, filename)
+
+    def format_timeout_message(self, item: dict | pd.Series, **kwargs) -> str:
+        name = self.get_display_name(item)
+        desc = self.get_description(item)
+        return f"Time's up! The country was *{name}*.\n\n{desc}"
+
+    def format_correct_message(self, item: dict | pd.Series, reward: int, total_credits: int | None = None, **kwargs) -> str:
+        name = self.get_display_name(item)
+        desc = self.get_description(item)
+        credits_part = f"You receive *{reward}* credits!"
+        if total_credits is not None:
+            credits_part += f" [*{total_credits}* in total]"
+        return f"Correct! The country is *{name}*.\n{credits_part}\n\n{desc}"
+
+    def format_wrong_message(self, item: dict | pd.Series, **kwargs) -> str:
+        name = self.get_display_name(item)
+        desc = self.get_description(item)
+        return f"Wrong! The correct answer was *{name}*.\n\n{desc}"

@@ -26,6 +26,10 @@ _SAVE_JPG_DPI = 200
 
 
 class MapQuiz(BaseGuessQuiz):
+    QUIZ_TYPE = "map"
+    FILTER_LABEL = "Category"
+    FILTER_KEY = "category"
+    ITEM_KEY = "person"
     REWARD_LEVELS = {
         "easy": 1000,
         "medium": 3000,
@@ -341,6 +345,26 @@ class MapQuiz(BaseGuessQuiz):
         plt.savefig(path, format="jpeg", dpi=_SAVE_JPG_DPI, bbox_inches="tight", pad_inches=0)
         plt.close(fig)
         return path
+
+    def format_timeout_message(self, item: dict | pd.Series, extended: bool = False, **kwargs) -> str:
+        display_name = self.get_display_name(item)
+        description = self.get_description(item, extended=extended)
+        return f"Time's up! The person was *{display_name}*.\n\n{description}"
+
+    def format_correct_message(
+        self, item: dict | pd.Series, reward: int, total_credits: int | None = None, extended: bool = False, **kwargs
+    ) -> str:
+        display_name = self.get_display_name(item)
+        description = self.get_description(item, extended=extended)
+        credits_part = f"You receive *{reward}* credits!"
+        if total_credits is not None:
+            credits_part += f" [*{total_credits}* in total]"
+        return f"Correct! The person is *{display_name}*.\n{credits_part}\n\n{description}"
+
+    def format_wrong_message(self, item: dict | pd.Series, extended: bool = False, **kwargs) -> str:
+        display_name = self.get_display_name(item)
+        description = self.get_description(item, extended=extended)
+        return f"Wrong! The correct answer was *{display_name}*.\n\n{description}"
 
 
 if __name__ == "__main__":

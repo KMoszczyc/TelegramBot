@@ -25,6 +25,7 @@ class BotState:
         self.capital_quiz_cache = {}
         self.available_quiz_id_map = {}
         self.tournament_daily_bans = defaultdict(set)
+        self.quiz_replay_cache = defaultdict(dict)
 
         self.run_schedules(job_queue)
 
@@ -92,7 +93,9 @@ class BotState:
         self.quiz_cache = {}
         self.map_quiz_cache = {}
         self.flag_quiz_cache = {}
+        self.capital_quiz_cache = {}
         self.tournament_daily_bans = defaultdict(set)
+        self.quiz_replay_cache = defaultdict(dict)
 
         log.info("Remindme, cwel, get_credits and steal_credits usage limits have been reset.")
 
@@ -112,3 +115,30 @@ class BotState:
         if tournament_type not in self.tournament_daily_bans:
             self.tournament_daily_bans[tournament_type] = set()
         self.tournament_daily_bans[tournament_type].add(user_id)
+
+    def set_quiz_replay_args(self, user_id: int, quiz_type: str, args: list[str] | None = None) -> None:
+        """Store the arguments used to start the user's latest quiz of the given type."""
+        self.quiz_replay_cache[user_id][quiz_type] = list(args) if args else []
+
+    def get_quiz_replay_args(self, user_id: int, quiz_type: str) -> list[str]:
+        """Return a copy of the arguments previously stored for replay, or an empty list."""
+        return list(self.quiz_replay_cache.get(user_id, {}).get(quiz_type, []))
+
+    def has_active_guess_quiz(self, user_id: int) -> bool:
+        """Check if *user_id* currently has an active map, flag, or capital quiz session."""
+        return user_id in self.map_quiz_cache or user_id in self.flag_quiz_cache or user_id in self.capital_quiz_cache
+
+    def find_active_guess_quiz(self, user_id: int) -> tuple[dict, type] | None:
+        """Return the (cache_dict, quiz_class) pair holding *user_id*'s active quiz, or None."""
+        from src.models.quizzes.capital_quiz import CapitalQuiz
+        from src.models.quizzes.flag_quiz import FlagQuiz
+        from src.models.quizzes.map_quiz import MapQuiz
+
+        for cache_dict, quiz_class in (
+            (self.map_quiz_cache, MapQuiz),
+            (self.flag_quiz_cache, FlagQuiz),
+            (self.capital_quiz_cache, CapitalQuiz),
+        ):
+            if user_id in cache_dict:
+                return cache_dict, quiz_class
+        return None
