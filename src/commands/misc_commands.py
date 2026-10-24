@@ -1,15 +1,15 @@
 import logging
 from datetime import datetime
 
-import pandas as pd
 from telegram import Update
 from telegram.ext import ContextTypes
 
+import src.commands.helpers.holy_text as holy_text_helper
+import src.commands.helpers.kiepscy as kiepscy_helper
 import src.core.utils as core_utils
 import src.stats.utils as stats_utils
 from src.config.assets import Assets
-from src.config.constants import LONG_MESSAGE_LIMIT
-from src.config.enums import ArgType, ErrorMessage, HolyTextType, MessageType, SiglumType, Table
+from src.config.enums import ArgType, ErrorMessage, HolyTextType, MessageType, Table
 from src.core.command_logger import CommandLogger
 from src.core.job_persistance import JobPersistance
 from src.models.core.bot_state import BotState
@@ -263,42 +263,7 @@ class Commands:
         await core_utils.send_message(update, context, MessageType.TEXT, response)
 
     def handle_holy_text_named_params(self, command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type):
-        error = ""
-        last_verse_id = bot_state.last_bible_verse_id if holy_text_type == HolyTextType.BIBLE else bot_state.last_quran_verse_id
-        if filtered_df.empty:
-            response = ErrorMessage.NO_SUCH_VERSE
-        elif "num" in command_args.named_args:
-            df = filtered_df.head(command_args.named_args["num"])
-            response = core_utils.display_holy_text_df(
-                df, bot_state, holy_text_type, label=f'{len(df)} {holy_text_type.value} verses with "{filter_phrase}"'
-            )
-        elif "all" in command_args.named_args:
-            response = core_utils.display_holy_text_df(
-                filtered_df, bot_state, holy_text_type, label=f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}"'
-            )
-        elif "prev" in command_args.named_args and last_verse_id != -1:
-            start_index = max(0, last_verse_id - command_args.named_args["prev"])
-            filtered_df = raw_df.iloc[start_index:last_verse_id]
-            label = f"{command_args.named_args['prev']} {holy_text_type.value} verses before {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}"
-            response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=label, show_siglum=False)
-        elif "next" in command_args.named_args and last_verse_id != -1:
-            end_index = min(len(filtered_df), last_verse_id + command_args.named_args["next"] + 1)
-            filtered_df = raw_df.iloc[last_verse_id + 1 : end_index]
-            label = f"{command_args.named_args['next']} {holy_text_type.value} verses after {core_utils.get_siglum(raw_df.iloc[last_verse_id], holy_text_type, SiglumType.FULL)}"
-            response = core_utils.display_holy_text_df(filtered_df, bot_state, holy_text_type, label=label, show_siglum=False)
-        elif "count" in command_args.named_args:
-            random_row = filtered_df.iloc[0]
-            self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
-            response = f'{len(filtered_df)} {holy_text_type.value} verses with "{filter_phrase}": \n\n'
-            response += f"[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row['text']}"
-        elif "verse" in command_args.named_args:
-            response, error = core_utils.parse_quran_verse_arg(raw_df, command_args.named_args["verse"], bot_state, holy_text_type)
-        else:
-            random_row = filtered_df.iloc[0]
-            self.bot_state.set_holy_text_last_verse_id(random_row.name, holy_text_type)
-            response = f"[{core_utils.get_siglum(random_row, holy_text_type, SiglumType.SHORT)}] {random_row['text']}"
-
-        return response, error
+        return holy_text_helper.handle_holy_text_named_params(command_args, filtered_df, raw_df, bot_state, filter_phrase, holy_text_type)
 
     async def cmd_bible_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         bible_df = self.assets.bible_df
@@ -377,26 +342,13 @@ class Commands:
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.TEXT_MULTISPACED], min_string_length=1, max_string_length=1000)
         command_args = core_utils.parse_args(self.users_df, command_args)
         kiepscy_df = self.assets.kiepscy_df
-
-        # await context.bot.send_message(chat_id=update.effective_chat.id, text='Temporarily disabled :(')
-        # return
         if command_args.error != "":
             await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
         search_phrase = command_args.string
         search_phrases = command_args.strings
-
-        if search_phrases:  # use & operator to match multiple words
-            regex = core_utils.regexify_multiword_filter(search_phrases)
-            matching_by_title_df = kiepscy_df[kiepscy_df["title"].str.contains(regex, case=False)]
-            matching_by_description_df = kiepscy_df[kiepscy_df["description"].str.contains(regex, case=False)]
-        else:
-            matching_by_title_df = kiepscy_df[kiepscy_df["title"].str.contains(search_phrase, case=False)]
-            matching_by_description_df = kiepscy_df[kiepscy_df["description"].str.contains(search_phrase, case=False)]
-        merged_df = pd.concat([matching_by_title_df, matching_by_description_df], ignore_index=True)
-        merged_df["nr"] = merged_df["nr"].replace("—", "999").astype(int)
-        merged_df = merged_df.drop_duplicates("nr").sort_values("nr").reset_index(drop=True)
+        merged_df = kiepscy_helper.search_kiepscy_episodes(kiepscy_df, search_phrase, search_phrases)
 
         if search_phrase == "" and not search_phrases:
             random_row = merged_df.sample(frac=1).iloc[1]
@@ -405,21 +357,9 @@ class Commands:
             await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, text)
             return
 
-        text = f"Kiepscy episodes that match [{search_phrase}]:\n"
-        last_text = text
-        message_sent_count = 0
-        for _, row in merged_df.iterrows():
-            text += f"- *{row['nr']}: {row['title']}* - {row['description']}\n"
-            if message_sent_count >= LONG_MESSAGE_LIMIT:
-                return
-            if len(text) > 4096:
-                response = stats_utils.escape_special_characters(last_text)
-                await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, response)
-                text = ""
-                message_sent_count += 1
-            last_text = text
-        text = stats_utils.escape_special_characters(text)
-        await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, text)
+        messages = kiepscy_helper.format_kiepscy_messages(merged_df, search_phrase)
+        for msg in messages:
+            await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, msg)
 
     async def cmd_kiepscyurl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(args=context.args, expected_args=[ArgType.POSITIVE_INT], max_number=1000)

@@ -5,7 +5,9 @@ import pandas as pd
 from telegram import Update
 from telegram.ext import ContextTypes
 
+import src.commands.helpers.chat_summary as chat_summary
 import src.core.utils as core_utils
+import src.stats.metrics as stats_metrics
 import src.stats.utils as stats_utils
 from src.config.assets import Assets
 from src.config.constants import MAX_CWEL_USAGE_DAILY, MAX_NICKNAMES_NUM, MAX_USERNAME_LENGTH, TIMEZONE
@@ -118,110 +120,10 @@ class ChatCommands:
             await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
-        sad_reactions_df = stats_utils.filter_emoji_by_emoji_type(reactions_df, EmojiType.NEGATIVE, "emoji")
-        text_only_chat_df = chat_df[chat_df["text"] != ""]
-
-        # Calculate message and reaction count
-        images_num = len(chat_df[chat_df["message_type"] == "image"])
-        reactions_received_counts = (
-            reactions_df.groupby("reacted_to_username").size().reset_index(name="count").sort_values("count", ascending=False)
+        send_msg, path = chat_summary.generate_chat_summary(
+            chat_df, reactions_df, shifted_chat_df, shifted_reactions_df, command_args, display_count
         )
-        reactions_given_counts = (
-            reactions_df.groupby("reacting_username").size().reset_index(name="count").sort_values("count", ascending=False)
-        )
-        sad_reactions_received_counts = (
-            sad_reactions_df.groupby("reacted_to_username").size().reset_index(name="count").sort_values("count", ascending=False)
-        )
-        sad_reactions_given_counts = (
-            sad_reactions_df.groupby("reacting_username").size().reset_index(name="count").sort_values("count", ascending=False)
-        )
-
-        chat_df["word_count"] = chat_df["text"].apply(lambda x: len(str(x).split()))
-        chat_df["word_length"] = chat_df["text"].apply(lambda x: stats_utils.text_to_word_length_sum(x))
-
-        user_stats = (
-            chat_df.groupby("final_username")
-            .agg(word_count=("word_count", "sum"), word_length=("word_length", "sum"), message_count=("text", "size"))
-            .reset_index()
-        )
-        numeric_cols = ["word_count", "word_length", "message_count"]
-        user_stats[numeric_cols] = user_stats[numeric_cols].apply(pd.to_numeric).fillna(0).astype("int64")
-
-        # Ratios
-        fun_metric = self.calculate_fun_metric(chat_df, reactions_df)
-        wholesome_metric = self.calculate_wholesome_metric(reactions_df)
-        user_stats["monologue_ratio"] = (user_stats["word_count"] / user_stats["message_count"]).round(2)
-        user_stats["avg_word_length"] = (user_stats["word_length"] / user_stats["word_count"]).round(2)
-
-        log.info(user_stats.head(100))
-
-        # Calculate message and reaction count changes
-        message_count_change = 0 if shifted_chat_df.empty else round((len(chat_df) - len(shifted_chat_df)) / len(shifted_chat_df) * 100, 1)
-        reaction_count_change = (
-            0 if shifted_reactions_df.empty else round((len(reactions_df) - len(shifted_reactions_df)) / len(shifted_reactions_df) * 100, 1)
-        )
-        message_count_change_text = f"+{message_count_change}%" if message_count_change > 0 else f"{message_count_change}%"
-        reaction_count_change_text = f"+{reaction_count_change}%" if reaction_count_change > 0 else f"{reaction_count_change}%"
-
-        # Create summary
-        text = "*Chat summary*"
-        text += f"({command_args.period_mode.value}):" if command_args.period_time == -1 else f" (past {command_args.period_time}h):"
-
-        # text += f"\n- *Total*: *{len(chat_df)} ({message_count_change_text})* messages, *{len(reactions_df)} ({reaction_count_change_text})* reactions and *{images_num}* images"
-        # text += "\n- *Top spammer*: " + ", ".join([f"{row['final_username']}: *{row['message_count']}*" for _, row in user_stats.sort_values('message_count', ascending=False).head(3).iterrows()])
-        # text += "\n- *Word count*: " + ", ".join([f"{row['final_username']}: *{row['word_count']}*" for _, row in user_stats.sort_values('word_count', ascending=False).head(3).iterrows()])
-        # text += "\n- *Monologue index*: " + ", ".join([f"{row['final_username']}: *{row['monologue_ratio']}*" for _, row in user_stats.sort_values('monologue_ratio', ascending=False).head(3).iterrows()])
-        # text += "\n- *Fun meter*: " + ", ".join([f"{row['final_username']}: *{row['ratio']}*" for _, row in fun_metric.head(3).iterrows()])
-        # text += "\n- *Wholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.head(3).iterrows()])
-        # text += "\n- *Unwholesome meter*: " + ", ".join([f"{row['reacting_username']}: *{row['ratio']}*" for _, row in wholesome_metric.sort_values('ratio', ascending=True).head(3).iterrows()])
-        # text += "\n- *Most liked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in reactions_received_counts.head(3).iterrows()])
-        # text += "\n- *Most liking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in reactions_given_counts.head(3).iterrows()])
-        # text += "\n- *Most disliked*: " + ", ".join([f"{row['reacted_to_username']}: *{row['count']}*" for _, row in sad_reactions_received_counts.head(3).iterrows()])
-        # text += "\n- *Most disliking*: " + ", ".join([f"{row['reacting_username']}: *{row['count']}*" for _, row in sad_reactions_given_counts.head(3).iterrows()])
-        # text += "\n- *Top message*: " + ", ".join( [f"{row['final_username']} [{stats_utils.dt_to_str(row['timestamp'])}]: {row['text']} [{''.join(row['reaction_emojis'])}]" for _, row in text_only_chat_df.head(1).iterrows()])
-        #
-        # text = stats_utils.escape_special_characters(text)
-        # await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
-
-        def fmt(df, name_col, val_col):
-            return [f"{r[name_col]}: <b>{r[val_col]}</b>" for _, r in df.head(display_count).iterrows()]
-
-        rows = [
-            ["<b>Top spammer</b>", *fmt(user_stats.sort_values("message_count", ascending=False), "final_username", "message_count")],
-            ["<b>Word count</b>", *fmt(user_stats.sort_values("word_count", ascending=False), "final_username", "word_count")],
-            [
-                "<b>Monologue index</b>",
-                *fmt(user_stats.sort_values("monologue_ratio", ascending=False), "final_username", "monologue_ratio"),
-            ],
-            ["<b>Elaborateness</b>", *fmt(user_stats.sort_values("avg_word_length", ascending=False), "final_username", "avg_word_length")],
-            ["<b>Fun</b>", *fmt(fun_metric, "final_username", "ratio")],
-            ["<b>Wholesome</b>", *fmt(wholesome_metric, "reacting_username", "ratio")],
-            ["<b>Unwholesome</b>", *fmt(wholesome_metric.sort_values("ratio", ascending=True), "reacting_username", "ratio")],
-            ["<b>Most liked</b>", *fmt(reactions_received_counts, "reacted_to_username", "count")],
-            ["<b>Most liking</b>", *fmt(reactions_given_counts, "reacting_username", "count")],
-            ["<b>Most disliked</b>", *fmt(sad_reactions_received_counts, "reacted_to_username", "count")],
-            ["<b>Most disliking</b>", *fmt(sad_reactions_given_counts, "reacting_username", "count")],
-        ]
-        top_msg = ", ".join(
-            f"{r['final_username']} [{stats_utils.dt_to_str(r['timestamp'])}]: {r['text']} [{''.join(r['reaction_emojis'])}]"
-            for _, r in text_only_chat_df.head(1).iterrows()
-        )
-        footnotes = [
-            f"Total: {len(chat_df)} ({message_count_change_text}) messages, {len(reactions_df)} ({reaction_count_change_text}) reactions and {images_num} images",
-            f"Top message: {top_msg}",
-        ]
-        send_msg = "\n".join(footnotes)
-
-        # Adjust the col display count to the longest row
-        longest_row_count = max(len(row) for row in rows) - 1  # -1 because 1st column is a header for metric name
-        col_count = min(longest_row_count, display_count)
-        columns = [f"<b>{core_utils.generate_period_headline(command_args)}</b>", *[f"<b>TOP{i + 1}</b>" for i in range(col_count)]]
-
-        summary_df = pd.DataFrame(rows, columns=columns)
-        path = charts.create_table_plotly(summary_df, command_args=command_args, columns=columns)
-
-        current_message_type = MessageType.IMAGE
-        await core_utils.send_message(update, context, current_message_type, text=send_msg, path=path)
+        await core_utils.send_message(update, context, MessageType.IMAGE, text=send_msg, path=path)
 
     async def cmd_messages_by_reactions(self, update: Update, context: ContextTypes.DEFAULT_TYPE, emoji_type: EmojiType = EmojiType.ALL):
         """Top or worst 5 messages from selected time period by number of reactions"""
@@ -760,72 +662,16 @@ class ChatCommands:
         await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, text)
 
     def calculate_fun_metric(self, chat_df, reactions_df):
-        reactions_received_counts = reactions_df.groupby("reacted_to_username").size().reset_index(name="reaction_count")
-        message_counts = chat_df.groupby("final_username").size().reset_index(name="message_count")
-        message_counts = message_counts[message_counts["message_count"] > 0]
-
-        merged_df = reactions_received_counts.merge(
-            message_counts, left_on="reacted_to_username", right_on="final_username", how="inner"
-        ).fillna(0)
-        merged_df["ratio"] = (merged_df["reaction_count"] / merged_df["message_count"]).round(2)
-        fun_ratios = merged_df[["final_username", "ratio"]].copy().sort_values("ratio", ascending=False)
-
-        return fun_ratios
+        return stats_metrics.calculate_fun_metric(chat_df, reactions_df)
 
     def calculate_monologue_index_metric_periodized(self, chat_df, frequency="D"):
-        chat_df["period"] = chat_df["timestamp"].dt.to_period(frequency)
-        chat_df = chat_df.sort_values("timestamp")
-
-        chat_df["word_count"] = chat_df["text"].apply(lambda x: len(str(x).split()))
-        user_stats = (
-            chat_df.groupby(["period", "final_username"])
-            .agg(word_count=("word_count", "sum"), message_count=("text", "size"))
-            .reset_index()
-        )
-        user_stats[["word_count", "message_count"]] = user_stats[["word_count", "message_count"]].astype("int64")
-
-        user_stats["word_count_acc"] = user_stats.groupby("final_username")["word_count"].cumsum()
-        user_stats["message_count_acc"] = user_stats.groupby("final_username")["message_count"].cumsum()
-
-        user_stats["monologue_index_periodized"] = (user_stats["word_count"] / user_stats["message_count"]).round(2)
-        user_stats["monologue_index_acc"] = (user_stats["word_count_acc"] / user_stats["message_count_acc"]).round(2)
-
-        user_stats["period"] = user_stats["period"].dt.to_timestamp()
-        user_stats["temp_period"] = user_stats["period"]
-        user_stats.index = user_stats["temp_period"]
-        user_stats["period"] = pd.to_datetime(user_stats["period"]).dt.tz_localize(TIMEZONE)
-        user_stats = user_stats.reset_index(drop=True)
-
-        return user_stats
+        return stats_metrics.calculate_monologue_index_metric_periodized(chat_df, frequency=frequency)
 
     def calculate_wholesome_metric(self, reactions_df):
-        reactions_received_counts = reactions_df.groupby("reacted_to_username").size().reset_index(name="reactions_received_count")
-        reactions_given_counts = reactions_df.groupby("reacting_username").size().reset_index(name="reactions_given_count")
-        reactions_received_counts = reactions_received_counts[reactions_received_counts["reactions_received_count"] > 0]
-
-        merged_df = reactions_received_counts.merge(
-            reactions_given_counts, left_on="reacted_to_username", right_on="reacting_username", how="inner"
-        ).fillna(0)
-        merged_df["ratio"] = (merged_df["reactions_given_count"] / merged_df["reactions_received_count"]).round(2)
-        wholesome_ratios = merged_df[["reacting_username", "ratio"]].copy().sort_values("ratio", ascending=False)
-
-        return wholesome_ratios
+        return stats_metrics.calculate_wholesome_metric(reactions_df)
 
     def calculate_fun_metric_periodized(self, chat_df, reactions_df, frequency="D"):
-        chat_df["period"] = chat_df["timestamp"].dt.to_period(frequency)
-        reactions_df["period"] = reactions_df["timestamp"].dt.to_period(frequency)
-
-        message_counts = chat_df.groupby(["period", "final_username"]).size().reset_index(name="message_count")
-        reaction_counts = reactions_df.groupby(["period", "reacted_to_username"]).size().reset_index(name="reaction_count")
-
-        merged_df = pd.merge(
-            message_counts, reaction_counts, left_on=["period", "final_username"], right_on=["period", "reacted_to_username"], how="inner"
-        ).fillna(0)
-
-        merged_df["ratio"] = (merged_df["reaction_count"] / merged_df["message_count"]).round(2)
-        result_df = merged_df[["period", "final_username", "ratio"]].sort_values(["period", "ratio"], ascending=[True, False])
-
-        return result_df
+        return stats_metrics.calculate_fun_metric_periodized(chat_df, reactions_df, frequency=frequency)
 
     async def cmd_play(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(

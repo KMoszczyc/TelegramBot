@@ -8,6 +8,8 @@ import src.commands.misc_commands as commands
 import src.core.utils as core_utils
 from src.commands.chat_commands import ChatCommands
 from src.commands.credit_commands import CreditCommands
+from src.commands.quiz_commands import QuizCommands
+from src.commands.tournament_commands import TournamentCommands
 from src.config.assets import Assets
 from src.config.constants import QUIZ_REPLAY_CALLBACK_PREFIX, QUIZ_TIP_CALLBACK_PREFIX
 from src.config.enums import EmojiType, MessageType
@@ -42,6 +44,10 @@ class OzjaszBot:
         self.core_commands = commands.Commands(self.command_logger, self.job_persistance, self.bot_state, self.db, self.assets)
         self.chat_commands = ChatCommands(self.command_logger, self.job_persistance, self.bot_state, self.db, self.assets)
         self.credit_commands = CreditCommands(self.command_logger, self.job_persistance, self.bot_state, self.credits, self.db, self.assets)
+        self.quiz_commands = QuizCommands(self.command_logger, self.job_persistance, self.bot_state, self.credits, self.db, self.assets)
+        self.tournament_commands = TournamentCommands(
+            self.command_logger, self.job_persistance, self.bot_state, self.credits, self.db, self.assets
+        )
 
         self.add_commands()
         self.application.run_polling()
@@ -65,24 +71,18 @@ class OzjaszBot:
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
+        self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_tip_callback, pattern=f"^{QUIZ_TIP_CALLBACK_PREFIX}"))
         self.application.add_handler(
-            CallbackQueryHandler(self.credit_commands.btn_quiz_tip_callback, pattern=f"^{QUIZ_TIP_CALLBACK_PREFIX}")
+            CallbackQueryHandler(self.quiz_commands.btn_quiz_replay_callback, pattern=f"^{QUIZ_REPLAY_CALLBACK_PREFIX}")
+        )
+        self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_callback))
+        self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_map_quiz_answer), group=1)
+        self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_flag_quiz_answer), group=3)
+        self.application.add_handler(
+            MessageHandler(filters.TEXT & (~filters.COMMAND), self.tournament_commands.handle_tournament_message), group=2
         )
         self.application.add_handler(
-            CallbackQueryHandler(self.credit_commands.btn_quiz_replay_callback, pattern=f"^{QUIZ_REPLAY_CALLBACK_PREFIX}")
-        )
-        self.application.add_handler(CallbackQueryHandler(self.credit_commands.btn_quiz_callback))
-        self.application.add_handler(
-            MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_map_quiz_answer), group=1
-        )
-        self.application.add_handler(
-            MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_flag_quiz_answer), group=3
-        )
-        self.application.add_handler(
-            MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_tournament_message), group=2
-        )
-        self.application.add_handler(
-            MessageHandler(filters.TEXT & (~filters.COMMAND), self.credit_commands.handle_capital_quiz_answer), group=4
+            MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_capital_quiz_answer), group=4
         )
 
     def get_commands_map(self):
@@ -116,13 +116,13 @@ class OzjaszBot:
             "bet": self.credit_commands.cmd_bet,
             "steal": self.credit_commands.cmd_steal_credits,
             "stealgraph": self.credit_commands.cmd_steal_graph,
-            "quiz": self.credit_commands.cmd_quiz,
-            "guessperson": self.credit_commands.cmd_guess_person_on_a_map,
-            "guessflag": self.credit_commands.cmd_guess_flag,
-            "guess_flag": self.credit_commands.cmd_guess_flag,
-            "guesscapital": self.credit_commands.cmd_guess_capital,
-            "guess_capital": self.credit_commands.cmd_guess_capital,
-            "tournament": self.credit_commands.cmd_tournament,
+            "quiz": self.quiz_commands.cmd_quiz,
+            "guessperson": self.quiz_commands.cmd_guess_person_on_a_map,
+            "guessflag": self.quiz_commands.cmd_guess_flag,
+            "guess_flag": self.quiz_commands.cmd_guess_flag,
+            "guesscapital": self.quiz_commands.cmd_guess_capital,
+            "guess_capital": self.quiz_commands.cmd_guess_capital,
+            "tournament": self.tournament_commands.cmd_tournament,
             "topmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             "sadmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
             "topmemes": lambda update, context: self.chat_commands.cmd_media_by_reactions(
