@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.config.enums import RouletteBetType, TournamentState, TournamentType
-from src.models.core.bot_state import BotState
 from src.models.tournaments.base_tournament import BaseTournament
 from src.models.tournaments.roulette_tournament import RouletteTournament
 
@@ -590,21 +589,12 @@ def test_finish_updates_state_and_real_credits(tournament_with_players, credits_
     initial_1 = credits_mock.credits[USER_1]
     initial_2 = credits_mock.credits[USER_2]
 
-    msg, zeroed = tournament_with_players.finish()
+    msg = tournament_with_players.finish()
 
+    assert "Final Results" in msg
     assert tournament_with_players.state == TournamentState.FINISHED
     assert credits_mock.credits[USER_1] == initial_1 + 2000 * 2
     assert credits_mock.credits[USER_2] == initial_2 + int(500 * 0.5)
-
-
-def test_finish_returns_zeroed_ids(tournament_with_players):
-    tournament_with_players.players[USER_1].tournament_credits = 2000
-    tournament_with_players.players[USER_2].tournament_credits = 0
-
-    _, zeroed = tournament_with_players.finish()
-
-    assert USER_2 in zeroed
-    assert USER_1 not in zeroed
 
 
 # ── Format / Display ──────────────────────────────────────────────
@@ -665,7 +655,7 @@ def test_get_final_results_contains_stats(mocker, tournament_with_players):
     tournament_with_players.handle_game_message(USER_1, "bet red 100")
     tournament_with_players.resolve_round()
 
-    msg, _ = tournament_with_players.get_final_results()
+    msg = tournament_with_players.get_final_results()
 
     assert "Final Results" in msg
     assert "Tournament Stats" in msg
@@ -698,41 +688,18 @@ def test_tournament_stats_empty(tournament_with_players):
     assert stats == ""
 
 
-# ── BotState Integration ──────────────────────────────────────────
+# ── Zero Credits Results ──────────────────────────────────────────
 
 
-def test_is_tournament_banned_false_initially():
-    state = BotState.__new__(BotState)
-    state.tournament_daily_bans = {}
+def test_zero_credits_player_receives_zero_payout_and_no_ban(tournament_with_players):
+    t = tournament_with_players
+    t.players[USER_1].tournament_credits = 0
 
-    assert state.is_tournament_banned(USER_1, "roulette") is False
+    msg = t.get_final_results()
 
-
-def test_ban_from_tournament():
-    state = BotState.__new__(BotState)
-    state.tournament_daily_bans = {}
-
-    state.ban_from_tournament(USER_1, "roulette")
-
-    assert state.is_tournament_banned(USER_1, "roulette") is True
-
-
-def test_ban_does_not_affect_other_types():
-    state = BotState.__new__(BotState)
-    state.tournament_daily_bans = {}
-
-    state.ban_from_tournament(USER_1, "roulette")
-
-    assert state.is_tournament_banned(USER_1, "blackjack") is False
-
-
-def test_ban_does_not_affect_other_users():
-    state = BotState.__new__(BotState)
-    state.tournament_daily_bans = {}
-
-    state.ban_from_tournament(USER_1, "roulette")
-
-    assert state.is_tournament_banned(USER_2, "roulette") is False
+    assert t.state == TournamentState.FINISHED
+    assert "BANNED" not in msg
+    assert "*0* credits (x" in msg
 
 
 # ── Round History ─────────────────────────────────────────────────
@@ -777,11 +744,10 @@ def test_full_tournament_flow(mocker, credits_mock):
     assert t.round_number == 2
     assert t.is_last_round() is True
 
-    msg, zeroed = t.get_final_results()
+    msg = t.get_final_results()
 
     assert t.state == TournamentState.FINISHED
     assert "Final Results" in msg
-    assert len(zeroed) == 0
 
 
 def test_full_tournament_player_zeroes_out(mocker, credits_mock):
@@ -803,6 +769,11 @@ def test_full_tournament_player_zeroes_out(mocker, credits_mock):
     assert t.all_bets_placed() is False
     t.handle_game_message(USER_2, "bet black 200")
     assert t.all_bets_placed() is True
+
+    t.resolve_round()
+    final_msg = t.get_final_results()
+    assert "BANNED" not in final_msg
+    assert t.state == TournamentState.FINISHED
 
 
 def test_credits_update_credit_history_defaults(mocker):
@@ -851,7 +822,7 @@ def test_no_bets_penalty(tournament_with_players):
     assert payouts[USER_1] == int(1000 * 0.5)
     assert payouts[USER_2] == int(1000 * 0.5)
 
-    msg, _ = tournament_with_players.finish()
+    msg = tournament_with_players.finish()
     assert "⚠️ NO BETS PENALTY" in msg
     assert "Players who placed no bets received last place multipliers" in msg
 
@@ -868,7 +839,7 @@ def test_mirror_bets_penalty(mocker, tournament_with_players):
     assert payouts[USER_1] == int(tournament_with_players.players[USER_1].tournament_credits * 0.5)
     assert payouts[USER_2] == int(tournament_with_players.players[USER_2].tournament_credits * 0.5)
 
-    msg, _ = tournament_with_players.finish()
+    msg = tournament_with_players.finish()
     assert "⚠️ MIRROR BETS PENALTY" in msg
     assert "Players who mirrored identical bets in all rounds received last place multipliers" in msg
 

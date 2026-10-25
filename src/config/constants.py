@@ -35,10 +35,10 @@ negative_emojis = ["👎", "😢", "😭", "🤬", "🤡", "💩", "😫", "😩
 CREDIT_HISTORY_COLUMNS = ["timestamp", "user_id", "target_user_id", "credit_change", "action_type", "bet_type", "success"]
 TIMEZONE = "Europe/Warsaw"
 
-TOURNAMENT_JOIN_TIMEOUT_SECONDS = 60
+TOURNAMENT_JOIN_TIMEOUT_SECONDS = 120
 TOURNAMENT_BET_TIMEOUT_SECONDS = 60
 TOURNAMENT_SPIN_DELAY_SECONDS = 5
-TOURNAMENT_DEFAULT_ROUNDS = 10
+TOURNAMENT_DEFAULT_ROUNDS = 5
 TOURNAMENT_MAX_ROUNDS = 50
 MIN_TOURNAMENT_PLAYERS = 2
 

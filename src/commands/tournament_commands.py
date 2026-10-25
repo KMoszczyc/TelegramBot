@@ -63,7 +63,7 @@ class TournamentCommands:
 
         tournament_type_str = command_args.string.lower()
         try:
-            tournament_type = TournamentType(tournament_type_str)
+            TournamentType(tournament_type_str)
         except ValueError:
             valid = ", ".join(t.value for t in TournamentType)
             await core_utils.send_message(update, context, MessageType.TEXT, f"Invalid tournament type. Available: {valid}")
@@ -75,10 +75,6 @@ class TournamentCommands:
             return
 
         user_id = update.effective_user.id
-        if self.bot_state.is_tournament_banned(user_id, tournament_type.value):
-            await core_utils.send_message(update, context, MessageType.TEXT, "You are banned from this tournament type today.")
-            return
-
         buy_in = command_args.number
         if user_id not in self.credits.credits or self.credits.credits[user_id] < buy_in:
             current = self.credits.credits.get(user_id, 0)
@@ -237,10 +233,7 @@ class TournamentCommands:
         if not tournament:
             return
 
-        final_msg, zeroed_user_ids = tournament.get_final_results()
-
-        for user_id in zeroed_user_ids:
-            self.bot_state.ban_from_tournament(user_id, tournament.tournament_type.value)
+        final_msg = tournament.get_final_results()
 
         del self.active_tournaments[chat_id]
 
@@ -272,10 +265,7 @@ class TournamentCommands:
         username = core_utils.get_username(update.effective_user.first_name, update.effective_user.last_name)
 
         if text == "join" and tournament.state.value == "joining":
-            if self.bot_state.is_tournament_banned(user_id, tournament.tournament_type.value):
-                response = "You are banned from this tournament type today."
-            else:
-                response, _ = tournament.add_player(user_id, username)
+            response, _ = tournament.add_player(user_id, username)
             response = stats_utils.escape_special_characters(f"{tournament.format_header()}\n\n{response}")
             await context.bot.send_message(
                 chat_id=chat_id,

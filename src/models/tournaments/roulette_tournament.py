@@ -185,7 +185,7 @@ class RouletteTournament(BaseTournament):
 
         return "\n".join(lines)
 
-    def get_final_results(self) -> tuple[str, list[int]]:
+    def get_final_results(self) -> str:
         return self.finish()
 
     def get_tournament_stats(self) -> str:

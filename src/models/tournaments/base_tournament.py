@@ -66,8 +66,8 @@ class BaseTournament(ABC):
         ...
 
     @abstractmethod
-    def get_final_results(self) -> tuple[str, list[int]]:
-        """Returns (final_results_message, list_of_zeroed_user_ids)."""
+    def get_final_results(self) -> str:
+        """Returns the formatted final results message."""
         ...
 
     @abstractmethod
@@ -185,14 +185,13 @@ class BaseTournament(ABC):
             self.credits.credits[user_id] += payout
             self.credits.update_credit_history(user_id, payout, CreditActionType.TOURNAMENT)
 
-    def finish(self) -> tuple[str, list[int]]:
+    def finish(self) -> str:
         self.state = TournamentState.FINISHED
         payouts = self.apply_final_multipliers()
         self.distribute_payouts(payouts)
 
         ranking = self.get_ranking()
         n = len(ranking)
-        zeroed_user_ids = [p.user_id for p in ranking if p.tournament_credits == 0]
         no_bet_user_ids, mirror_user_ids = self._get_penalized_players()
         last_place_multiplier = self._get_multiplier(n - 1, n)
 
@@ -211,7 +210,6 @@ class BaseTournament(ABC):
             payout = payouts[player.user_id]
             accuracy = f"{player.correct_bets}/{player.total_bets}" if player.total_bets > 0 else "0/0"
             medal = self._get_medal(place + 1)
-            ban_note = " ⛔ BANNED" if player.tournament_credits == 0 else ""
 
             penalty_note = ""
             if player.user_id in no_bet_user_ids:
@@ -221,7 +219,7 @@ class BaseTournament(ABC):
 
             lines.append(
                 f"{medal} *{place + 1}.* {player.username} — *{player.tournament_credits}* credits "
-                f"(x{multiplier} → *{payout}*) | Accuracy: {accuracy}{ban_note}{penalty_note}"
+                f"(x{multiplier} → *{payout}*) | Accuracy: {accuracy}{penalty_note}"
             )
 
         penalties_msg = []
@@ -234,7 +232,7 @@ class BaseTournament(ABC):
 
         lines.append(f"\n{self.get_tournament_stats()}")
 
-        return "\n".join(lines), zeroed_user_ids
+        return "\n".join(lines)
 
     @staticmethod
     def _get_medal(place: int) -> str:

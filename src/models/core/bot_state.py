@@ -25,7 +25,6 @@ class BotState:
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
         self.available_quiz_id_map = {}
-        self.tournament_daily_bans = defaultdict(set)
         self.quiz_replay_cache = defaultdict(dict)
 
         self.run_schedules(job_queue)
@@ -96,7 +95,6 @@ class BotState:
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
-        self.tournament_daily_bans = defaultdict(set)
         self.quiz_replay_cache = defaultdict(dict)
 
         log.info("Remindme, cwel, get_credits and steal_credits usage limits have been reset.")
@@ -109,14 +107,6 @@ class BotState:
 
     def get_cwels_left(self, user_id):
         return MAX_CWEL_USAGE_DAILY - self.cwel_usage_daily_count_map[user_id]
-
-    def is_tournament_banned(self, user_id: int, tournament_type: str) -> bool:
-        return user_id in self.tournament_daily_bans.get(tournament_type, set())
-
-    def ban_from_tournament(self, user_id: int, tournament_type: str):
-        if tournament_type not in self.tournament_daily_bans:
-            self.tournament_daily_bans[tournament_type] = set()
-        self.tournament_daily_bans[tournament_type].add(user_id)
 
     def set_quiz_replay_args(self, user_id: int, quiz_type: str, args: list[str] | None = None) -> None:
         """Store the arguments used to start the user's latest quiz of the given type."""

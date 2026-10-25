@@ -322,7 +322,6 @@ async def test_cmd_tournament_missing_buyin_arg(mocker, commands, update, contex
 @pytest.mark.asyncio
 async def test_cmd_tournament_valid_args(mocker, commands, update, context):
     context.args = ["roulette", "100"]
-    commands.bot_state.is_tournament_banned.return_value = False
     commands.credits.credits = {111: 500}
     send_mock = mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
 
@@ -335,7 +334,6 @@ async def test_cmd_tournament_valid_args(mocker, commands, update, context):
 @pytest.mark.asyncio
 async def test_handle_tournament_message_start_command(mocker, commands, update, context):
     context.args = ["roulette", "100"]
-    commands.bot_state.is_tournament_banned.return_value = False
     commands.credits.credits = {111: 500, 222: 500}
     mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
 
@@ -377,7 +375,6 @@ async def test_handle_tournament_message_start_command(mocker, commands, update,
 @pytest.mark.asyncio
 async def test_cmd_tournament_wait_arg(mocker, commands, update, context):
     context.args = ["roulette", "100", "--wait", "120"]
-    commands.bot_state.is_tournament_banned.return_value = False
     commands.credits.credits = {111: 500}
     mocker.patch("src.commands.credit_commands.core_utils.send_message", new_callable=AsyncMock)
 
