@@ -11,6 +11,7 @@ from src.models.quizzes.top_countries_quiz import (
     Pool,
     PoolKind,
     TopCountriesGame,
+    parse_guesses,
 )
 
 NAMES = ["Alfa", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima"]
@@ -424,3 +425,70 @@ def test_both_english_and_polish_names_accepted_as_guesses():
     # The entry name displayed is in Polish
     assert pl_game.entries[0].name == "Polska"
     assert "*Polska* ✅" in pl_game.last_guess
+
+
+@pytest.mark.parametrize(
+    "raw_text,expected",
+    [
+        ("Nigeria, Egypt, South Africa", ["Nigeria", "Egypt", "South Africa"]),
+        ("  Nigeria  ,   Egypt  ,  ", ["Nigeria", "Egypt"]),
+        ("SingleCountry", ["SingleCountry"]),
+        ("", []),
+        (" , , , ", []),
+    ],
+)
+def test_parse_guesses(raw_text, expected):
+    assert parse_guesses(raw_text) == expected
+
+
+def test_submit_guesses_all_correct():
+    game = TopCountriesGame.create(make_df(15), Metric.POPULATION, pool=Pool(PoolKind.CONTINENT, "Europa", 10))
+    results = game.submit_guesses("Alfa0, Bravo1, Charlie2")
+
+    assert results == [GuessResult.CORRECT, GuessResult.CORRECT, GuessResult.CORRECT]
+    assert game.guessed == {0, 1, 2}
+    assert game.strikes == 0
+    assert "*Alfa0* ✅, *Bravo1* ✅, *Charlie2* ✅" in game.last_guess
+
+
+def test_submit_guesses_mixed():
+    game = TopCountriesGame.create(make_df(15), Metric.POPULATION, pool=Pool(PoolKind.CONTINENT, "Europa", 10))
+    results = game.submit_guesses("Alfa0, Atlantis, Bravo1, Alfa0")
+
+    assert results == [GuessResult.CORRECT, GuessResult.WRONG, GuessResult.CORRECT, GuessResult.DUPLICATE]
+    assert game.guessed == {0, 1}
+    assert game.strikes == 1
+    assert game.last_guess == "*Alfa0* ✅, *Atlantis* ❌, *Bravo1* ✅"
+
+
+def test_submit_guesses_empty():
+    game = TopCountriesGame.create(make_df(15), Metric.POPULATION, pool=Pool(PoolKind.CONTINENT, "Europa", 10))
+    results = game.submit_guesses("  ,  ,  ")
+    assert results == []
+    assert game.last_guess is None
+
+
+def test_submit_guesses_stops_on_three_strikes():
+    game = TopCountriesGame.create(make_df(15), Metric.POPULATION, pool=Pool(PoolKind.CONTINENT, "Europa", 10))
+    game.strikes = 2
+    results = game.submit_guesses("Wrong1, Wrong2, Alfa0")
+
+    assert results == [GuessResult.WRONG]
+    assert game.strikes == 3
+    assert game.is_over
+    assert game.status == GameStatus.LOST
+    assert 0 not in game.guessed
+
+
+def test_submit_guesses_stops_on_completion():
+    game = TopCountriesGame.create(make_df(15), Metric.POPULATION, pool=Pool(PoolKind.CONTINENT, "Europa", 10))
+    for i in range(9):
+        game.submit_guess(f"Alfa{i}" if i == 0 else f"{NAMES[i % len(NAMES)]}{i}")
+
+    last_country = game.entries[9].name
+    results = game.submit_guesses(f"{last_country}, WrongExtra")
+
+    assert results == [GuessResult.CORRECT]
+    assert game.is_over
+    assert game.status == GameStatus.WON
+    assert game.strikes == 0

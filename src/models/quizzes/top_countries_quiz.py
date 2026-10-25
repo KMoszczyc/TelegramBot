@@ -124,6 +124,11 @@ def get_list_size(pool_count: int) -> int | None:
     return None
 
 
+def parse_guesses(text: str) -> list[str]:
+    """Split comma-separated guess text into trimmed, non-empty candidate guesses."""
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
 def _first_letters(df: pd.DataFrame, language: Language = Language.EN) -> pd.Series:
     return df[language.column].astype(str).str.strip().str[0].str.upper()
 
@@ -297,6 +302,27 @@ class TopCountriesGame:
         clean_guess = sanitize_guess(text)
         self.last_guess = f"*{clean_guess}* {STRIKE_ICON}" if clean_guess else STRIKE_ICON
         return GuessResult.WRONG
+
+    def submit_guesses(self, text: str) -> list[GuessResult]:
+        """Apply comma-separated guesses in order until all are evaluated or the game ends."""
+        guesses = parse_guesses(text)
+        if not guesses:
+            return []
+
+        results = []
+        batch_feedback = []
+        for guess in guesses:
+            if self.is_over:
+                break
+            res = self.submit_guess(guess)
+            results.append(res)
+            if res != GuessResult.DUPLICATE and self.last_guess:
+                batch_feedback.append(self.last_guess)
+
+        if len(batch_feedback) > 1:
+            self.last_guess = ", ".join(batch_feedback)
+
+        return results
 
     def _tip_candidates(self) -> list[int]:
         missing = self._missing_indices()

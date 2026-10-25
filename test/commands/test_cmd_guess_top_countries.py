@@ -317,29 +317,19 @@ async def test_reply_answer_is_deleted(commands, update, context):
 
 
 @pytest.mark.asyncio
-async def test_non_reply_answer_is_deleted(commands, update, context):
+@pytest.mark.parametrize("reply_id", [None, 777])
+async def test_non_reply_answer_is_deleted(commands, update, context, reply_id):
     commands.bot_state.top_countries_quiz_cache[111] = make_cached()
     update.message.text = "Echo4"
-    update.message.reply_to_message = None
+    if reply_id is not None:
+        update.message.reply_to_message = MagicMock(message_id=reply_id)
+    else:
+        update.message.reply_to_message = None
 
     await commands.handle_top_countries_answer(update, context)
 
     update.message.delete.assert_called_once()
     assert last_edit(context)["message_id"] == 555
-
-
-@pytest.mark.asyncio
-async def test_foreign_reply_is_ignored_and_not_deleted(commands, update, context):
-    cached = make_cached()
-    commands.bot_state.top_countries_quiz_cache[111] = cached
-    update.message.text = "Echo4"
-    update.message.reply_to_message = MagicMock(message_id=777)
-
-    await commands.handle_top_countries_answer(update, context)
-
-    update.message.delete.assert_not_called()
-    context.bot.edit_message_text.assert_not_called()
-    assert cached["game"].correct_count == 0
 
 
 @pytest.mark.asyncio
@@ -598,3 +588,53 @@ async def test_cmd_invalid_language_returns_error(commands, update, context):
     context.bot.send_message.assert_called_once()
     assert "Invalid --language value" in context.bot.send_message.call_args.kwargs["text"]
     assert 111 not in commands.bot_state.top_countries_quiz_cache
+
+
+@pytest.mark.asyncio
+async def test_multiple_comma_separated_answers_in_single_message(commands, update, context):
+    cached = make_cached()
+    commands.bot_state.top_countries_quiz_cache[111] = cached
+    update.message.text = "Alfa0, Bravo1, Charlie2"
+
+    await commands.handle_top_countries_answer(update, context)
+
+    update.message.delete.assert_called_once()
+    context.bot.edit_message_text.assert_called_once()
+    assert cached["game"].guessed == {0, 1, 2}
+    assert cached["game"].strikes == 0
+    text = last_edit(context)["text"]
+    assert "Alfa0" in text
+    assert "Bravo1" in text
+    assert "Charlie2" in text
+
+
+@pytest.mark.asyncio
+async def test_multiple_comma_separated_all_duplicates_ignored(commands, update, context):
+    game = make_game()
+    game.submit_guess("Alfa0")
+    game.submit_guess("Bravo1")
+    cached = make_cached(game)
+    commands.bot_state.top_countries_quiz_cache[111] = cached
+    update.message.text = "Alfa0, Bravo1"
+
+    await commands.handle_top_countries_answer(update, context)
+
+    update.message.delete.assert_called_once()
+    context.bot.edit_message_text.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_multiple_comma_separated_finishes_game(commands, update, context):
+    game = make_game()
+    for entry in game.entries[:9]:
+        game.submit_guess(entry.name)
+    cached = make_cached(game)
+    commands.bot_state.top_countries_quiz_cache[111] = cached
+    update.message.text = f"{game.entries[9].name}, Atlantis"
+
+    await commands.handle_top_countries_answer(update, context)
+
+    update.message.delete.assert_called_once()
+    assert 111 not in commands.bot_state.top_countries_quiz_cache
+    commands.credits.update_credits.assert_called_once()
+    assert "Perfect" in last_edit(context)["text"]

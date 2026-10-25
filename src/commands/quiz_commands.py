@@ -834,9 +834,6 @@ class QuizCommands:
 
         reply_to = getattr(update.message, "reply_to_message", None)
         is_reply = reply_to is not None and reply_to.message_id == cached_quiz["message_id"]
-        if reply_to is not None and not is_reply:
-            log.info(f"handle_top_countries_answer: reply to another message ({reply_to.message_id}), ignoring.")
-            return
 
         cached_thread = cached_quiz.get("thread_id")
         msg_thread = update.message.message_thread_id
@@ -852,10 +849,10 @@ class QuizCommands:
             return
 
         game = cached_quiz["game"]
-        guess_res = game.submit_guess(text)
-        log.info(f"handle_top_countries_answer: guess_res={guess_res}")
+        results = game.submit_guesses(text)
+        log.info(f"handle_top_countries_answer: results={results}")
         await quiz_helpers.delete_quiz_answer(update)
-        if guess_res == top_countries_quiz.GuessResult.DUPLICATE:
+        if not results or all(r == top_countries_quiz.GuessResult.DUPLICATE for r in results):
             return
 
         if game.is_over:
