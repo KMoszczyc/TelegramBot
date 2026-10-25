@@ -1,8 +1,9 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import telegram
 
-from src.commands.helpers.quiz_helpers import remove_tip_button, show_quiz_tip, update_quiz_message
+from src.commands.helpers.quiz_helpers import delete_quiz_answer, remove_tip_button, show_quiz_tip, update_quiz_message
 
 
 @pytest.fixture
@@ -43,3 +44,42 @@ async def test_show_quiz_tip_can_edit(mock_context, mocker):
     cached_quiz = {"chat_id": 123, "message_id": 456, "has_photo": False}
     await show_quiz_tip(mock_context, cached_quiz, 111, None, None, "A tip")
     mock_context.bot.edit_message_text.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_reply_target", [True, False])
+async def test_delete_quiz_answer_success(has_reply_target):
+    update = MagicMock()
+    update.message = MagicMock()
+    update.message.delete = AsyncMock()
+    if has_reply_target:
+        update.message.reply_to_message = MagicMock(message_id=999)
+    else:
+        update.message.reply_to_message = None
+
+    await delete_quiz_answer(update)
+    update.message.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_quiz_answer_no_message():
+    update = MagicMock()
+    update.message = None
+    await delete_quiz_answer(update)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        telegram.error.BadRequest("Message can't be deleted"),
+        telegram.error.TelegramError("Network failure"),
+    ],
+)
+async def test_delete_quiz_answer_handles_error(error):
+    update = MagicMock()
+    update.message = MagicMock()
+    update.message.delete = AsyncMock(side_effect=error)
+
+    await delete_quiz_answer(update)
+    update.message.delete.assert_awaited_once()

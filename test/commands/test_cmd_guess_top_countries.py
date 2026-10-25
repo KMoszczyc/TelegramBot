@@ -202,14 +202,24 @@ async def test_answer_ignored_when_no_game(commands, update, context):
 
 
 @pytest.mark.asyncio
-async def test_answer_ignored_in_other_thread(commands, update, context):
-    cached = make_cached(thread_id=99)
+@pytest.mark.parametrize(
+    "cached_thread,msg_thread",
+    [
+        (99, None),  # quiz in topic, msg in general
+        (None, 99),  # quiz in general, msg in topic
+        (99, 88),  # quiz in topic A, msg in topic B
+    ],
+)
+async def test_answer_ignored_in_other_thread(commands, update, context, cached_thread, msg_thread):
+    cached = make_cached(thread_id=cached_thread)
     commands.bot_state.top_countries_quiz_cache[111] = cached
     update.message.text = "Alfa0"
+    update.message.message_thread_id = msg_thread
 
     await commands.handle_top_countries_answer(update, context)
 
     context.bot.edit_message_text.assert_not_called()
+    update.message.delete.assert_not_called()
     assert cached["game"].correct_count == 0
 
 
@@ -253,6 +263,7 @@ async def test_duplicate_answer_is_ignored(commands, update, context):
 
     await commands.handle_top_countries_answer(update, context)
 
+    update.message.delete.assert_called_once()
     context.bot.edit_message_text.assert_not_called()
     assert game.strikes == 0
 
@@ -306,17 +317,29 @@ async def test_reply_answer_is_deleted(commands, update, context):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("reply_id", [None, 777])
-async def test_non_reply_answer_is_not_deleted(commands, update, context, reply_id):
+async def test_non_reply_answer_is_deleted(commands, update, context):
     commands.bot_state.top_countries_quiz_cache[111] = make_cached()
     update.message.text = "Echo4"
-    if reply_id is not None:
-        update.message.reply_to_message = MagicMock(message_id=reply_id)
+    update.message.reply_to_message = None
+
+    await commands.handle_top_countries_answer(update, context)
+
+    update.message.delete.assert_called_once()
+    assert last_edit(context)["message_id"] == 555
+
+
+@pytest.mark.asyncio
+async def test_foreign_reply_is_ignored_and_not_deleted(commands, update, context):
+    cached = make_cached()
+    commands.bot_state.top_countries_quiz_cache[111] = cached
+    update.message.text = "Echo4"
+    update.message.reply_to_message = MagicMock(message_id=777)
 
     await commands.handle_top_countries_answer(update, context)
 
     update.message.delete.assert_not_called()
-    assert last_edit(context)["message_id"] == 555
+    context.bot.edit_message_text.assert_not_called()
+    assert cached["game"].correct_count == 0
 
 
 @pytest.mark.asyncio
@@ -341,6 +364,7 @@ async def test_typed_tip_reveals_letter_in_place(commands, update, context):
 
     await commands.handle_top_countries_answer(update, context)
 
+    update.message.delete.assert_called_once()
     assert cached["game"].tips_given == 1
     assert "Tips\\: 1/5" in last_edit(context)["text"]
     assert cached["game"].strikes == 0
@@ -481,7 +505,7 @@ async def test_replay_button_starts_new_game(mocker, commands, context):
 
 
 @pytest.mark.asyncio
-async def test_reply_answer_accepted_even_if_thread_id_differs(commands, update, context):
+async def test_reply_answer_ignored_if_thread_id_differs(commands, update, context):
     cached = make_cached(thread_id=99)
     commands.bot_state.top_countries_quiz_cache[111] = cached
     update.message.text = "Echo4"
@@ -490,17 +514,17 @@ async def test_reply_answer_accepted_even_if_thread_id_differs(commands, update,
 
     await commands.handle_top_countries_answer(update, context)
 
-    context.bot.edit_message_text.assert_called_once()
-    assert cached["game"].guessed == {4}
+    context.bot.edit_message_text.assert_not_called()
+    update.message.delete.assert_not_called()
+    assert cached["game"].correct_count == 0
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("cached_thread,msg_thread", [(None, 42), (42, None), (None, None)])
-async def test_answer_accepted_when_thread_id_is_none(commands, update, context, cached_thread, msg_thread):
-    cached = make_cached(thread_id=cached_thread)
+async def test_answer_accepted_when_thread_id_is_none(commands, update, context):
+    cached = make_cached(thread_id=None)
     commands.bot_state.top_countries_quiz_cache[111] = cached
     update.message.text = "Echo4"
-    update.message.message_thread_id = msg_thread
+    update.message.message_thread_id = None
     update.message.reply_to_message = None
 
     await commands.handle_top_countries_answer(update, context)

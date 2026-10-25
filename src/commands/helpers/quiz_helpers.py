@@ -76,12 +76,14 @@ async def show_quiz_tip(
             log.warning(f"Could not update tip button: {e}")
 
 
-async def delete_answer_if_reply(update, quiz_message_id: int | None) -> None:
-    """Best-effort delete the user's answer message, only when it is a direct reply to the quiz message."""
-    reply_target = getattr(update.message, "reply_to_message", None)
-    if reply_target is None or quiz_message_id is None or reply_target.message_id != quiz_message_id:
+async def delete_quiz_answer(update, quiz_message_id: int | None = None) -> None:
+    """Best-effort delete the user's answer message from the chat."""
+    if not getattr(update, "message", None):
         return
     try:
         await update.message.delete()
     except telegram.error.TelegramError as e:
         log.warning(f"Could not delete quiz answer message: {e}")
+
+
+delete_answer_if_reply = delete_quiz_answer

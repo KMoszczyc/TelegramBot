@@ -834,26 +834,30 @@ class QuizCommands:
 
         reply_to = getattr(update.message, "reply_to_message", None)
         is_reply = reply_to is not None and reply_to.message_id == cached_quiz["message_id"]
+        if reply_to is not None and not is_reply:
+            log.info(f"handle_top_countries_answer: reply to another message ({reply_to.message_id}), ignoring.")
+            return
 
         cached_thread = cached_quiz.get("thread_id")
         msg_thread = update.message.message_thread_id
-        if not is_reply and cached_thread is not None and msg_thread is not None and cached_thread != msg_thread:
+        if cached_thread != msg_thread:
             log.info(f"handle_top_countries_answer: thread mismatch. Msg: {msg_thread}, Cache: {cached_thread}")
             return
 
         text = update.message.text.strip()
         log.info(f"handle_top_countries_answer: user={user_id}, text={text!r}, is_reply={is_reply}")
         if text.lower() == "!tip":
+            await quiz_helpers.delete_quiz_answer(update)
             await self._apply_top_countries_tip(context, cached_quiz, user_id)
             return
 
         game = cached_quiz["game"]
         guess_res = game.submit_guess(text)
         log.info(f"handle_top_countries_answer: guess_res={guess_res}")
+        await quiz_helpers.delete_quiz_answer(update)
         if guess_res == top_countries_quiz.GuessResult.DUPLICATE:
             return
 
-        await quiz_helpers.delete_answer_if_reply(update, cached_quiz["message_id"])
         if game.is_over:
             await self._finish_top_countries(context, cached_quiz, user_id)
         else:
