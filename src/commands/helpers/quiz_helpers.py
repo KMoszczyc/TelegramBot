@@ -33,6 +33,16 @@ async def update_quiz_message(
             await context.bot.edit_message_caption(caption=text, **edit_kwargs)
         else:
             await context.bot.edit_message_text(text=text, **edit_kwargs)
+    except telegram.error.BadRequest as e:
+        log.warning(f"Could not edit quiz message with MarkdownV2: {e}. Retrying without markdown.")
+        edit_kwargs["parse_mode"] = None
+        try:
+            if cached_quiz.get("has_photo"):
+                await context.bot.edit_message_caption(caption=text, **edit_kwargs)
+            else:
+                await context.bot.edit_message_text(text=text, **edit_kwargs)
+        except telegram.error.TelegramError as e2:
+            log.warning(f"Could not edit quiz message even without markdown: {e2}")
     except telegram.error.TelegramError as e:
         log.warning(f"Could not edit quiz message: {e}")
 
@@ -64,3 +74,14 @@ async def show_quiz_tip(
             await context.bot.edit_message_reply_markup(chat_id=plan.chat_id, message_id=plan.message_id, reply_markup=plan.keyboard)
         except telegram.error.TelegramError as e:
             log.warning(f"Could not update tip button: {e}")
+
+
+async def delete_answer_if_reply(update, quiz_message_id: int | None) -> None:
+    """Best-effort delete the user's answer message, only when it is a direct reply to the quiz message."""
+    reply_target = getattr(update.message, "reply_to_message", None)
+    if reply_target is None or quiz_message_id is None or reply_target.message_id != quiz_message_id:
+        return
+    try:
+        await update.message.delete()
+    except telegram.error.TelegramError as e:
+        log.warning(f"Could not delete quiz answer message: {e}")

@@ -9,6 +9,7 @@ COMMAND_NAME_BY_QUIZ_TYPE: dict[str, str] = {
     "map": "guessperson",
     "flag": "guessflag",
     "capital": "guesscapital",
+    "topcountries": "guesstopcountries",
 }
 
 

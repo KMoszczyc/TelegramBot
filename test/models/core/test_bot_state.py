@@ -59,3 +59,31 @@ def test_has_and_find_active_guess_quiz(bot_state, cache_attr, expected_quiz_cla
     found_cache, found_class = found
     assert found_cache is cache
     assert found_class is expected_quiz_class
+
+
+@pytest.mark.parametrize(
+    "cache_attr, expected",
+    [
+        ("map_quiz_cache", True),
+        ("flag_quiz_cache", True),
+        ("capital_quiz_cache", True),
+        ("top_countries_quiz_cache", True),
+        (None, False),
+    ],
+)
+def test_has_active_guess_quiz_includes_top_countries(bot_state, cache_attr, expected):
+    if cache_attr:
+        getattr(bot_state, cache_attr)[7] = {}
+    assert bot_state.has_active_guess_quiz(7) is expected
+
+
+def test_top_countries_cache_is_not_a_findable_tip_quiz(bot_state):
+    bot_state.top_countries_quiz_cache[7] = {}
+    assert bot_state.find_active_guess_quiz(7) is None
+
+
+@pytest.mark.asyncio
+async def test_reset_command_limits_clears_top_countries_cache(bot_state):
+    bot_state.top_countries_quiz_cache[7] = {}
+    await bot_state.reset_command_limits(MagicMock())
+    assert bot_state.top_countries_quiz_cache == {}

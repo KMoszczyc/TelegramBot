@@ -19,6 +19,7 @@ gift - (username, amount[int]) give credits to another user
 guesscapital - (--continent, --difficulty) - guess the capital city from the country flag
 guessperson - (--category, --difficulty) - guess the person based on his place and date of birth and death
 guessflag - (--continent, --difficulty) - guess the country flag
+guesstopcountries - (--by population|area, --language en|pl) - guess the top countries of a random continent or starting letter
 handlowa - (--all) shopping sundays in Poland
 help - a list of commands
 kiepscy - (filter[with & and | operators]) Search Kiepscy episodes either by title or description

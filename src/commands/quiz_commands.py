@@ -15,6 +15,7 @@ from src.config.constants import (
     FLAG_QUIZ_TIMEOUT_SECONDS,
     MAP_QUIZ_TIMEOUT_SECONDS,
     MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
+    TOP_COUNTRIES_TIMEOUT_SECONDS,
 )
 from src.config.enums import QUIZ_EVENTS, ArgType, CreditActionType, MessageType, Table
 from src.core.command_logger import CommandLogger
@@ -24,7 +25,7 @@ from src.models.core.credits import Credits
 from src.models.data.command_args import CommandArgs
 from src.models.db.db import DB
 from src.models.events.event_manager import EventManager
-from src.models.quizzes import tip_message
+from src.models.quizzes import tip_message, top_countries_quiz
 from src.models.quizzes.capital_quiz import CapitalQuiz
 from src.models.quizzes.flag_quiz import FlagQuiz
 from src.models.quizzes.map_quiz import MapQuiz
@@ -35,6 +36,7 @@ from src.models.quizzes.quiz_replay import (
     format_replay_command_name,
     parse_replay_callback_data,
 )
+from src.models.quizzes.top_countries_quiz import TopCountriesGame
 
 log = logging.getLogger(__name__)
 
@@ -94,6 +96,7 @@ class QuizCommands:
             user_id in getattr(self.bot_state, "map_quiz_cache", {})
             or user_id in getattr(self.bot_state, "flag_quiz_cache", {})
             or user_id in getattr(self.bot_state, "capital_quiz_cache", {})
+            or user_id in getattr(self.bot_state, "top_countries_quiz_cache", {})
         )
 
     def _find_active_guess_quiz(self, user_id: int):
@@ -603,6 +606,8 @@ class QuizCommands:
                 await self.cmd_guess_flag(replay_update, context)
             case "capital":
                 await self.cmd_guess_capital(replay_update, context)
+            case "topcountries":
+                await self.cmd_guess_top_countries(replay_update, context)
             case _:
                 log.error(f"Unknown quiz_type for replay: {quiz_type}")
 
@@ -715,3 +720,159 @@ class QuizCommands:
 
     async def handle_capital_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self._handle_guess_country_answer_generic(update, context, self.bot_state.capital_quiz_cache, CapitalQuiz)
+
+    def _schedule_top_countries_timeout(self, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+        return context.job_queue.run_once(self.top_countries_timeout, TOP_COUNTRIES_TIMEOUT_SECONDS, data=user_id)
+
+    async def _refresh_top_countries_message(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+        job = cached_quiz.get("job")
+        if job:
+            try:
+                job.schedule_removal()
+            except Exception as e:
+                log.debug(f"Could not remove top countries job: {e}")
+        cached_quiz["job"] = self._schedule_top_countries_timeout(context, user_id)
+        game = cached_quiz["game"]
+        text = stats_utils.escape_special_characters(game.render())
+        await quiz_helpers.update_quiz_message(context, cached_quiz, text, game.build_keyboard(user_id))
+
+    async def _finish_top_countries(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+        if self.bot_state.top_countries_quiz_cache.pop(user_id, None) is None:
+            return
+        job = cached_quiz.get("job")
+        if job:
+            try:
+                job.schedule_removal()
+            except Exception as e:
+                log.debug(f"Could not remove top countries job: {e}")
+        game = cached_quiz["game"]
+        total_credits = None
+        if game.reward > 0:
+            total_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=game.reward, action_type=CreditActionType.QUIZ)
+        text = stats_utils.escape_special_characters(game.render(game.format_result_line(total_credits)))
+        await quiz_helpers.update_quiz_message(context, cached_quiz, text, build_replay_keyboard(top_countries_quiz.QUIZ_TYPE, user_id))
+
+    async def cmd_guess_top_countries(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        command_args = CommandArgs(
+            args=context.args,
+            available_named_args={"by": ArgType.STRING, "language": ArgType.STRING, "lang": ArgType.STRING},
+        )
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != "":
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        if self._has_active_guess_quiz(user_id):
+            message = "You already have an active quiz! Answer it first or wait for the timeout."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        metric = None
+        if "by" in command_args.named_args:
+            metric = top_countries_quiz.parse_metric(command_args.named_args["by"])
+            if metric is None:
+                await core_utils.send_message(update, context, MessageType.TEXT, "Invalid --by value. Available: population, area")
+                return
+
+        language = top_countries_quiz.Language.EN
+        raw_lang = command_args.named_args.get("language") or command_args.named_args.get("lang")
+        if raw_lang:
+            language = top_countries_quiz.parse_language(raw_lang)
+            if language is None:
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, "Invalid --language value. Available: en, pl (or english, polish)"
+                )
+                return
+
+        self._set_quiz_replay_args(user_id, top_countries_quiz.QUIZ_TYPE, context.args)
+
+        game = TopCountriesGame.create(self.assets.countries.df, metric=metric, language=language)
+        sent = await update.message.reply_text(
+            text=stats_utils.escape_special_characters(game.render()),
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            reply_markup=game.build_keyboard(user_id),
+            message_thread_id=update.message.message_thread_id,
+        )
+
+        sent_thread_id = getattr(sent, "message_thread_id", None)
+        effective_thread_id = sent_thread_id if isinstance(sent_thread_id, int) else update.message.message_thread_id
+        self.bot_state.top_countries_quiz_cache[user_id] = {
+            "chat_id": update.effective_chat.id,
+            "thread_id": effective_thread_id,
+            "message_id": sent.message_id,
+            "has_photo": False,
+            "game": game,
+            "job": self._schedule_top_countries_timeout(context, user_id),
+        }
+
+    async def top_countries_timeout(self, context: ContextTypes.DEFAULT_TYPE):
+        user_id = context.job.data
+        cached_quiz = self.bot_state.top_countries_quiz_cache.get(user_id)
+        if cached_quiz is None:
+            return
+        cached_quiz["game"].timed_out = True
+        await self._finish_top_countries(context, cached_quiz, user_id)
+
+    async def _apply_top_countries_tip(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int) -> bool:
+        if cached_quiz["game"].reveal_tip() is None:
+            return False
+        await self._refresh_top_countries_message(context, cached_quiz, user_id)
+        return True
+
+    async def handle_top_countries_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not update.message or not update.message.text:
+            return
+
+        user_id = update.effective_user.id
+        cached_quiz = self.bot_state.top_countries_quiz_cache.get(user_id)
+        if cached_quiz is None:
+            return
+
+        if update.effective_chat.id != cached_quiz["chat_id"]:
+            return
+
+        reply_to = getattr(update.message, "reply_to_message", None)
+        is_reply = reply_to is not None and reply_to.message_id == cached_quiz["message_id"]
+
+        cached_thread = cached_quiz.get("thread_id")
+        msg_thread = update.message.message_thread_id
+        if not is_reply and cached_thread is not None and msg_thread is not None and cached_thread != msg_thread:
+            log.info(f"handle_top_countries_answer: thread mismatch. Msg: {msg_thread}, Cache: {cached_thread}")
+            return
+
+        text = update.message.text.strip()
+        log.info(f"handle_top_countries_answer: user={user_id}, text={text!r}, is_reply={is_reply}")
+        if text.lower() == "!tip":
+            await self._apply_top_countries_tip(context, cached_quiz, user_id)
+            return
+
+        game = cached_quiz["game"]
+        guess_res = game.submit_guess(text)
+        log.info(f"handle_top_countries_answer: guess_res={guess_res}")
+        if guess_res == top_countries_quiz.GuessResult.DUPLICATE:
+            return
+
+        await quiz_helpers.delete_answer_if_reply(update, cached_quiz["message_id"])
+        if game.is_over:
+            await self._finish_top_countries(context, cached_quiz, user_id)
+        else:
+            await self._refresh_top_countries_message(context, cached_quiz, user_id)
+
+    async def btn_top_countries_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle a press of the tip button attached to a top countries quiz message."""
+        query = update.callback_query
+        owner_id = top_countries_quiz.parse_tip_callback_data(query.data)
+        if owner_id is None or query.from_user.id != owner_id:
+            await query.answer("This isn't your quiz!")
+            return
+
+        cached_quiz = self.bot_state.top_countries_quiz_cache.get(owner_id)
+        if cached_quiz is None or cached_quiz.get("message_id") != query.message.message_id:
+            await query.answer("This quiz is already over.")
+            return
+
+        if not await self._apply_top_countries_tip(context, cached_quiz, owner_id):
+            await query.answer("No more tips available!")
+            return
+        await query.answer()

@@ -110,3 +110,11 @@ def test_replay_update_proxy_properties(has_chat: bool):
         assert proxy.effective_chat.id == 777
     assert proxy.update_id == 42
     assert proxy.custom_attr == "hello"
+
+
+@pytest.mark.parametrize(
+    "quiz_type, expected",
+    [("topcountries", "guesstopcountries"), ("capital", "guesscapital"), ("unknown", "unknown")],
+)
+def test_format_replay_command_name_top_countries(quiz_type: str, expected: str):
+    assert format_replay_command_name(quiz_type) == expected

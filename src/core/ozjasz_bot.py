@@ -11,7 +11,7 @@ from src.commands.credit_commands import CreditCommands
 from src.commands.quiz_commands import QuizCommands
 from src.commands.tournament_commands import TournamentCommands
 from src.config.assets import Assets
-from src.config.constants import QUIZ_REPLAY_CALLBACK_PREFIX, QUIZ_TIP_CALLBACK_PREFIX
+from src.config.constants import QUIZ_REPLAY_CALLBACK_PREFIX, QUIZ_TIP_CALLBACK_PREFIX, TOP_COUNTRIES_TIP_CALLBACK_PREFIX
 from src.config.enums import EmojiType, MessageType
 from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
 from src.core.command_logger import CommandLogger
@@ -73,6 +73,9 @@ class OzjaszBot:
         self.application.add_handlers(command_handlers)
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_tip_callback, pattern=f"^{QUIZ_TIP_CALLBACK_PREFIX}"))
         self.application.add_handler(
+            CallbackQueryHandler(self.quiz_commands.btn_top_countries_tip_callback, pattern=f"^{TOP_COUNTRIES_TIP_CALLBACK_PREFIX}")
+        )
+        self.application.add_handler(
             CallbackQueryHandler(self.quiz_commands.btn_quiz_replay_callback, pattern=f"^{QUIZ_REPLAY_CALLBACK_PREFIX}")
         )
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_callback))
@@ -83,6 +86,9 @@ class OzjaszBot:
         )
         self.application.add_handler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_capital_quiz_answer), group=4
+        )
+        self.application.add_handler(
+            MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_top_countries_answer), group=5
         )
 
     def get_commands_map(self):
@@ -122,6 +128,8 @@ class OzjaszBot:
             "guess_flag": self.quiz_commands.cmd_guess_flag,
             "guesscapital": self.quiz_commands.cmd_guess_capital,
             "guess_capital": self.quiz_commands.cmd_guess_capital,
+            "guesstopcountries": self.quiz_commands.cmd_guess_top_countries,
+            "guess_top_countries": self.quiz_commands.cmd_guess_top_countries,
             "tournament": self.tournament_commands.cmd_tournament,
             "topmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             "sadmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),

@@ -23,6 +23,7 @@ class BotState:
         self.map_quiz_cache = {}
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
+        self.top_countries_quiz_cache = {}
         self.available_quiz_id_map = {}
         self.tournament_daily_bans = defaultdict(set)
         self.quiz_replay_cache = defaultdict(dict)
@@ -94,6 +95,7 @@ class BotState:
         self.map_quiz_cache = {}
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
+        self.top_countries_quiz_cache = {}
         self.tournament_daily_bans = defaultdict(set)
         self.quiz_replay_cache = defaultdict(dict)
 
@@ -125,8 +127,13 @@ class BotState:
         return list(self.quiz_replay_cache.get(user_id, {}).get(quiz_type, []))
 
     def has_active_guess_quiz(self, user_id: int) -> bool:
-        """Check if *user_id* currently has an active map, flag, or capital quiz session."""
-        return user_id in self.map_quiz_cache or user_id in self.flag_quiz_cache or user_id in self.capital_quiz_cache
+        """Check if *user_id* currently has an active map, flag, capital, or top countries quiz session."""
+        return (
+            user_id in self.map_quiz_cache
+            or user_id in self.flag_quiz_cache
+            or user_id in self.capital_quiz_cache
+            or user_id in self.top_countries_quiz_cache
+        )
 
     def find_active_guess_quiz(self, user_id: int) -> tuple[dict, type] | None:
         """Return the (cache_dict, quiz_class) pair holding *user_id*'s active quiz, or None."""

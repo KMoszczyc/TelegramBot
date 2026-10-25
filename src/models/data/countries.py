@@ -31,6 +31,7 @@ CONTINENT_ALIASES = {
 }
 
 
+# columns: "country_name, country_name_en, country_code, continent, population, area_sq_km, capital, colors"
 class Countries:
     def __init__(self, data: pd.DataFrame | str | Path | None = None):
         if data is None:
