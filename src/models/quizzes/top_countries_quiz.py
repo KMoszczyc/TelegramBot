@@ -17,8 +17,8 @@ from src.config.constants import (
     TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
     TOP_COUNTRIES_TIP_MULTIPLIER,
 )
-from src.models.quizzes.base_guess_quiz import BaseGuessQuiz
 from src.models.quizzes.flag_quiz import FlagQuiz
+from src.models.quizzes.quiz_matcher import find_best_top_country_match, get_known_country_names
 
 QUIZ_TYPE = "topcountries"
 LIST_SIZES = (10, 5, 3)
@@ -164,17 +164,8 @@ def get_pool_df(df: pd.DataFrame, pool: Pool, language: Language = Language.EN) 
 
 
 def build_valid_answers(row: dict | pd.Series) -> set[str]:
-    """Build valid answers from both Polish and English country names and code."""
-    valid = FlagQuiz().get_valid_answers(row)
-    if not isinstance(row, dict):
-        row = row.to_dict()
-    en_name = str(row.get("country_name_en", "")).lower().strip()
-    if en_name and en_name != "nan":
-        valid.add(en_name)
-        for part in en_name.split():
-            if len(part) >= 3:
-                valid.add(part)
-    return valid
+    """Build valid answers from both Polish and English country names, code, and acronyms."""
+    return FlagQuiz().get_valid_answers(row)
 
 
 def calculate_reward(list_size: int, correct: int, tips_given: int, strikes: int) -> int:
@@ -278,13 +269,13 @@ class TopCountriesGame:
         return [i for i in range(self.list_size) if i not in self.guessed]
 
     def _find_match(self, text: str, indices: list[int]) -> int | None:
-        for i in indices:
-            if text in self.entries[i].valid_answers:
-                return i
-        for i in indices:
-            if BaseGuessQuiz.is_answer_correct(text, self.entries[i].valid_answers):
-                return i
-        return None
+        entries_valid = [e.valid_answers for e in self.entries]
+        return find_best_top_country_match(
+            text,
+            entries_valid,
+            indices,
+            known_country_names=get_known_country_names(),
+        )
 
     def submit_guess(self, text: str) -> GuessResult:
         """Apply a guess: a remaining country is placed, a repeat of a placed country is ignored, anything else is a strike."""

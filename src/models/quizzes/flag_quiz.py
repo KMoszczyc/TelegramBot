@@ -5,6 +5,7 @@ import pandas as pd
 
 from src.config.paths import FLAGS_DIR_PATH
 from src.models.quizzes.base_guess_quiz import BaseGuessQuiz
+from src.models.quizzes.quiz_matcher import get_country_acronyms, is_stop_word
 
 log = logging.getLogger(__name__)
 
@@ -64,12 +65,20 @@ class FlagQuiz(BaseGuessQuiz):
         if name and name != "nan":
             valid_answers.add(name)
             for part in name.split():
-                if len(part) >= 3:
+                if len(part) >= 3 and not is_stop_word(part):
+                    valid_answers.add(part)
+
+        name_en = str(item.get("country_name_en", "")).lower().strip()
+        if name_en and name_en != "nan":
+            valid_answers.add(name_en)
+            for part in name_en.split():
+                if len(part) >= 3 and not is_stop_word(part):
                     valid_answers.add(part)
 
         code = str(item.get("country_code", "")).lower().strip()
         if code and code != "nan":
             valid_answers.add(code)
+            valid_answers.update(get_country_acronyms(code))
 
         return valid_answers
 
