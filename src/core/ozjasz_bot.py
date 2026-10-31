@@ -78,6 +78,8 @@ class OzjaszBot:
         self.application.add_handler(
             CallbackQueryHandler(self.quiz_commands.btn_quiz_replay_callback, pattern=f"^{QUIZ_REPLAY_CALLBACK_PREFIX}")
         )
+        self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_city_super_tip_callback, pattern="^citysuprtip:"))
+        self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_city_answer_callback, pattern="^cityanswer:"))
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_callback))
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_map_quiz_answer), group=1)
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_flag_quiz_answer), group=3)
@@ -90,6 +92,7 @@ class OzjaszBot:
         self.application.add_handler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_top_countries_answer), group=5
         )
+        self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_city_quiz_answer), group=6)
 
     def get_commands_map(self):
         return {
@@ -123,6 +126,8 @@ class OzjaszBot:
             "steal": self.credit_commands.cmd_steal_credits,
             "stealgraph": self.credit_commands.cmd_steal_graph,
             "quiz": self.quiz_commands.cmd_quiz,
+            "guesscity": self.quiz_commands.cmd_guess_city,
+            "guess_city": self.quiz_commands.cmd_guess_city,
             "guessperson": self.quiz_commands.cmd_guess_person_on_a_map,
             "guessflag": self.quiz_commands.cmd_guess_flag,
             "guess_flag": self.quiz_commands.cmd_guess_flag,

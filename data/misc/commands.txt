@@ -17,6 +17,7 @@ funchart - (username[?], period[?]) fun metric chart
 getcredits - get your daily credits depending on /starababa decision
 gift - (username, amount[int]) give credits to another user
 guesscapital - (--continent, --difficulty) - guess the capital city from the country flag
+guesscity - (--country, --continent, --district, --difficulty) - guess the city from compass directions of other cities
 guessperson - (--category, --difficulty) - guess the person based on his place and date of birth and death
 guessflag - (--continent, --difficulty) - guess the country flag
 guesstopcountries - (--by population|area, --language en|pl) - guess the top countries of a random continent or starting letter

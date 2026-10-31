@@ -24,6 +24,7 @@ class BotState:
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
+        self.city_quiz_cache = {}
         self.available_quiz_id_map = {}
         self.quiz_replay_cache = defaultdict(dict)
 
@@ -95,6 +96,7 @@ class BotState:
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
+        self.city_quiz_cache = {}
         self.quiz_replay_cache = defaultdict(dict)
 
         log.info("Remindme, cwel, get_credits and steal_credits usage limits have been reset.")
@@ -123,11 +125,13 @@ class BotState:
             or user_id in self.flag_quiz_cache
             or user_id in self.capital_quiz_cache
             or user_id in self.top_countries_quiz_cache
+            or user_id in self.city_quiz_cache
         )
 
     def find_active_guess_quiz(self, user_id: int) -> tuple[dict, type] | None:
         """Return the (cache_dict, quiz_class) pair holding *user_id*'s active quiz, or None."""
         from src.models.quizzes.capital_quiz import CapitalQuiz
+        from src.models.quizzes.city_quiz import CityQuiz
         from src.models.quizzes.flag_quiz import FlagQuiz
         from src.models.quizzes.map_quiz import MapQuiz
 
@@ -135,6 +139,7 @@ class BotState:
             (self.map_quiz_cache, MapQuiz),
             (self.flag_quiz_cache, FlagQuiz),
             (self.capital_quiz_cache, CapitalQuiz),
+            (self.city_quiz_cache, CityQuiz),
         ):
             if user_id in cache_dict:
                 return cache_dict, quiz_class

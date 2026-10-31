@@ -107,7 +107,7 @@ def plan_tip_display(
     chat_id = cached_quiz["chat_id"]
     thread_id = cached_quiz.get("thread_id")
 
-    item = cached_quiz.get("country") or cached_quiz.get("person")
+    item = cached_quiz.get("country") or cached_quiz.get("person") or cached_quiz.get("city")
     filter_specified = cached_quiz.get("continent_specified", cached_quiz.get("category_specified", False))
     total_tips = len(quiz.get_tips(item, continent_specified=filter_specified))
 

@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import copy
 import logging
 
@@ -11,10 +13,13 @@ import src.stats.utils as stats_utils
 from src.config.assets import Assets
 from src.config.constants import (
     CAPITAL_QUIZ_TIMEOUT_SECONDS,
+    CITY_QUIZ_SUPER_TIP_OPTIONS,
+    CITY_QUIZ_TIMEOUT_SECONDS,
     CRITICAL_FAILURE_CHANCE,
     FLAG_QUIZ_TIMEOUT_SECONDS,
     MAP_QUIZ_TIMEOUT_SECONDS,
     MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
+    TELEGRAM_CAPTION_MAX_LENGTH,
     TOP_COUNTRIES_TIMEOUT_SECONDS,
 )
 from src.config.enums import QUIZ_EVENTS, ArgType, CreditActionType, MessageType, Table
@@ -27,6 +32,8 @@ from src.models.db.db import DB
 from src.models.events.event_manager import EventManager
 from src.models.quizzes import tip_message, top_countries_quiz
 from src.models.quizzes.capital_quiz import CapitalQuiz
+from src.models.quizzes.city_map_renderer import render_post_solve_map
+from src.models.quizzes.city_quiz import CityQuiz, generate_diagram, select_hint_cities
 from src.models.quizzes.flag_quiz import FlagQuiz
 from src.models.quizzes.map_quiz import MapQuiz
 from src.models.quizzes.quiz_model import QuizModel
@@ -97,6 +104,7 @@ class QuizCommands:
             or user_id in getattr(self.bot_state, "flag_quiz_cache", {})
             or user_id in getattr(self.bot_state, "capital_quiz_cache", {})
             or user_id in getattr(self.bot_state, "top_countries_quiz_cache", {})
+            or user_id in getattr(self.bot_state, "city_quiz_cache", {})
         )
 
     def _find_active_guess_quiz(self, user_id: int):
@@ -108,6 +116,7 @@ class QuizCommands:
             (getattr(self.bot_state, "map_quiz_cache", {}), MapQuiz),
             (getattr(self.bot_state, "flag_quiz_cache", {}), FlagQuiz),
             (getattr(self.bot_state, "capital_quiz_cache", {}), CapitalQuiz),
+            (getattr(self.bot_state, "city_quiz_cache", {}), CityQuiz),
         ):
             if user_id in cache_dict:
                 return cache_dict, quiz_class
@@ -544,7 +553,7 @@ class QuizCommands:
         }
 
     async def btn_quiz_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle a press of the tip button attached to a flag/capital/person quiz message."""
+        """Handle a press of the tip button attached to a flag/capital/person/city quiz message."""
         query = update.callback_query
         owner_id = tip_message.parse_tip_callback_data(query.data)
         if owner_id is None or query.from_user.id != owner_id:
@@ -559,7 +568,12 @@ class QuizCommands:
         cache_dict, quiz_class = active_quiz
         cached_quiz = cache_dict[owner_id]
         quiz_instance = quiz_class()
-        item = cached_quiz.get("country") or cached_quiz.get("person")
+
+        if quiz_class == CityQuiz:
+            await self._city_quiz_give_tip(update, context, cached_quiz, owner_id, cached_quiz["city"], quiz_instance)
+            return
+
+        item = cached_quiz.get("country") or cached_quiz.get("person") or cached_quiz.get("city")
         tip_line = tip_message.reveal_next_tip(cached_quiz, quiz_instance, quiz_class, item)
         if tip_line is None:
             await query.answer("No more tips available!")
@@ -608,6 +622,8 @@ class QuizCommands:
                 await self.cmd_guess_capital(replay_update, context)
             case "topcountries":
                 await self.cmd_guess_top_countries(replay_update, context)
+            case "city":
+                await self.cmd_guess_city(replay_update, context)
             case _:
                 log.error(f"Unknown quiz_type for replay: {quiz_type}")
 
@@ -877,3 +893,476 @@ class QuizCommands:
             await query.answer("No more tips available!")
             return
         await query.answer()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # /guesscity — compass-rose city quiz
+    # ══════════════════════════════════════════════════════════════════════════
+
+    async def cmd_guess_city(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /guesscity [--country ISO2] [--continent NAME] [--district NAME] [--difficulty TIER]."""
+        import random
+
+        available_named_args = {
+            "country": ArgType.STRING,
+            "continent": ArgType.STRING,
+            "difficulty": ArgType.STRING,
+            "district": ArgType.OPTIONAL_STRING,
+            "region": ArgType.OPTIONAL_STRING,
+            "province": ArgType.OPTIONAL_STRING,
+            "voivodeship": ArgType.OPTIONAL_STRING,
+        }
+        command_args = CommandArgs(
+            args=context.args,
+            available_named_args=available_named_args,
+        )
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error:
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
+            return
+
+        user_id = update.effective_user.id
+        if self._has_active_guess_quiz(user_id):
+            await core_utils.send_message(
+                update, context, MessageType.TEXT, "You already have an active quiz! Answer it first or wait for the timeout."
+            )
+            return
+
+        self._set_quiz_replay_args(user_id, CityQuiz.QUIZ_TYPE, context.args)
+
+        country_iso2 = command_args.named_args.get("country", "").upper() or None
+        continent = command_args.named_args.get("continent") or None
+        difficulty_filter = command_args.named_args.get("difficulty", "").lower() or None
+        district_raw = None
+        for key in ("district", "region", "province", "voivodeship"):
+            if key in command_args.named_args:
+                district_raw = command_args.named_args[key]
+                break
+        cities = self.assets.cities
+
+        district = None
+        if district_raw is not None:
+            if district_raw.strip():
+                district = district_raw.strip()
+                if not country_iso2:
+                    inferred_country = cities.find_country_for_district(district)
+                    if inferred_country:
+                        country_iso2 = inferred_country
+            else:
+                if not country_iso2:
+                    country_iso2 = "PL"
+                available_districts = cities.get_districts_for_country(country_iso2)
+                if available_districts:
+                    district = random.choice(available_districts)
+
+        # ── Validate & filter ─────────────────────────────────────────────────
+        available_difficulties = cities.get_available_difficulties(continent=continent, country_iso2=country_iso2, district=district)
+        if not available_difficulties:
+            msg = "No cities found for the specified filters."
+            if district:
+                msg += f"\nCheck the district name: '{district}'"
+            elif continent:
+                msg += "\nAvailable continents: Europa, Azja, Afryka, Ameryka Północna, Ameryka Południowa, Oceania"
+            await core_utils.send_message(update, context, MessageType.TEXT, msg)
+            return
+
+        if difficulty_filter and difficulty_filter not in available_difficulties:
+            await core_utils.send_message(
+                update, context, MessageType.TEXT, f"No cities for that difficulty. Available: {', '.join(available_difficulties)}"
+            )
+            return
+
+        # ── Sample mystery city ───────────────────────────────────────────────
+        if difficulty_filter:
+            pool = cities.get_cities(difficulty=difficulty_filter, continent=continent, country_iso2=country_iso2, district=district)
+            chosen_diff = difficulty_filter
+        else:
+            pool = cities.get_cities(continent=continent, country_iso2=country_iso2, district=district)
+            diff_weights = {"easy": 0.25, "medium": 0.35, "hard": 0.25, "very_hard": 0.10, "crazy": 0.05}
+            weights = [diff_weights.get(d, 0.1) for d in available_difficulties]
+            chosen_diff = random.choices(available_difficulties, weights=weights, k=1)[0]
+            pool = pool[pool["difficulty"] == chosen_diff]
+
+        mystery = cities.sample_city(pool)
+
+        # ── Select hint cities ────────────────────────────────────────────────
+        hint_pool = cities.get_hint_pool(
+            mystery_iso2=str(mystery.get("iso2", "")),
+            continent=continent,
+            country_iso2=country_iso2,
+            district=district,
+        )
+        hints = select_hint_cities(mystery, hint_pool, difficulty=chosen_diff)
+        if not hints:
+            await core_utils.send_message(update, context, MessageType.TEXT, "Could not find enough hint cities. Try a different filter.")
+            return
+
+        # ── Generate diagram ──────────────────────────────────────────────────
+        diagram_buf = generate_diagram(float(mystery["lng"]), float(mystery["lat"]), hints, show_distances=False)
+
+        quiz_instance = CityQuiz()
+        filter_specified = bool(continent or country_iso2 or district)
+        if district and country_iso2:
+            scope_label = f"District: {district} ({country_iso2})"
+        elif district:
+            scope_label = f"District: {district}"
+        elif country_iso2:
+            scope_label = f"Country: {country_iso2}"
+        elif continent:
+            scope_label = f"Continent: {continent.title()}"
+        else:
+            scope_label = "Global"
+        caption = quiz_instance.build_quiz_prompt_text(
+            mystery,
+            chosen_diff,
+            CITY_QUIZ_TIMEOUT_SECONDS,
+            filter_specified,
+            title=f"🌍 Guess the City — {scope_label}",
+        )
+        # One text tip available (first letter); distances + super tip handled separately
+        keyboard = tip_message.build_initial_tip_keyboard(CityQuiz, user_id, chosen_diff, filter_specified, total_tips=CityQuiz.TOTAL_TIPS)
+        escaped_caption = stats_utils.escape_special_characters(caption)
+
+        sent = await update.message.reply_photo(
+            photo=diagram_buf,
+            caption=escaped_caption,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+            message_thread_id=update.message.message_thread_id,
+        )
+
+        self.bot_state.city_quiz_cache[user_id] = {
+            "chat_id": update.effective_chat.id,
+            "thread_id": update.message.message_thread_id,
+            "city": mystery,
+            "hints": hints,
+            "difficulty": chosen_diff,
+            "filter_specified": filter_specified,
+            "district": district,
+            "tips_given": 0,
+            "dist_tip_given": False,
+            "super_tip_given": False,
+            "message_id": sent.message_id,
+            "has_photo": True,
+            "base_text": caption,
+            "job": context.job_queue.run_once(self.city_quiz_timeout, CITY_QUIZ_TIMEOUT_SECONDS, data=user_id),
+        }
+
+    async def city_quiz_timeout(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user_id = context.job.data
+        cached_quiz = self.bot_state.city_quiz_cache.pop(user_id, None)
+        if cached_quiz is None:
+            return
+        await self._remove_tip_button(context, cached_quiz)
+        city = cached_quiz.get("city")
+        if city is None:
+            return
+        quiz_instance = CityQuiz()
+        message = stats_utils.escape_special_characters(quiz_instance.format_timeout_message(city))
+
+        map_buf = await asyncio.to_thread(
+            render_post_solve_map,
+            city,
+            cached_quiz.get("hints", []),
+            district_mode=bool(cached_quiz.get("district")),
+        )
+        if map_buf:
+            await context.bot.send_photo(
+                chat_id=cached_quiz["chat_id"],
+                photo=map_buf,
+                caption=message,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=cached_quiz["thread_id"],
+                reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, user_id),
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=cached_quiz["chat_id"],
+                text=message,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=cached_quiz["thread_id"],
+                reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, user_id),
+            )
+
+    async def handle_city_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message or not update.message.text:
+            return
+
+        user_id = update.effective_user.id
+        cached_quiz = self.bot_state.city_quiz_cache.get(user_id)
+        if cached_quiz is None:
+            return
+        if update.message.message_thread_id != cached_quiz["thread_id"]:
+            return
+
+        city = cached_quiz["city"]
+        quiz_instance = CityQuiz()
+        user_text = update.message.text.strip()
+
+        # ── Tip commands ──────────────────────────────────────────────────────
+        if user_text.lower() == "!tip":
+            await self._city_quiz_give_tip(update, context, cached_quiz, user_id, city, quiz_instance)
+            return
+
+        # ── Answer evaluation ─────────────────────────────────────────────────
+        cached_quiz["job"].schedule_removal()
+        self.bot_state.city_quiz_cache.pop(user_id, None)
+        await self._remove_tip_button(context, cached_quiz)
+
+        valid_answers = quiz_instance.get_valid_answers(city)
+        is_correct = CityQuiz.is_answer_correct(user_text.lower(), valid_answers)
+
+        if is_correct:
+            reward, _ = CityQuiz.get_reward(cached_quiz["difficulty"], cached_quiz["filter_specified"], cached_quiz["tips_given"])
+            user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
+            message = quiz_instance.format_correct_message(city, reward, total_credits=user_credits)
+        else:
+            message = quiz_instance.format_wrong_message(city)
+
+        escaped_msg = stats_utils.escape_special_characters(message)
+        map_buf = await asyncio.to_thread(
+            render_post_solve_map,
+            city,
+            cached_quiz.get("hints", []),
+            district_mode=bool(cached_quiz.get("district")),
+        )
+        if map_buf:
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                reply_to_message_id=update.message.message_id,
+                photo=map_buf,
+                caption=escaped_msg,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
+                reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, user_id),
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                reply_to_message_id=update.message.message_id,
+                text=escaped_msg,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=update.message.message_thread_id,
+                reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, user_id),
+            )
+
+    async def _city_quiz_give_tip(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        cached_quiz: dict,
+        user_id: int,
+        city: dict,
+        quiz_instance: CityQuiz,
+    ) -> None:
+        """Cycle through the 4 progressive tips (km diagram → population → first letter → 4 choice buttons)."""
+        query = update.callback_query
+        tips_given = cached_quiz.get("tips_given", 0)
+
+        if tips_given >= CityQuiz.TOTAL_TIPS:
+            if query:
+                await query.answer("No more tips available!", show_alert=True)
+            else:
+                await context.bot.send_message(
+                    chat_id=cached_quiz["chat_id"],
+                    text=stats_utils.escape_special_characters("No more tips available!"),
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    message_thread_id=cached_quiz.get("thread_id"),
+                )
+            return
+
+        tips_given += 1
+        cached_quiz["tips_given"] = tips_given
+        reward, decrease = CityQuiz.get_reward(cached_quiz["difficulty"], cached_quiz["filter_specified"], tips_given)
+
+        all_tips = quiz_instance.get_tips(city, continent_specified=cached_quiz["filter_specified"])
+        tip_text = all_tips[tips_given - 1]
+        tip_line = tip_message.format_tip_line(tips_given, CityQuiz.TOTAL_TIPS, reward, decrease, tip_text)
+        cached_quiz.setdefault("tip_lines", []).append(tip_line)
+
+        # Build next keyboard
+        if tips_given < CityQuiz.TOTAL_TIPS:
+            next_reward, _ = CityQuiz.get_reward(cached_quiz["difficulty"], cached_quiz["filter_specified"], tips_given + 1)
+            if tips_given + 1 == CityQuiz.TOTAL_TIPS:
+                next_label = f"🎯 Tip {tips_given + 1}/{CityQuiz.TOTAL_TIPS} (Choices → {next_reward})"
+            else:
+                next_label = f"💡 Tip {tips_given + 1}/{CityQuiz.TOTAL_TIPS} (reward → {next_reward})"
+            reply_markup = tip_message.build_tip_keyboard(user_id, next_label)
+        else:
+            # Tip 4: 4 multiple-choice buttons
+            options = CityQuiz.generate_mc_options(city, self.assets.cities, n=CITY_QUIZ_SUPER_TIP_OPTIONS)
+            buttons = [[InlineKeyboardButton(opt, callback_data=f"cityanswer:{user_id}:{opt}")] for opt in options]
+            reply_markup = telegram.InlineKeyboardMarkup(buttons)
+
+        new_caption = tip_message.compose_quiz_text(cached_quiz["base_text"], cached_quiz.get("tip_lines", []), TELEGRAM_CAPTION_MAX_LENGTH)
+        if not new_caption:
+            new_caption = stats_utils.escape_special_characters(tip_line)
+
+        chat_id = cached_quiz["chat_id"]
+        message_id = cached_quiz.get("message_id")
+
+        if query:
+            await query.answer()
+
+        try:
+            if tips_given == 1 and message_id is not None:
+                buf = generate_diagram(float(city["lng"]), float(city["lat"]), cached_quiz["hints"], show_distances=True)
+                media = telegram.InputMediaPhoto(
+                    media=buf,
+                    caption=new_caption,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                )
+                await context.bot.edit_message_media(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    media=media,
+                    reply_markup=reply_markup,
+                )
+            elif message_id is not None:
+                await context.bot.edit_message_caption(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    caption=new_caption,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=reply_markup,
+                )
+        except telegram.error.TelegramError as e:
+            log.warning(f"Failed to edit city quiz message in-place: {e}")
+            if tips_given == 1:
+                buf = generate_diagram(float(city["lng"]), float(city["lat"]), cached_quiz["hints"], show_distances=True)
+                await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=buf,
+                    caption=new_caption,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=reply_markup,
+                    message_thread_id=cached_quiz.get("thread_id"),
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=stats_utils.escape_special_characters(tip_line),
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=reply_markup,
+                    message_thread_id=cached_quiz.get("thread_id"),
+                )
+
+    async def btn_city_super_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the 🎯 Super Tip inline button — send 4 multiple-choice city buttons."""
+        import random
+
+        query = update.callback_query
+        if not query:
+            return
+
+        # Parse owner_id from callback data "citysuptertip:<user_id>"
+        data = query.data or ""
+        if not data.startswith("citysuprtip:"):
+            return
+        try:
+            owner_id = int(data.split(":")[1])
+        except (IndexError, ValueError):
+            await query.answer("Invalid callback.")
+            return
+
+        if query.from_user.id != owner_id:
+            await query.answer("This isn't your quiz!")
+            return
+
+        cached_quiz = self.bot_state.city_quiz_cache.get(owner_id)
+        if cached_quiz is None:
+            await query.answer("This quiz is already over.")
+            return
+        if cached_quiz.get("super_tip_given"):
+            await query.answer("Super Tip already used!")
+            return
+
+        cached_quiz["super_tip_given"] = True
+        cached_quiz["tips_given"] = cached_quiz.get("tips_given", 0) + 1
+
+        city = cached_quiz["city"]
+        correct_name = str(city.get("city", city.get("city_ascii", "")))
+
+        # Build 4 options: correct + 3 random same-difficulty cities
+        all_cities = self.assets.cities.get_cities(difficulty=cached_quiz["difficulty"])
+        other_names = [str(r["city"]) for _, r in all_cities.iterrows() if str(r.get("city", "")) != correct_name]
+        options = random.sample(other_names, min(CITY_QUIZ_SUPER_TIP_OPTIONS - 1, len(other_names)))
+        options.append(correct_name)
+        random.shuffle(options)
+
+        buttons = [[InlineKeyboardButton(opt, callback_data=f"cityanswer:{owner_id}:{opt}")] for opt in options]
+        await query.answer()
+        await context.bot.send_message(
+            chat_id=cached_quiz["chat_id"],
+            text=stats_utils.escape_special_characters("🎯 *Super Tip!* Choose the correct city:"),
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            reply_markup=telegram.InlineKeyboardMarkup(buttons),
+            message_thread_id=cached_quiz["thread_id"],
+        )
+
+    async def btn_city_answer_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle a city multiple-choice button press."""
+        query = update.callback_query
+        if not query:
+            return
+
+        data = query.data or ""
+        if not data.startswith("cityanswer:"):
+            return
+        try:
+            _, owner_id_str, chosen = data.split(":", 2)
+            owner_id = int(owner_id_str)
+        except (ValueError, IndexError):
+            await query.answer("Invalid callback.")
+            return
+
+        if query.from_user.id != owner_id:
+            await query.answer("This isn't your quiz!")
+            return
+
+        cached_quiz = self.bot_state.city_quiz_cache.pop(owner_id, None)
+        if cached_quiz is None:
+            await query.answer("This quiz is already over.")
+            return
+
+        await query.answer()
+        cached_quiz["job"].schedule_removal()
+        await self._remove_tip_button(context, cached_quiz)
+        with contextlib.suppress(telegram.error.TelegramError):
+            await query.edit_message_reply_markup(reply_markup=None)
+
+        city = cached_quiz["city"]
+        quiz_instance = CityQuiz()
+        valid_answers = quiz_instance.get_valid_answers(city)
+        is_correct = CityQuiz.is_answer_correct(chosen.lower(), valid_answers)
+
+        if is_correct:
+            reward, _ = CityQuiz.get_reward(cached_quiz["difficulty"], cached_quiz["filter_specified"], cached_quiz["tips_given"])
+            user_credits, _ = self.credits.update_credits(user_id=owner_id, credit_change=reward, action_type=CreditActionType.QUIZ)
+            message = quiz_instance.format_correct_message(city, reward, total_credits=user_credits)
+        else:
+            message = quiz_instance.format_wrong_message(city)
+
+        escaped_msg = stats_utils.escape_special_characters(message)
+        map_buf = await asyncio.to_thread(
+            render_post_solve_map,
+            city,
+            cached_quiz.get("hints", []),
+            district_mode=bool(cached_quiz.get("district")),
+        )
+        if map_buf:
+            await context.bot.send_photo(
+                chat_id=cached_quiz["chat_id"],
+                photo=map_buf,
+                caption=escaped_msg,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=cached_quiz["thread_id"],
+                reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, owner_id),
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=cached_quiz["chat_id"],
+                text=escaped_msg,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                message_thread_id=cached_quiz["thread_id"],
+                reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, owner_id),
+            )

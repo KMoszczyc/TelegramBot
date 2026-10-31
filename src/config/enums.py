@@ -45,6 +45,7 @@ class ArgType(Enum):
     REGEX = "regex"
     NUMBER = "number"
     STRING = "string"
+    OPTIONAL_STRING = "optional_string"
     POSITIVE_INT = "positive_int"
     NONE = "none"
 

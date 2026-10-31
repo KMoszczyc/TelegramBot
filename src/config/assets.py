@@ -20,6 +20,7 @@ from src.config.paths import (
     TVP_LATEST_HEADLINES_PATH,
     WALESA_PATH,
 )
+from src.models.data.cities import Cities
 from src.models.data.countries import Countries
 
 
@@ -43,6 +44,7 @@ class Assets:
         self.polish_holidays_df = pd.read_csv(str(POLISH_HOLIDAYS_PATH), sep=";")
         self.famous_people_trivia_df = pd.read_parquet(str(FAMOUS_PEOPLE_TRIVIA_PATH))
         self.countries = Countries(COUNTRIES_PATH)
+        self.cities = Cities()
 
     def read_str_file(self, path):
         with open(path) as f:

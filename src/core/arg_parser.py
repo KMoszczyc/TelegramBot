@@ -171,11 +171,14 @@ class ArgParser:
             named_arg = ArgParser.parse_named_arg(arg, command_args)
             if named_arg is None:
                 continue
-            if command_args.available_named_args[named_arg] == ArgType.NONE:
+            arg_type = command_args.available_named_args[named_arg]
+            if arg_type == ArgType.NONE:
                 command_args.named_args[named_arg] = None
+            elif arg_type == ArgType.OPTIONAL_STRING and (i + 1 >= len(args) or ArgParser.is_named_arg(args[i + 1], command_args)):
+                command_args.named_args[named_arg] = ""
             elif i + 1 < len(args) and not ArgParser.is_named_arg(args[i + 1], command_args):  # this arg has a value
-                arg_type = command_args.available_named_args[named_arg]
-                value, command_args = ArgParser.parse_arg(users_df, command_args, args[i + 1], arg_type)
+                parse_type = ArgType.STRING if arg_type == ArgType.OPTIONAL_STRING else arg_type
+                value, command_args = ArgParser.parse_arg(users_df, command_args, args[i + 1], parse_type)
                 command_args.args.remove(args[i + 1])
                 if ArgParser.get_error(command_args) == "":
                     command_args.named_args[named_arg] = value
