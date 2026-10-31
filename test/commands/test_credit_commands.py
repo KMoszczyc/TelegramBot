@@ -3,8 +3,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
+import telegram
 
 from src.commands.credit_commands import CreditCommands
+from src.models.quizzes.quiz_replay import build_replay_keyboard
 
 
 @pytest.fixture()
@@ -408,6 +410,8 @@ async def test_btn_quiz_replay_callback_unauthorized_user(commands, context):
         ("map", "cmd_guess_person_on_a_map", ["--category", "Science"]),
         ("flag", "cmd_guess_flag", ["--continent", "Europe"]),
         ("capital", "cmd_guess_capital", ["--difficulty", "easy"]),
+        ("topcountries", "cmd_guess_top_countries", ["--difficulty", "medium"]),
+        ("city", "cmd_guess_city", ["--difficulty", "easy"]),
     ],
 )
 async def test_btn_quiz_replay_callback_dispatches_with_cached_args(commands, context, quiz_type, method_name, cached_args):
@@ -434,6 +438,55 @@ async def test_btn_quiz_replay_callback_dispatches_with_cached_args(commands, co
     assert called_update.message is query.message
     assert called_update.effective_user.id == 111
     assert called_context is context
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "quiz_type, method_name, transient_error",
+    [
+        ("city", "cmd_guess_city", telegram.error.TimedOut("Timed out")),
+        ("city", "cmd_guess_city", telegram.error.NetworkError("Network down")),
+        ("map", "cmd_guess_person_on_a_map", telegram.error.TimedOut("Timed out")),
+    ],
+)
+async def test_btn_quiz_replay_callback_network_error_restores_button(commands, context, quiz_type, method_name, transient_error):
+    update = MagicMock()
+    query = MagicMock()
+    query.data = f"quizreplay:{quiz_type}:111"
+    query.from_user.id = 111
+    query.answer = AsyncMock()
+    query.edit_message_reply_markup = AsyncMock()
+    query.message = MagicMock()
+    update.callback_query = query
+
+    mock_method = AsyncMock(side_effect=transient_error)
+    setattr(commands, method_name, mock_method)
+
+    await commands.btn_quiz_replay_callback(update, context)
+
+    # First removes reply_markup, then on error restores it
+    assert query.edit_message_reply_markup.await_count == 2
+    query.edit_message_reply_markup.assert_awaited_with(reply_markup=build_replay_keyboard(quiz_type, 111))
+
+
+@pytest.mark.asyncio
+async def test_btn_quiz_replay_callback_unexpected_error_restores_button(commands, context):
+    update = MagicMock()
+    query = MagicMock()
+    query.data = "quizreplay:city:111"
+    query.from_user.id = 111
+    query.answer = AsyncMock()
+    query.edit_message_reply_markup = AsyncMock()
+    query.message = MagicMock()
+    update.callback_query = query
+
+    mock_method = AsyncMock(side_effect=RuntimeError("Unexpected crash"))
+    commands.cmd_guess_city = mock_method
+
+    await commands.btn_quiz_replay_callback(update, context)
+
+    assert query.edit_message_reply_markup.await_count == 2
+    query.edit_message_reply_markup.assert_awaited_with(reply_markup=build_replay_keyboard("city", 111))
 
 
 @pytest.mark.asyncio

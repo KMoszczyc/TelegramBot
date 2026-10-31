@@ -51,29 +51,34 @@ _SCALE_RANGE_KM = (140.0, 650.0)  # default/legacy fallback scale
 
 DIFFICULTY_HINT_CONFIG: dict[str, dict] = {
     "easy": {
-        "scale_range_km": (100.0, 380.0),
-        "min_dist_km": 30.0,
-        "prominence_tiers": (500_000, 200_000, 80_000),
+        "scale_range_km": (70.0, 240.0),
+        "min_dist_km": 25.0,
+        "max_dist_km": 280.0,
+        "prominence_tiers": (300_000, 100_000, 40_000),
     },
     "medium": {
         "scale_range_km": (60.0, 220.0),
         "min_dist_km": 20.0,
-        "prominence_tiers": (250_000, 100_000, 40_000),
+        "max_dist_km": 240.0,
+        "prominence_tiers": (200_000, 80_000, 30_000),
     },
     "hard": {
-        "scale_range_km": (30.0, 140.0),
+        "scale_range_km": (35.0, 120.0),
         "min_dist_km": 15.0,
-        "prominence_tiers": (150_000, 60_000, 30_000),
+        "max_dist_km": 180.0,
+        "prominence_tiers": (120_000, 50_000, 20_000),
     },
     "very_hard": {
-        "scale_range_km": (20.0, 90.0),
+        "scale_range_km": (25.0, 90.0),
         "min_dist_km": 15.0,
-        "prominence_tiers": (100_000, 40_000, 25_000),
+        "max_dist_km": 140.0,
+        "prominence_tiers": (80_000, 30_000, 15_000),
     },
     "crazy": {
-        "scale_range_km": (15.0, 70.0),
+        "scale_range_km": (15.0, 60.0),
         "min_dist_km": 12.0,
-        "prominence_tiers": (60_000, 30_000, 20_000),
+        "max_dist_km": 100.0,
+        "prominence_tiers": (50_000, 20_000, 10_000),
     },
 }
 _SECTOR_DIST_FACTOR = (0.45, 1.6)  # per-hint distance variation around the game scale
@@ -204,6 +209,61 @@ def _pick_by_sectors(
     return chosen
 
 
+def _fill_corridor_hints(
+    pool: pd.DataFrame,
+    chosen: list[dict],
+    n: int,
+    min_corridor_gap_deg: float = 8.0,
+    min_dist_ratio: float = 1.35,
+) -> list[dict]:
+    """
+    Fill remaining hint slots up to *n* from *pool* when coastal or geographic features leave sectors empty.
+
+    Allows additional prominent cities along corridors (e.g. Seattle and Vancouver for Portland)
+    if the compass bearing gap is at least *min_corridor_gap_deg* and the distance ratio is at least
+    *min_dist_ratio* to avoid redundant collinear hints at the same distance.
+
+    Args:
+        pool: DataFrame of candidate cities with `_bearing`, `_dist_km`, and `_prom` columns.
+        chosen: List of already chosen hint dicts.
+        n: Target number of hint cities.
+        min_corridor_gap_deg: Minimum angular separation to prevent visually overlapping arrow shafts.
+        min_dist_ratio: Minimum ratio between closer and farther city distances along the same corridor.
+
+    Returns:
+        Augmented list of hint dicts with up to *n* items.
+    """
+    if len(chosen) >= n or pool.empty:
+        return chosen
+
+    chosen_ids = {h.get("id") for h in chosen if h.get("id") is not None}
+    remaining = pool[~pool["id"].isin(chosen_ids)] if chosen_ids else pool
+    if remaining.empty:
+        return chosen
+
+    remaining = remaining.sort_values(by="_prom", ascending=False)
+    for _, row in remaining.iterrows():
+        c_bearing = float(row["_bearing"])
+        c_dist = float(row["_dist_km"])
+        conflict = False
+        for h in chosen:
+            gap = _angle_diff(c_bearing, float(h["_bearing"]))
+            if gap < min_corridor_gap_deg:
+                conflict = True
+                break
+            if gap < 24.0:
+                h_dist = float(h["_dist_km"])
+                ratio = max(c_dist, h_dist) / max(min(c_dist, h_dist), 1.0)
+                if ratio < min_dist_ratio:
+                    conflict = True
+                    break
+        if not conflict:
+            chosen.append(row.to_dict())
+            if len(chosen) >= n:
+                break
+    return chosen
+
+
 def select_hint_cities(
     mystery: dict,
     pool_df: pd.DataFrame,
@@ -226,9 +286,20 @@ def select_hint_cities(
 
     diff_key = (difficulty or str(mystery.get("difficulty", "medium"))).lower()
     config = DIFFICULTY_HINT_CONFIG.get(diff_key, DIFFICULTY_HINT_CONFIG["medium"])
-    scale_range = config["scale_range_km"]
-    base_min_dist = config["min_dist_km"]
-    prominence_tiers = config["prominence_tiers"]
+
+    pop = float(mystery.get("population") or 0)
+    is_major_hub = (pop >= 1_000_000) or (mystery.get("capital") == "primary" and pop >= 800_000)
+
+    if is_major_hub:
+        scale_range = (160.0, 360.0)
+        base_min_dist = 40.0
+        max_dist = 550.0
+        prominence_tiers = (400_000, 200_000, 180_000)
+    else:
+        scale_range = config["scale_range_km"]
+        base_min_dist = config["min_dist_km"]
+        max_dist = config.get("max_dist_km", 280.0)
+        prominence_tiers = config["prominence_tiers"]
 
     m_lon, m_lat = float(mystery["lng"]), float(mystery["lat"])
     lons = candidates["lng"].to_numpy(dtype=float)
@@ -240,11 +311,20 @@ def select_hint_cities(
     ).reset_index(drop=True)
     candidates["_prom"] = _prominence(candidates["_pop"], candidates["capital"].astype(str))
 
-    mystery_iso2 = str(mystery.get("iso2", "")).upper()
-    if diff_key != "easy" and mystery_iso2:
-        same_country = candidates[candidates["iso2"].str.upper() == mystery_iso2]
-        if len(same_country) >= n * 2:
-            candidates = same_country
+    # Proximity filter: if there are ample candidates within local radius, bound search to nearby cities.
+    # Major hubs (Rome, Warsaw) use a wider national/regional reach with a high fame floor.
+    if is_major_hub:
+        for r_limit in (max_dist, max_dist * 1.5, 10_000.0):
+            nearby = candidates[(candidates["_dist_km"] <= r_limit) & (candidates["_prom"] >= 150_000)]
+            if len(nearby) >= 15:
+                candidates = nearby
+                break
+    else:
+        for r_limit in (max_dist, max_dist * 1.5, max_dist * 2.5, 10_000.0):
+            nearby = candidates[candidates["_dist_km"] <= r_limit]
+            if len(nearby) >= 20:
+                candidates = nearby
+                break
 
     scale_km = math.exp(random.uniform(math.log(scale_range[0]), math.log(scale_range[1])))
     jitter = random.uniform(-10.0, 10.0)
@@ -253,9 +333,11 @@ def select_hint_cities(
     for min_dist in (max(base_min_dist, 0.25 * scale_km), 0.0):
         pool = candidates[candidates["_dist_km"] >= min_dist]
         picked = _pick_by_sectors(pool, n, min_gap_deg, jitter, scale_km, prominence_tiers=prominence_tiers) if len(pool) else []
+        if len(picked) < n and len(pool):
+            picked = _fill_corridor_hints(pool, picked, n, min_corridor_gap_deg=8.0, min_dist_ratio=1.35)
         if len(picked) > len(best):
             best = picked
-        if len(best) >= min(n, _MIN_HINTS_BEFORE_RELAXING):
+        if len(best) >= n:
             break
     return best[:n]
 
@@ -313,7 +395,8 @@ def generate_diagram(
     draw.text((cx, cy - 16 * _SCALE), "City", fill=_TEXT_COLOR, font=_FONT_CENTER, anchor="mm")
     draw.text((cx, cy + 20 * _SCALE), "?", fill=_TEXT_COLOR, font=_FONT_Q, anchor="mm")
 
-    # ── Per-hint arrows + labels ───────────────────────────────────────────────
+    # ── Collect hint geometry and text metrics ─────────────────────────────────
+    hint_layouts = []
     for hint in hints:
         hlon = float(hint["lng"])
         hlat = float(hint["lat"])
@@ -329,24 +412,11 @@ def generate_diagram(
         sin_b = math.sin(b_rad)
         cos_b = math.cos(b_rad)
 
+        # Arrow shaft: 100% uniform length for every hint
         sx = cx + sin_b * _CIRCLE_R
         sy = cy - cos_b * _CIRCLE_R
         tx = cx + sin_b * (_CIRCLE_R + _ARROW_LEN)
         ty = cy - cos_b * (_CIRCLE_R + _ARROW_LEN)
-
-        # Main shaft
-        draw.line([(sx, sy), (tx, ty)], fill=_ARROW_COLOR, width=_ARROW_W)
-
-        # Draw solid, smooth arrowhead polygon
-        tip = (tx, ty)
-        base_x = tx - sin_b * _HEAD_LEN
-        base_y = ty + cos_b * _HEAD_LEN
-        norm_x = cos_b * (_HEAD_WIDTH / 2)
-        norm_y = sin_b * (_HEAD_WIDTH / 2)
-
-        wing1 = (base_x + norm_x, base_y + norm_y)
-        wing2 = (base_x - norm_x, base_y - norm_y)
-        draw.polygon([tip, wing1, wing2], fill=_ARROW_COLOR)
 
         # Label group: flag + city name [+ distance]
         flag_img = _load_flag(iso2)
@@ -365,33 +435,154 @@ def generate_diagram(
             dist_w = dist_bb[2] - dist_bb[0]
             dist_h = dist_bb[3] - dist_bb[1]
 
-        group_w = fw + max(name_w, dist_w)
         gap_between_name_and_dist = 6 * _SCALE if dist_text else 0
+        group_w = fw + max(name_w, dist_w)
         group_h = max(fh, name_h + gap_between_name_and_dist + dist_h)
 
-        # Gap beyond arrow tip
+        # Anchor point just beyond the arrow tip
         gap = 18 * _SCALE
         lx = tx + sin_b * gap
         ly = ty - cos_b * gap
 
-        # Position box based on direction
-        if sin_b >= 0.15:  # East side
-            gx = lx
-        elif sin_b <= -0.15:  # West side
-            gx = lx - group_w
-        else:  # Directly North or South
-            gx = lx - group_w / 2
+        hint_layouts.append(
+            {
+                "bearing": bearing,
+                "sin_b": sin_b,
+                "cos_b": cos_b,
+                "sx": sx,
+                "sy": sy,
+                "tx": tx,
+                "ty": ty,
+                "lx": lx,
+                "ly": ly,
+                "group_w": group_w,
+                "group_h": group_h,
+                "flag_img": flag_img,
+                "fw": fw,
+                "fh": fh,
+                "hname": hname,
+                "name_h": name_h,
+                "dist_text": dist_text,
+                "gap_between": gap_between_name_and_dist,
+            }
+        )
 
-        if cos_b >= 0.15:  # North side (above)
-            gy = ly - group_h
-        elif cos_b <= -0.15:  # South side (below)
-            gy = ly
+    # ── Directional placement with signed-neighbor awareness ───────────────────
+    for i, item in enumerate(hint_layouts):
+        bearing = item["bearing"]
+        sin_b, cos_b = item["sin_b"], item["cos_b"]
+        lx, ly = item["lx"], item["ly"]
+        group_w, group_h = item["group_w"], item["group_h"]
+
+        # Find closest angular neighbor
+        min_abs_diff = 360.0
+        c_diff = 0.0
+        for j, other in enumerate(hint_layouts):
+            if i == j:
+                continue
+            diff = (other["bearing"] - bearing + 180.0) % 360.0 - 180.0
+            if abs(diff) < min_abs_diff:
+                min_abs_diff = abs(diff)
+                c_diff = diff
+
+        if min_abs_diff <= 35.0:
+            # Corridor pair: anchor outward to avoid mutual collision
+            if abs(cos_b) >= abs(sin_b):
+                # Predominantly North or South: split horizontally
+                gx = lx - group_w if c_diff > 0 else lx
+                gy = ly - group_h if cos_b >= 0.15 else (ly if cos_b <= -0.15 else ly - group_h / 2)
+            else:
+                # Predominantly East or West: split vertically
+                if sin_b > 0:
+                    gx = lx
+                    gy = ly - group_h if c_diff > 0 else ly
+                else:
+                    gx = lx - group_w
+                    gy = ly if c_diff > 0 else ly - group_h
         else:
-            gy = ly - group_h / 2
+            # Standard directional placement
+            if sin_b >= 0.15:  # East side
+                gx = lx
+            elif sin_b <= -0.15:  # West side
+                gx = lx - group_w
+            else:  # Directly North or South
+                gx = lx - group_w / 2
 
-        # Clamp to canvas
-        gx = max(10 * _SCALE, min(canvas_w - group_w - 10 * _SCALE, gx))
-        gy = max(10 * _SCALE, min(canvas_h - group_h - 10 * _SCALE, gy))
+            if cos_b >= 0.15:  # North side (above)
+                gy = ly - group_h
+            elif cos_b <= -0.15:  # South side (below)
+                gy = ly
+            else:
+                gy = ly - group_h / 2
+
+        item["gx"] = gx
+        item["gy"] = gy
+
+    # ── 2D Bounding-box overlap relaxation safeguard ───────────────────────────
+    for _ in range(10):
+        collided = False
+        for i in range(len(hint_layouts)):
+            for j in range(i + 1, len(hint_layouts)):
+                b1, b2 = hint_layouts[i], hint_layouts[j]
+                ox = min(b1["gx"] + b1["group_w"], b2["gx"] + b2["group_w"]) - max(b1["gx"], b2["gx"])
+                oy = min(b1["gy"] + b1["group_h"], b2["gy"] + b2["group_h"]) - max(b1["gy"], b2["gy"])
+                if ox > 0 and oy > 0:
+                    collided = True
+                    if ox <= oy:
+                        shift = (ox + 4 * _SCALE) / 2
+                        if b1["gx"] < b2["gx"]:
+                            b1["gx"] -= shift
+                            b2["gx"] += shift
+                        else:
+                            b1["gx"] += shift
+                            b2["gx"] -= shift
+                    else:
+                        shift = (oy + 4 * _SCALE) / 2
+                        if b1["gy"] < b2["gy"]:
+                            b1["gy"] -= shift
+                            b2["gy"] += shift
+                        else:
+                            b1["gy"] += shift
+                            b2["gy"] -= shift
+        if not collided:
+            break
+
+    # ── Clamp to canvas margins ────────────────────────────────────────────────
+    for item in hint_layouts:
+        item["gx"] = max(10 * _SCALE, min(canvas_w - item["group_w"] - 10 * _SCALE, item["gx"]))
+        item["gy"] = max(10 * _SCALE, min(canvas_h - item["group_h"] - 10 * _SCALE, item["gy"]))
+
+    # ── Render arrow shafts & heads first ──────────────────────────────────────
+    for item in hint_layouts:
+        sx, sy = item["sx"], item["sy"]
+        tx, ty = item["tx"], item["ty"]
+        sin_b, cos_b = item["sin_b"], item["cos_b"]
+
+        # Main shaft
+        draw.line([(sx, sy), (tx, ty)], fill=_ARROW_COLOR, width=_ARROW_W)
+
+        # Draw solid, smooth arrowhead polygon
+        tip = (tx, ty)
+        base_x = tx - sin_b * _HEAD_LEN
+        base_y = ty + cos_b * _HEAD_LEN
+        norm_x = cos_b * (_HEAD_WIDTH / 2)
+        norm_y = sin_b * (_HEAD_WIDTH / 2)
+
+        wing1 = (base_x + norm_x, base_y + norm_y)
+        wing2 = (base_x - norm_x, base_y - norm_y)
+        draw.polygon([tip, wing1, wing2], fill=_ARROW_COLOR)
+
+    # ── Render labels (flags + text) ───────────────────────────────────────────
+    for item in hint_layouts:
+        gx, gy = item["gx"], item["gy"]
+        group_h = item["group_h"]
+        flag_img = item["flag_img"]
+        fw = item["fw"]
+        fh = item["fh"]
+        hname = item["hname"]
+        name_h = item["name_h"]
+        dist_text = item["dist_text"]
+        gap_between = item["gap_between"]
 
         if flag_img:
             fy = int(gy + max(0, (group_h - fh) // 2))
@@ -401,7 +592,7 @@ def generate_diagram(
         draw.text((tx_label, int(gy)), hname, fill=_TEXT_COLOR, font=_FONT_BOLD)
         if dist_text:
             draw.text(
-                (tx_label, int(gy + name_h + gap_between_name_and_dist)),
+                (tx_label, int(gy + name_h + gap_between)),
                 dist_text,
                 fill=_DIST_COLOR,
                 font=_FONT_DIST,
@@ -413,9 +604,6 @@ def generate_diagram(
     final_img.save(buf, "JPEG", quality=95)
     buf.seek(0)
     return buf
-
-
-# ── CityQuiz (BaseGuessQuiz subclass) ─────────────────────────────────────────
 
 
 class CityQuiz(BaseGuessQuiz):
@@ -455,11 +643,20 @@ class CityQuiz(BaseGuessQuiz):
 
     def get_description(self, item: dict | pd.Series) -> str:
         city = item if isinstance(item, dict) else item.to_dict()
-        country = city.get("country", "")
-        continent = city.get("continent", "")
+        country = str(city.get("country", "")).strip()
+        continent = str(city.get("continent", "")).strip()
+        district = str(city.get("admin_name", "") or "").strip()
         pop = city.get("population", 0)
         pop_str = f"{int(pop):,}" if pop else "unknown"
-        return f"{country} ({continent}) — population: {pop_str}"
+
+        if district and district.casefold() not in (country.casefold(), continent.casefold()):
+            location_part = f"{country}, {district} ({continent})"
+        elif continent:
+            location_part = f"{country} ({continent})"
+        else:
+            location_part = country
+
+        return f"{location_part} — population: {pop_str}"
 
     def get_tips(self, item: dict | pd.Series, continent_specified: bool = False) -> list[str]:
         """

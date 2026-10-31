@@ -57,6 +57,7 @@ class Cities:
         continent: str | None = None,
         country_iso2: str | None = None,
         district: str | None = None,
+        general_eligible: bool | None = None,
     ) -> pd.DataFrame:
         """Return a filtered subset of cities. All filters are optional."""
         df = self.df
@@ -73,6 +74,8 @@ class Cities:
             df = df[df["admin_name"].fillna("").apply(lambda a: _normalize_text(str(a)) == norm_district)]
         if difficulty:
             df = df[df["difficulty"] == difficulty.lower()]
+        if general_eligible is not None and "general_eligible" in df.columns:
+            df = df[df["general_eligible"] == general_eligible]
         return df
 
     def get_available_difficulties(
@@ -80,8 +83,14 @@ class Cities:
         continent: str | None = None,
         country_iso2: str | None = None,
         district: str | None = None,
+        general_eligible: bool | None = None,
     ) -> list[str]:
-        df = self.get_cities(continent=continent, country_iso2=country_iso2, district=district)
+        df = self.get_cities(
+            continent=continent,
+            country_iso2=country_iso2,
+            district=district,
+            general_eligible=general_eligible,
+        )
         return [d for d in DIFFICULTIES if not df[df["difficulty"] == d].empty]
 
     def get_districts_for_country(self, country_iso2: str) -> list[str]:
@@ -138,3 +147,89 @@ class Cities:
         if df.empty:
             raise ValueError("No cities match the specified filters.")
         return df.sample(n=1).iloc[0].to_dict()
+
+    def sample_mystery_city(
+        self,
+        difficulty: str | None = None,
+        continent: str | None = None,
+        country_iso2: str | None = None,
+        district: str | None = None,
+    ) -> tuple[dict, str]:
+        """
+        Sample a mystery city and determine the chosen difficulty.
+        Returns (city_dict, chosen_difficulty).
+
+        If no geographic filters are specified (General Mode), applies regional weighting:
+        50% Poland, 35% Other Europe, 15% Rest of World (restricted to general_eligible).
+        """
+        import random
+
+        has_geo_filter = bool(continent or country_iso2 or district)
+        diff_weights = {"easy": 0.25, "medium": 0.35, "hard": 0.25, "very_hard": 0.10, "crazy": 0.05}
+
+        if has_geo_filter:
+            available_diffs = self.get_available_difficulties(
+                continent=continent,
+                country_iso2=country_iso2,
+                district=district,
+            )
+            if not available_diffs:
+                raise ValueError("No cities match the specified filters.")
+
+            if difficulty:
+                chosen_diff = difficulty.lower()
+            else:
+                weights = [diff_weights.get(d, 0.1) for d in available_diffs]
+                chosen_diff = random.choices(available_diffs, weights=weights, k=1)[0]
+
+            pool = self.get_cities(
+                difficulty=chosen_diff,
+                continent=continent,
+                country_iso2=country_iso2,
+                district=district,
+            )
+            if pool.empty:
+                raise ValueError(f"No cities available for difficulty '{chosen_diff}'.")
+            return self.sample_city(pool), chosen_diff
+
+        # ── General Mode (no geographic flags) ─────────────────────────────────
+        available_diffs = self.get_available_difficulties(general_eligible=True)
+        if difficulty:
+            chosen_diff = difficulty.lower()
+        else:
+            weights = [diff_weights.get(d, 0.1) for d in available_diffs]
+            chosen_diff = random.choices(available_diffs, weights=weights, k=1)[0]
+
+        # Regional distribution: 50% PL, 35% Other Europe, 15% Rest of World
+        # Non-EU in general mode only features easy and medium tiers (curated capitals/hubs).
+        if chosen_diff in ("easy", "medium"):
+            regions = ["PL", "EU", "ROW"]
+            region_weights = [0.50, 0.35, 0.15]
+        else:
+            regions = ["PL", "EU"]
+            region_weights = [0.55, 0.45]
+
+        chosen_region = random.choices(regions, weights=region_weights, k=1)[0]
+
+        if chosen_region == "PL":
+            pool = self.df[(self.df["iso2"].str.upper() == "PL") & (self.df["difficulty"] == chosen_diff)]
+        elif chosen_region == "EU":
+            pool = self.df[
+                self.df["continent"].str.lower().isin(["europa", "europe"])
+                & (self.df["iso2"].str.upper() != "PL")
+                & (self.df["difficulty"] == chosen_diff)
+            ]
+        else:  # ROW
+            gen_col = self.df["general_eligible"] if "general_eligible" in self.df.columns else True
+            pool = self.df[
+                (~self.df["continent"].str.lower().isin(["europa", "europe"]))
+                & (gen_col == True)  # noqa: E712
+                & (self.df["difficulty"] == chosen_diff)
+            ]
+
+        if pool.empty:
+            pool = self.get_cities(difficulty=chosen_diff, general_eligible=True)
+            if pool.empty:
+                pool = self.get_cities(difficulty=chosen_diff)
+
+        return self.sample_city(pool), chosen_diff

@@ -332,13 +332,19 @@ class QuizCommands:
         keyboard = tip_message.build_initial_tip_keyboard(MapQuiz, user_id, chosen_diff, category_specified, total_tips)
         escaped_caption = stats_utils.escape_special_characters(caption)
 
-        sent = await update.message.reply_photo(
-            photo=image_path,
-            caption=escaped_caption,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            reply_markup=keyboard,
-            message_thread_id=update.message.message_thread_id,
-        )
+        try:
+            sent = await update.message.reply_photo(
+                photo=image_path,
+                caption=escaped_caption,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+                message_thread_id=update.message.message_thread_id,
+                read_timeout=60,
+                write_timeout=60,
+            )
+        except (telegram.error.TimedOut, telegram.error.NetworkError) as e:
+            log.warning(f"Network error/timeout while sending map quiz photo: {e}")
+            raise
 
         self.bot_state.map_quiz_cache[user_id] = {
             "chat_id": update.effective_chat.id,
@@ -522,21 +528,29 @@ class QuizCommands:
         keyboard = tip_message.build_initial_tip_keyboard(quiz_class, user_id, chosen_diff, continent_specified, total_tips)
         escaped_text = stats_utils.escape_special_characters(base_text)
 
-        if image_path:
-            sent = await update.message.reply_photo(
-                photo=image_path,
-                caption=escaped_text,
-                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                reply_markup=keyboard,
-                message_thread_id=update.message.message_thread_id,
-            )
-        else:
-            sent = await update.message.reply_text(
-                text=escaped_text,
-                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                reply_markup=keyboard,
-                message_thread_id=update.message.message_thread_id,
-            )
+        try:
+            if image_path:
+                sent = await update.message.reply_photo(
+                    photo=image_path,
+                    caption=escaped_text,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard,
+                    message_thread_id=update.message.message_thread_id,
+                    read_timeout=60,
+                    write_timeout=60,
+                )
+            else:
+                sent = await update.message.reply_text(
+                    text=escaped_text,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=keyboard,
+                    message_thread_id=update.message.message_thread_id,
+                    read_timeout=60,
+                    write_timeout=60,
+                )
+        except (telegram.error.TimedOut, telegram.error.NetworkError) as e:
+            log.warning(f"Network error/timeout while sending {title} quiz: {e}")
+            raise
 
         cache_dict[user_id] = {
             "chat_id": update.effective_chat.id,
@@ -611,21 +625,38 @@ class QuizCommands:
         context.args = list(cached_args)
         replay_update = ReplayUpdateProxy(update, query.message, query.from_user)
 
-        match quiz_type:
-            case "quiz":
-                await self.cmd_quiz(replay_update, context)
-            case "map":
-                await self.cmd_guess_person_on_a_map(replay_update, context)
-            case "flag":
-                await self.cmd_guess_flag(replay_update, context)
-            case "capital":
-                await self.cmd_guess_capital(replay_update, context)
-            case "topcountries":
-                await self.cmd_guess_top_countries(replay_update, context)
-            case "city":
-                await self.cmd_guess_city(replay_update, context)
-            case _:
-                log.error(f"Unknown quiz_type for replay: {quiz_type}")
+        try:
+            match quiz_type:
+                case "quiz":
+                    await self.cmd_quiz(replay_update, context)
+                case "map":
+                    await self.cmd_guess_person_on_a_map(replay_update, context)
+                case "flag":
+                    await self.cmd_guess_flag(replay_update, context)
+                case "capital":
+                    await self.cmd_guess_capital(replay_update, context)
+                case "topcountries":
+                    await self.cmd_guess_top_countries(replay_update, context)
+                case "city":
+                    await self.cmd_guess_city(replay_update, context)
+                case _:
+                    log.error(f"Unknown quiz_type for replay: {quiz_type}")
+        except (telegram.error.TimedOut, telegram.error.NetworkError) as e:
+            log.warning(f"Replay failed due to timeout/network error for {quiz_type}: {e}")
+            with contextlib.suppress(telegram.error.TelegramError):
+                await query.edit_message_reply_markup(reply_markup=build_replay_keyboard(quiz_type, owner_id))
+            with contextlib.suppress(telegram.error.TelegramError):
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, "Request timed out while starting the quiz. Please try again."
+                )
+        except Exception as e:
+            log.error(f"Unexpected error during replay for {quiz_type}: {e}", exc_info=True)
+            with contextlib.suppress(telegram.error.TelegramError):
+                await query.edit_message_reply_markup(reply_markup=build_replay_keyboard(quiz_type, owner_id))
+            with contextlib.suppress(telegram.error.TelegramError):
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, "An error occurred while starting the quiz. Please try again."
+                )
 
     async def _guess_country_timeout_generic(self, context: ContextTypes.DEFAULT_TYPE, cache_dict: dict, quiz_class):
         user_id = context.job.data
@@ -972,17 +1003,9 @@ class QuizCommands:
             return
 
         # ── Sample mystery city ───────────────────────────────────────────────
-        if difficulty_filter:
-            pool = cities.get_cities(difficulty=difficulty_filter, continent=continent, country_iso2=country_iso2, district=district)
-            chosen_diff = difficulty_filter
-        else:
-            pool = cities.get_cities(continent=continent, country_iso2=country_iso2, district=district)
-            diff_weights = {"easy": 0.25, "medium": 0.35, "hard": 0.25, "very_hard": 0.10, "crazy": 0.05}
-            weights = [diff_weights.get(d, 0.1) for d in available_difficulties]
-            chosen_diff = random.choices(available_difficulties, weights=weights, k=1)[0]
-            pool = pool[pool["difficulty"] == chosen_diff]
-
-        mystery = cities.sample_city(pool)
+        mystery, chosen_diff = cities.sample_mystery_city(
+            difficulty=difficulty_filter, continent=continent, country_iso2=country_iso2, district=district
+        )
 
         # ── Select hint cities ────────────────────────────────────────────────
         hint_pool = cities.get_hint_pool(
@@ -1022,13 +1045,20 @@ class QuizCommands:
         keyboard = tip_message.build_initial_tip_keyboard(CityQuiz, user_id, chosen_diff, filter_specified, total_tips=CityQuiz.TOTAL_TIPS)
         escaped_caption = stats_utils.escape_special_characters(caption)
 
-        sent = await update.message.reply_photo(
-            photo=diagram_buf,
-            caption=escaped_caption,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            reply_markup=keyboard,
-            message_thread_id=update.message.message_thread_id,
-        )
+        try:
+            sent = await update.message.reply_photo(
+                photo=diagram_buf,
+                caption=escaped_caption,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+                message_thread_id=update.message.message_thread_id,
+                read_timeout=60,
+                write_timeout=60,
+                filename="city_quiz.jpg",
+            )
+        except (telegram.error.TimedOut, telegram.error.NetworkError) as e:
+            log.warning(f"Network error/timeout while sending guess city diagram: {e}")
+            raise
 
         self.bot_state.city_quiz_cache[user_id] = {
             "chat_id": update.effective_chat.id,

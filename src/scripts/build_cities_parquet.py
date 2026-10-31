@@ -45,6 +45,42 @@ SILESIAN_POPULATION_CORRECTIONS: dict[str, int] = {
 AGGLOMERATION_POP_VALUES = {2_746_000, 2_710_397, 2_700_000, 1_991_000}
 
 
+CURATED_ICONIC_CITIES: set[tuple[str, str]] = {
+    ("Shanghai", "China"),
+    ("Hong Kong", "Hong Kong"),
+    ("Guangzhou", "China"),
+    ("Shenzhen", "China"),
+    ("Mumbai", "India"),
+    ("Kolkata", "India"),
+    ("Bangalore", "India"),
+    ("Chennai", "India"),
+    ("Dubai", "United Arab Emirates"),
+    ("Singapore", "Singapore"),
+    ("Istanbul", "Turkey"),
+    ("Cairo", "Egypt"),
+    ("Johannesburg", "South Africa"),
+    ("Rio de Janeiro", "Brazil"),
+    ("São Paulo", "Brazil"),
+    ("Buenos Aires", "Argentina"),
+    ("Bangkok", "Thailand"),
+    ("Seoul", "South Korea"),
+}
+
+WESTERN_MAJOR_ISO2: set[str] = {
+    "US",
+    "CA",
+    "AU",
+    "NZ",
+    "JP",
+    "BR",
+    "MX",
+    "AR",
+    "ZA",
+    "CL",
+    "KR",
+}
+
+
 def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
     """Load cities.csv, apply corrections, enrich with continent, save as parquet."""
     csv_path = csv_path or str(DATA_DIR / "misc" / "cities.csv")
@@ -67,20 +103,78 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
     df = df.merge(countries_df, left_on="iso2", right_on="country_code", how="left")
     df.drop(columns=["country_code"], inplace=True)
 
-    # ── Compute easiness_score for difficulty ranking ──────────────────────────
-    EUROPE_MULTIPLIER = 3.0
-    multipliers = df["continent"].apply(lambda c: EUROPE_MULTIPLIER if str(c).lower() in ("europa", "europe") else 1.0)
     df["population"] = pd.to_numeric(df["population"], errors="coerce").fillna(0).astype(int)
-    df["easiness_score"] = (df["population"] * multipliers).astype(float)
 
-    # Sort by easiness descending, assign difficulty tiers
-    df = df.sort_values("easiness_score", ascending=False).reset_index(drop=True)
-    thresholds = [(0, 100, "easy"), (100, 1_000, "medium"), (1_000, 5_000, "hard"), (5_000, 20_000, "very_hard")]
-    df["difficulty"] = "crazy"
-    for start, end, label in thresholds:
-        df.loc[start : end - 1, "difficulty"] = label
+    # ── Regional difficulty classification ────────────────────────────────────
+    def assign_difficulty(row: pd.Series) -> str:
+        pop = row["population"]
+        cap = row.get("capital")
+        iso2 = str(row.get("iso2", "")).upper()
+        continent = str(row.get("continent", "")).lower()
+
+        # Poland: major metropolises are Easy, large hubs Medium, down to small towns
+        if iso2 == "PL" or row.get("country") == "Poland":
+            if pop >= 270_000:
+                return "easy"
+            if pop >= 70_000:
+                return "medium"
+            if pop >= 25_000:
+                return "hard"
+            if pop >= 12_000:
+                return "very_hard"
+            return "crazy"
+
+        # Other Europe: major capitals & megacities are Easy, famous hubs & capitals Medium
+        if continent in ("europa", "europe"):
+            if (cap == "primary" and pop >= 300_000) or pop >= 1_500_000:
+                return "easy"
+            if pop >= 400_000 or (cap == "primary" and pop >= 100_000):
+                return "medium"
+            if pop >= 150_000:
+                return "hard"
+            if pop >= 60_000:
+                return "very_hard"
+            return "crazy"
+
+        # Rest of the World: national capitals & megacities Easy, regional hubs Medium
+        if cap == "primary" or pop >= 3_000_000:
+            return "easy"
+        if cap == "admin" or pop >= 1_000_000:
+            return "medium"
+        if pop >= 300_000:
+            return "hard"
+        if pop >= 50_000:
+            return "very_hard"
+        return "crazy"
+
+    # ── General Mode eligibility ──────────────────────────────────────────────
+    def check_general_eligible(row: pd.Series) -> bool:
+        iso2 = str(row.get("iso2", "")).upper()
+        continent = str(row.get("continent", "")).lower()
+
+        # All Poland and European cities are eligible
+        if iso2 == "PL" or continent in ("europa", "europe"):
+            return True
+
+        pop = row["population"]
+        cap = row.get("capital")
+        # Rest of World: national capitals >= 100k
+        if cap == "primary" and pop >= 100_000:
+            return True
+        # Western / major countries: major metropolises >= 1.5M
+        if iso2 in WESTERN_MAJOR_ISO2 and pop >= 1_500_000:
+            return True
+        # Iconic non-Western cities
+        city = str(row.get("city", ""))
+        country = str(row.get("country", ""))
+        return (city, country) in CURATED_ICONIC_CITIES and pop >= 500_000
+
+    df["difficulty"] = df.apply(assign_difficulty, axis=1)
+    df["general_eligible"] = df.apply(check_general_eligible, axis=1)
+    df["easiness_score"] = df["population"].astype(float)
 
     log.info("Difficulty distribution:\n%s", df["difficulty"].value_counts().to_string())
+    log.info("General eligible count: %d / %d", df["general_eligible"].sum(), len(df))
 
     # ── Save ───────────────────────────────────────────────────────────────────
     import os

@@ -485,3 +485,309 @@ def test_select_hint_cities_scales_with_difficulty(ring_cities):
     avg_crazy = sum(h["_dist_km"] for h in hints_crazy) / len(hints_crazy)
     # Hints for crazy tier should be closer to mystery city than easy tier
     assert avg_crazy <= avg_easy
+
+
+@pytest.mark.parametrize(
+    "admin_name,country,expected_part",
+    [
+        ("Małopolskie", "Poland", "Poland, Małopolskie (Europa)"),
+        (None, "Poland", "Poland (Europa)"),
+        ("", "Poland", "Poland (Europa)"),
+        ("Monaco", "Monaco", "Monaco (Europa)"),
+        ("Singapore", "Singapore", "Singapore (Europa)"),
+    ],
+)
+def test_city_quiz_description_district_scenarios(mock_city_dict, admin_name, country, expected_part):
+    quiz = CityQuiz()
+    city = dict(mock_city_dict)
+    city["country"] = country
+    city["admin_name"] = admin_name
+    desc = quiz.get_description(city)
+    assert expected_part in desc
+    assert "population: 800,000" in desc
+
+
+def test_city_quiz_messages_include_district(mock_city_dict):
+    quiz = CityQuiz()
+    correct = quiz.format_correct_message(mock_city_dict, reward=100)
+    assert "Poland, Małopolskie (Europa)" in correct
+
+    wrong = quiz.format_wrong_message(mock_city_dict)
+    assert "Poland, Małopolskie (Europa)" in wrong
+
+    timeout = quiz.format_timeout_message(mock_city_dict)
+    assert "Poland, Małopolskie (Europa)" in timeout
+
+
+@pytest.mark.parametrize(
+    "filter_kwargs,expected_diff",
+    [
+        ({"difficulty": "easy", "country_iso2": "PL"}, "easy"),
+        ({"difficulty": "hard", "country_iso2": "PL"}, "hard"),
+        ({"country_iso2": "PL"}, None),
+    ],
+)
+def test_cities_sample_mystery_city_with_filters(tmp_path, mock_cities_df, filter_kwargs, expected_diff):
+    parquet_path = tmp_path / "test_cities.parquet"
+    mock_cities_df["general_eligible"] = True
+    mock_cities_df.to_parquet(parquet_path, index=False)
+    cities = Cities(parquet_path=str(parquet_path), min_population=0)
+
+    mystery, diff = cities.sample_mystery_city(**filter_kwargs)
+    assert isinstance(mystery, dict)
+    assert mystery["iso2"] == "PL"
+    if expected_diff:
+        assert diff == expected_diff
+
+
+def test_cities_sample_mystery_city_general_mode_respects_regional_eligibility():
+    cities = Cities(min_population=0)
+    for _ in range(30):
+        mystery, diff = cities.sample_mystery_city()
+        assert diff in ["easy", "medium", "hard", "very_hard", "crazy"]
+        continent = str(mystery.get("continent", "")).lower()
+        if continent not in ("europa", "europe") and mystery.get("iso2") != "PL":
+            assert mystery.get("general_eligible") is True
+            assert diff in ("easy", "medium")
+
+
+def test_real_cities_parquet_poland_difficulty_calibration():
+    cities = Cities(min_population=0)
+    pl_cities = cities.get_cities(country_iso2="PL")
+    easy_pl = pl_cities[pl_cities["difficulty"] == "easy"]
+    assert len(easy_pl) >= 10
+    easy_names = set(easy_pl["city"].tolist())
+    for expected in [
+        "Warsaw",
+        "Kraków",
+        "Wrocław",
+        "Łódź",
+        "Poznań",
+        "Gdańsk",
+        "Szczecin",
+        "Bydgoszcz",
+        "Lublin",
+        "Katowice",
+    ]:
+        assert expected in easy_names
+
+    medium_pl = pl_cities[pl_cities["difficulty"] == "medium"]
+    assert len(medium_pl) >= 20
+
+
+@pytest.mark.parametrize("city_name", ["Keratsíni", "Karaman"])
+def test_obscure_european_cities_are_very_hard(city_name):
+    cities = Cities(min_population=0)
+    match = cities.df[cities.df["city"] == city_name]
+    assert not match.empty
+    assert match.iloc[0]["difficulty"] == "very_hard"
+
+
+def test_select_hint_cities_katowice_local_proximity():
+    cities = Cities(min_population=0)
+    katowice = cities.df[(cities.df["city"] == "Katowice") & (cities.df["country"] == "Poland")].iloc[0].to_dict()
+    hints = select_hint_cities(katowice, cities.df, difficulty="easy")
+    assert len(hints) == 5
+    for h in hints:
+        assert h["_dist_km"] <= 280.0
+    hint_cities = {h["city"] for h in hints}
+    for distant in ["Berlin", "Lviv", "Budapest", "Vienna"]:
+        assert distant not in hint_cities
+
+
+def test_select_hint_cities_bratislava_includes_vienna():
+    cities = Cities(min_population=0)
+    bratislava = cities.df[cities.df["city"] == "Bratislava"].iloc[0].to_dict()
+    hints = select_hint_cities(bratislava, cities.df, difficulty="medium")
+    assert len(hints) == 5
+    hint_cities = {h["city"] for h in hints}
+    assert "Vienna" in hint_cities
+
+
+def test_select_hint_cities_rome_uses_famous_cities():
+    cities = Cities(min_population=0)
+    rome = cities.df[(cities.df["city"] == "Rome") & (cities.df["country"] == "Italy")].iloc[0].to_dict()
+    hints = select_hint_cities(rome, cities.df, difficulty="easy")
+    assert len(hints) == 5
+    hint_cities = {h["city"] for h in hints}
+    for obscure in ["Latina", "Terni", "Civitavecchia", "Aprilia", "Ladispoli"]:
+        assert obscure not in hint_cities
+    assert any(
+        c in hint_cities
+        for c in [
+            "Naples",
+            "Florence",
+            "Milan",
+            "Palermo",
+            "Bari",
+            "Genoa",
+            "Venice",
+            "Bologna",
+            "Nice",
+            "Zagreb",
+            "Ljubljana",
+            "Sarajevo",
+            "Cagliari",
+        ]
+    )
+
+
+def test_select_hint_cities_portland_includes_seattle_and_vancouver():
+    cities = Cities(min_population=0)
+    portland_row = cities.df[cities.df["id"] == 1840019941]
+    assert not portland_row.empty
+    portland = portland_row.iloc[0].to_dict()
+    pool = cities.get_hint_pool(portland["iso2"])
+    hints = select_hint_cities(portland, pool)
+    assert len(hints) == 5
+    hint_names = {h["city"] for h in hints}
+    assert "Seattle" in hint_names
+    assert "Vancouver" in hint_names
+
+
+def test_generate_diagram_corridor_labels_no_collision():
+    import math
+
+    from PIL import Image, ImageDraw
+
+    from src.models.quizzes.city_quiz import (
+        _ARROW_LEN,
+        _CIRCLE_R,
+        _FONT_BOLD,
+        _FONT_DIST,
+        _LABEL_PAD,
+        _SCALE,
+        _bearing_deg,
+        _load_flag,
+    )
+
+    mystery_lon, mystery_lat = -122.65, 45.54
+    hints = [
+        {"city": "Seattle", "iso2": "US", "lng": -122.33, "lat": 47.61, "_dist_km": 233.1},
+        {"city": "Vancouver", "iso2": "CA", "lng": -123.12, "lat": 49.28, "_dist_km": 414.2},
+        {"city": "Spokane", "iso2": "US", "lng": -117.43, "lat": 47.66, "_dist_km": 463.5},
+        {"city": "Eugene", "iso2": "US", "lng": -123.09, "lat": 44.05, "_dist_km": 168.7},
+        {"city": "Kennewick", "iso2": "US", "lng": -119.14, "lat": 46.21, "_dist_km": 279.0},
+    ]
+
+    # Verify diagram generates successfully
+    buf = generate_diagram(mystery_lon, mystery_lat, hints, show_distances=True)
+    assert buf is not None
+    assert buf.getbuffer().nbytes > 1000
+
+    # Verify geometry: uniform arrow shafts and 0 label collision
+    canvas_w, canvas_h = 900 * _SCALE, 900 * _SCALE
+    cx, cy = canvas_w // 2, canvas_h // 2
+    dummy_img = Image.new("RGBA", (canvas_w, canvas_h))
+    draw = ImageDraw.Draw(dummy_img)
+
+    hint_layouts = []
+    for hint in hints:
+        hlon = float(hint["lng"])
+        hlat = float(hint["lat"])
+        hname = str(hint["city"])
+        iso2 = str(hint["iso2"])
+        dist_km = hint["_dist_km"]
+
+        bearing = _bearing_deg(mystery_lon, mystery_lat, hlon, hlat)
+        b_rad = math.radians(bearing)
+        sin_b = math.sin(b_rad)
+        cos_b = math.cos(b_rad)
+
+        sx = cx + sin_b * _CIRCLE_R
+        sy = cy - cos_b * _CIRCLE_R
+        tx = cx + sin_b * (_CIRCLE_R + _ARROW_LEN)
+        ty = cy - cos_b * (_CIRCLE_R + _ARROW_LEN)
+
+        # Shaft length must equal _ARROW_LEN
+        shaft_len = math.hypot(tx - sx, ty - sy)
+        assert abs(shaft_len - _ARROW_LEN) < 1e-4
+
+        flag_img = _load_flag(iso2)
+        fw = (flag_img.width + _LABEL_PAD) if flag_img else 0
+        fh = flag_img.height if flag_img else 0
+
+        name_bb = draw.textbbox((0, 0), hname, font=_FONT_BOLD)
+        name_w = name_bb[2] - name_bb[0]
+        name_h = name_bb[3] - name_bb[1]
+
+        dist_text = f"{int(dist_km):,} km"
+        dist_bb = draw.textbbox((0, 0), dist_text, font=_FONT_DIST)
+        dist_w = dist_bb[2] - dist_bb[0]
+        dist_h = dist_bb[3] - dist_bb[1]
+
+        group_w = fw + max(name_w, dist_w)
+        gap_between_name_and_dist = 6 * _SCALE
+        group_h = max(fh, name_h + gap_between_name_and_dist + dist_h)
+
+        gap = 18 * _SCALE
+        lx = tx + sin_b * gap
+        ly = ty - cos_b * gap
+
+        hint_layouts.append(
+            {
+                "bearing": bearing,
+                "sin_b": sin_b,
+                "cos_b": cos_b,
+                "lx": lx,
+                "ly": ly,
+                "group_w": group_w,
+                "group_h": group_h,
+            }
+        )
+
+    for i, item in enumerate(hint_layouts):
+        bearing = item["bearing"]
+        sin_b, cos_b = item["sin_b"], item["cos_b"]
+        lx, ly = item["lx"], item["ly"]
+        group_w, group_h = item["group_w"], item["group_h"]
+
+        min_abs_diff = 360.0
+        c_diff = 0.0
+        for j, other in enumerate(hint_layouts):
+            if i == j:
+                continue
+            diff = (other["bearing"] - bearing + 180.0) % 360.0 - 180.0
+            if abs(diff) < min_abs_diff:
+                min_abs_diff = abs(diff)
+                c_diff = diff
+
+        if min_abs_diff <= 35.0:
+            if abs(cos_b) >= abs(sin_b):
+                gx = lx - group_w if c_diff > 0 else lx
+                gy = ly - group_h if cos_b >= 0.15 else (ly if cos_b <= -0.15 else ly - group_h / 2)
+            else:
+                if sin_b > 0:
+                    gx = lx
+                    gy = ly - group_h if c_diff > 0 else ly
+                else:
+                    gx = lx - group_w
+                    gy = ly if c_diff > 0 else ly - group_h
+        else:
+            if sin_b >= 0.15:
+                gx = lx
+            elif sin_b <= -0.15:
+                gx = lx - group_w
+            else:
+                gx = lx - group_w / 2
+
+            if cos_b >= 0.15:
+                gy = ly - group_h
+            elif cos_b <= -0.15:
+                gy = ly
+            else:
+                gy = ly - group_h / 2
+
+        item["gx"] = gx
+        item["gy"] = gy
+
+    # Collision test
+    collisions = 0
+    for i in range(len(hint_layouts)):
+        for j in range(i + 1, len(hint_layouts)):
+            b1, b2 = hint_layouts[i], hint_layouts[j]
+            ox = min(b1["gx"] + b1["group_w"], b2["gx"] + b2["group_w"]) - max(b1["gx"], b2["gx"])
+            oy = min(b1["gy"] + b1["group_h"], b2["gy"] + b2["group_h"]) - max(b1["gy"], b2["gy"])
+            if ox > 0 and oy > 0:
+                collisions += 1
+    assert collisions == 0

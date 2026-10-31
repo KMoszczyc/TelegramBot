@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 
+import telegram
 from telegram import Update
 from telegram.ext import Application, ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -31,7 +32,14 @@ class OzjaszBot:
         log.info(init_message)
         self.allowed_chat_ids = [CHAT_ID, TEST_CHAT_ID]
         self.application = (
-            ApplicationBuilder().token(token).read_timeout(30).write_timeout(30).concurrent_updates(True).post_init(self.post_init).build()
+            ApplicationBuilder()
+            .token(token)
+            .connect_timeout(30)
+            .read_timeout(60)
+            .write_timeout(60)
+            .concurrent_updates(True)
+            .post_init(self.post_init)
+            .build()
         )
         self.assets = Assets()
         self.db = DB()
@@ -60,6 +68,16 @@ class OzjaszBot:
         except Exception as e:
             log.error(f"Failed to register bot commands on startup: {e}")
 
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle errors caused by Updates and suppress unhandled crash reports for transient network timeouts."""
+        if isinstance(context.error, telegram.error.TimedOut):
+            log.warning(f"Telegram TimedOut exception: {context.error}")
+            return
+        if isinstance(context.error, telegram.error.NetworkError):
+            log.warning(f"Telegram NetworkError exception: {context.error}")
+            return
+        log.error(f"Exception while handling an update: {context.error}", exc_info=context.error)
+
     def add_commands(self):
         commands_map = self.get_commands_map()
         validated_commands_map = {
@@ -71,6 +89,7 @@ class OzjaszBot:
 
         command_handlers = [CommandHandler(command_name, func) for command_name, func in counted_commands_map.items()]
         self.application.add_handlers(command_handlers)
+        self.application.add_error_handler(self.error_handler)
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_tip_callback, pattern=f"^{QUIZ_TIP_CALLBACK_PREFIX}"))
         self.application.add_handler(
             CallbackQueryHandler(self.quiz_commands.btn_top_countries_tip_callback, pattern=f"^{TOP_COUNTRIES_TIP_CALLBACK_PREFIX}")
