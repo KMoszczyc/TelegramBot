@@ -1,15 +1,15 @@
 """CityQuiz: compass-rose diagram quiz. Players guess a mystery city from directional arrows."""
 
 import math
-import os
 import random
 from io import BytesIO
 
 import numpy as np
 import pandas as pd
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from src.config.paths import FLAGS_DIR_PATH
+from src.core.font_utils import get_font
 from src.models.quizzes.base_guess_quiz import BaseGuessQuiz
 
 # ── Diagram style constants ────────────────────────────────────────────────────
@@ -86,24 +86,10 @@ _PROMINENCE_WEIGHT = 0.5  # fame vs. distance-fit trade-off when scoring candida
 _CAPITAL_BOOST = {"primary": 3.0, "admin": 1.4}
 
 
-def _get_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for path in [
-        "C:/Windows/Fonts/segoeui.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/verdana.ttf",
-    ]:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                pass
-    return ImageFont.load_default()
-
-
-_FONT_BOLD = _get_font(_FONT_CITY_SIZE)
-_FONT_DIST = _get_font(_FONT_DIST_SIZE)
-_FONT_CENTER = _get_font(_FONT_CENTER_SIZE)
-_FONT_Q = _get_font(_FONT_Q_SIZE)
+_FONT_BOLD = get_font(_FONT_CITY_SIZE, bold=True)
+_FONT_DIST = get_font(_FONT_DIST_SIZE, bold=False)
+_FONT_CENTER = get_font(_FONT_CENTER_SIZE, bold=False)
+_FONT_Q = get_font(_FONT_Q_SIZE, bold=True)
 
 
 # ── Geometry helpers ───────────────────────────────────────────────────────────

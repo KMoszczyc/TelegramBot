@@ -11,6 +11,7 @@ import shapely
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from src.config.paths import CITY_QUIZ_GEO_DIR_PATH, FLAGS_DIR_PATH
+from src.core.font_utils import get_font
 from src.models.quizzes.city_quiz import _haversine
 
 _OUT_W = 1600
@@ -48,8 +49,6 @@ _CARD_MARGIN = 20
 _GAPS = (18, 44, 80, 130, 200, 300)
 _DIRECTIONS = [(1, 0), (-1, 0), (0, -1), (0, 1), (1, -1), (-1, -1), (1, 1), (-1, 1)]
 
-_BOLD_FONTS = ("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf", "DejaVuSans-Bold.ttf")
-_REGULAR_FONTS = ("C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf", "DejaVuSans.ttf")
 
 Box = tuple[float, float, float, float]
 
@@ -83,14 +82,8 @@ class _Card:
     anchor: tuple[float, float] | None = None
 
 
-@lru_cache(maxsize=16)
 def _font(size: int, bold: bool) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for path in _BOLD_FONTS if bold else _REGULAR_FONTS:
-        try:
-            return ImageFont.truetype(path, size * _SS)
-        except OSError:
-            continue
-    return ImageFont.load_default()
+    return get_font(size * _SS, bold=bold)
 
 
 @lru_cache(maxsize=64)

@@ -286,6 +286,30 @@ def test_generate_diagram(mock_city_dict, mock_cities_df):
     assert buf_dist.getbuffer().nbytes > 1000
 
 
+@pytest.mark.parametrize("show_distances", [False, True])
+def test_generate_diagram_without_windows_fonts(mock_city_dict, mock_cities_df, show_distances):
+    import os
+    from unittest.mock import patch
+
+    from src.core.font_utils import get_font
+
+    hints = select_hint_cities(mock_city_dict, mock_cities_df, n=3, min_gap_deg=10.0)
+    # Simulate an environment where C:/Windows/Fonts does not exist
+    orig_exists = os.path.exists
+
+    def fake_exists(path):
+        if str(path).startswith("C:/Windows") or str(path).startswith("C:\\Windows"):
+            return False
+        return orig_exists(path)
+
+    get_font.cache_clear()
+    with patch("os.path.exists", side_effect=fake_exists):
+        buf = generate_diagram(mock_city_dict["lng"], mock_city_dict["lat"], hints, show_distances=show_distances)
+        assert buf is not None
+        assert buf.getbuffer().nbytes > 1000
+    get_font.cache_clear()
+
+
 def test_cities_model(tmp_path, mock_cities_df):
     parquet_path = tmp_path / "test_cities.parquet"
     mock_cities_df.to_parquet(parquet_path, index=False)
