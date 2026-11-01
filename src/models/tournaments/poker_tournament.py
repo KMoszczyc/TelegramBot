@@ -206,6 +206,7 @@ class PokerTournament(BaseTournament):
 
     def start_betting_round(self) -> str:
         """Start a new poker hand (round)."""
+        self.touch_activity()
         self.round_number += 1
         self.state = TournamentState.BETTING
         self.street = PokerStreet.PRE_FLOP
@@ -320,6 +321,7 @@ class PokerTournament(BaseTournament):
         is_premove: bool = False,
     ) -> PokerActionResult:
         """Process a player's betting action on their turn."""
+        self.touch_activity()
         if self.state != TournamentState.BETTING:
             return PokerActionResult(False, "No active betting round right now.")
 
@@ -514,6 +516,7 @@ class PokerTournament(BaseTournament):
 
     def set_premove(self, user_id: int, action: PokerAction) -> tuple[bool, str]:
         """Set or toggle off an out-of-turn premove for a human player."""
+        self.touch_activity()
         if self.state != TournamentState.BETTING:
             return False, "No active betting round right now."
         if user_id not in self.players:
@@ -531,21 +534,19 @@ class PokerTournament(BaseTournament):
             return False, "⚡ Premove cancelled."
 
         if normalized == PokerAction.CHECK:
-            if to_call > 0:
-                return False, f"⚠️ Cannot premove Check — {to_call} needed to call."
             player.premove = PokerAction.CHECK
             player.premove_street_bet = self.current_street_bet
-            return True, "⚡ Premove set: Check (auto-cancels if someone bets)"
+            return True, "⚡ Premove set: Check (if someone bets/raises, check will not go through)"
 
         if normalized == PokerAction.CALL:
             player.premove = PokerAction.CALL
-            player.premove_street_bet = self.current_street_bet
-            return True, f"⚡ Premove set: Call {to_call} (auto-cancels if raised)"
+            player.premove_street_bet = max(self.current_street_bet, to_call)
+            return True, "⚡ Premove set: Call (if raised higher, call will not go through)"
 
         if normalized == PokerAction.FOLD:
             player.premove = PokerAction.FOLD
             player.premove_street_bet = self.current_street_bet
-            return True, "⚡ Premove set: Check / Fold"
+            return True, "⚡ Premove set: Fold (will check if free, fold if bet)"
 
         return False, "Unsupported premove action."
 
@@ -556,7 +557,7 @@ class PokerTournament(BaseTournament):
         if player.premove == PokerAction.CHECK:
             return PokerAction.CHECK if to_call == 0 else None
         if player.premove == PokerAction.CALL:
-            if self.current_street_bet > player.premove_street_bet:
+            if self.current_street_bet > player.premove_street_bet and to_call > 0:
                 return None
             return PokerAction.CHECK if to_call == 0 else PokerAction.CALL
         if player.premove == PokerAction.FOLD:
@@ -708,6 +709,7 @@ class PokerTournament(BaseTournament):
 
     def step_all_in_runout(self) -> bool:
         """Advance an All-In runout by one street; return True when Showdown is reached."""
+        self.touch_activity()
         if self.street == PokerStreet.PRE_FLOP:
             self.street = PokerStreet.FLOP
             self.community_cards.extend([self.deck.pop(), self.deck.pop(), self.deck.pop()])
@@ -893,8 +895,10 @@ class PokerTournament(BaseTournament):
             f"🂠 Board: {board_str}",
         ]
 
+        # Use recent moves
         if self.street_action_log:
-            recent_actions = self.street_action_log[-POKER_ACTION_LOG_DISPLAY_COUNT:]
+            recent_count = POKER_ACTION_LOG_DISPLAY_COUNT
+            recent_actions = self.street_action_log[-recent_count:]
             lines.append("\n📜 *Recent Moves:*\n" + "\n".join(recent_actions))
 
         if self.is_all_in_runout:
@@ -905,14 +909,12 @@ class PokerTournament(BaseTournament):
             call_info = f"*{to_call}* to call" if to_call > 0 else "Check or Bet"
             if turn_player.is_bot:
                 lines.append(
-                    f"\n🤖 *BOT TURN:* *{turn_player.username}* is thinking... ({call_info} | Stack: *{turn_player.tournament_credits}*)\n"
-                    f"⚡ Use buttons below to queue a *Premove* for your turn!"
+                    f"\n🤖 *BOT TURN:* *{turn_player.username}* is thinking... ({call_info} | Stack: *{turn_player.tournament_credits}*)"
                 )
             else:
                 lines.append(
                     f"\n🎯 *YOUR TURN:* *{turn_player.username}* ({call_info} | Stack: *{turn_player.tournament_credits}*)\n"
-                    f"⏱ {POKER_TURN_TIMEOUT_SECONDS}s timer — use buttons below or type a custom raise amount\n"
-                    f"⚡ Not your turn? Tap Check / Call / Fold to queue a *Premove*!"
+                    f"⏱ {POKER_TURN_TIMEOUT_SECONDS}s timer — use buttons below or type a custom raise amount"
                 )
         elif self.state == TournamentState.ROUND_RESULT:
             lines.append(f"\n{self.last_hand_summary}")
@@ -920,7 +922,14 @@ class PokerTournament(BaseTournament):
             if not self.is_last_round():
                 lines.append(f"\n⏳ Next hand starting in {POKER_NEXT_HAND_DELAY_SECONDS}s... (tap Next Hand to skip)")
 
-        return "\n".join(lines)
+        full_text = "\n".join(lines)
+        # Caption budget safeguard: ensure caption fits comfortably within Telegram's 1024 char limit
+        if len(full_text) > 850 and self.street_action_log:
+            short_actions = self.street_action_log[-3:]
+            lines[3] = "\n📜 *Recent Moves:*\n" + "\n".join(short_actions)
+            full_text = "\n".join(lines)
+
+        return full_text
 
     def build_lobby_keyboard(self) -> InlineKeyboardMarkup:
         """Build inline buttons for joining, adding AI bots, and starting the poker tournament."""
@@ -951,41 +960,27 @@ class PokerTournament(BaseTournament):
 
         if self.state == TournamentState.BETTING and self.current_turn_user_id is not None:
             uid = self.current_turn_user_id
-            to_call = self.get_to_call(uid)
             player = self.players[uid]
+            to_call = self.get_to_call(uid)
 
-            if player.is_bot:
-                if self.current_street_bet == 0:
-                    premove_right_btn = InlineKeyboardButton("⚡ Premove: Check", callback_data=f"{POKER_CALLBACK_PREFIX}check")
-                else:
-                    premove_right_btn = InlineKeyboardButton(
-                        f"⚡ Premove: Call ({self.current_street_bet})",
-                        callback_data=f"{POKER_CALLBACK_PREFIX}call",
-                    )
-                rows.append(
-                    [
-                        InlineKeyboardButton("⚡ Premove: Check/Fold", callback_data=f"{POKER_CALLBACK_PREFIX}fold"),
-                        premove_right_btn,
-                    ]
+            if to_call == 0:
+                check_call_btn = InlineKeyboardButton("✅ Check", callback_data=f"{POKER_CALLBACK_PREFIX}check")
+            elif to_call >= player.tournament_credits:
+                check_call_btn = InlineKeyboardButton(
+                    f"🔥 Call All-In ({player.tournament_credits})",
+                    callback_data=f"{POKER_CALLBACK_PREFIX}all_in",
                 )
             else:
-                if to_call == 0:
-                    check_call_btn = InlineKeyboardButton("✅ Check", callback_data=f"{POKER_CALLBACK_PREFIX}check")
-                elif to_call >= player.tournament_credits:
-                    check_call_btn = InlineKeyboardButton(
-                        f"🔥 Call All-In ({player.tournament_credits})",
-                        callback_data=f"{POKER_CALLBACK_PREFIX}all_in",
-                    )
-                else:
-                    check_call_btn = InlineKeyboardButton(f"📞 Call {to_call}", callback_data=f"{POKER_CALLBACK_PREFIX}call")
+                check_call_btn = InlineKeyboardButton(f"📞 Call {to_call}", callback_data=f"{POKER_CALLBACK_PREFIX}call")
 
-                rows.append(
-                    [
-                        InlineKeyboardButton("❌ Fold", callback_data=f"{POKER_CALLBACK_PREFIX}fold"),
-                        check_call_btn,
-                    ]
-                )
+            rows.append(
+                [
+                    InlineKeyboardButton("❌ Fold", callback_data=f"{POKER_CALLBACK_PREFIX}fold"),
+                    check_call_btn,
+                ]
+            )
 
+            if not player.is_bot:
                 presets = self.get_raise_presets(uid)
                 if presets:
                     raise_row: list[InlineKeyboardButton] = []

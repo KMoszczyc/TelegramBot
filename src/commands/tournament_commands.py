@@ -57,8 +57,29 @@ class TournamentCommands:
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.active_tournaments: dict[int, BaseTournament] = {}
 
+    async def _cancel_active_tournament_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Cancel an active or stuck tournament in the current chat and refund all buy-ins."""
+        chat_id = update.effective_chat.id
+        tournament = self.active_tournaments.get(chat_id)
+        if not tournament:
+            await core_utils.send_message(update, context, MessageType.TEXT, "No active tournament to cancel in this chat.")
+            return
+
+        self._cancel_jobs(context, f"poker_turn_{chat_id}")
+        self._cancel_jobs(context, f"poker_next_{chat_id}")
+        self._cancel_jobs(context, f"tournament_bet_{chat_id}")
+        self._cancel_jobs(context, f"tournament_join_{chat_id}")
+
+        refund_msg = tournament.cancel_and_refund("Tournament was cancelled. Buy-ins have been refunded.")
+        del self.active_tournaments[chat_id]
+        await core_utils.send_message(update, context, MessageType.TEXT, refund_msg)
+
     async def cmd_poker(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Start a Texas Hold'em Poker game directly via /poker <buy_in> [rounds=5] [wait=120]."""
+        if context.args and context.args[0].lower() in ("cancel", "stop", "abort"):
+            await self._cancel_active_tournament_command(update, context)
+            return
+
         command_args = CommandArgs(
             args=context.args,
             expected_args=[ArgType.POSITIVE_INT],
@@ -75,6 +96,10 @@ class TournamentCommands:
         await self._create_and_start_lobby(update, context, TournamentType.POKER, command_args)
 
     async def cmd_tournament(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if context.args and context.args[0].lower() in ("cancel", "stop", "abort"):
+            await self._cancel_active_tournament_command(update, context)
+            return
+
         command_args = CommandArgs(
             args=context.args,
             expected_args=[ArgType.TEXT, ArgType.POSITIVE_INT],
@@ -116,8 +141,23 @@ class TournamentCommands:
 
         chat_id = update.effective_chat.id
         if chat_id in self.active_tournaments:
-            await core_utils.send_message(update, context, MessageType.TEXT, "A tournament is already running in this chat.")
-            return
+            existing = self.active_tournaments[chat_id]
+            if existing.is_stale():
+                log.info("Cleaning up stale tournament in chat %s (inactive > 180s)", chat_id)
+                self._cancel_jobs(context, f"poker_turn_{chat_id}")
+                self._cancel_jobs(context, f"poker_next_{chat_id}")
+                self._cancel_jobs(context, f"tournament_bet_{chat_id}")
+                self._cancel_jobs(context, f"tournament_join_{chat_id}")
+                existing.cancel_and_refund("Stale tournament was automatically cancelled and refunded.")
+                del self.active_tournaments[chat_id]
+            else:
+                await core_utils.send_message(
+                    update,
+                    context,
+                    MessageType.TEXT,
+                    "A tournament is already running in this chat. (Use /poker cancel if it is stuck.)",
+                )
+                return
 
         user_id = update.effective_user.id
         buy_in = command_args.number
@@ -361,10 +401,14 @@ class TournamentCommands:
         if tournament.state != TournamentState.ROUND_RESULT:
             return
 
-        if tournament.is_last_round():
+        try:
+            if tournament.is_last_round():
+                await self._finish_tournament(context, chat_id, thread_id)
+            else:
+                await self._start_betting_round(context, chat_id, thread_id)
+        except Exception as e:
+            log.exception("Error advancing to next poker hand: %s", e)
             await self._finish_tournament(context, chat_id, thread_id)
-        else:
-            await self._start_betting_round(context, chat_id, thread_id)
 
     async def _update_or_repost_poker_table(
         self,
@@ -374,7 +418,10 @@ class TournamentCommands:
         force_new_message: bool = False,
     ) -> None:
         """Smart Edit / Repost: Edit table in-place if at bottom of chat; delete and repost if chat messages moved it up."""
+        tournament.touch_activity()
         caption = stats_utils.escape_special_characters(tournament.format_table_caption())
+        if len(caption) > 1000:
+            caption = caption[:996] + "\\.\\.\\."
         keyboard = tournament.build_table_keyboard()
         need_repost = force_new_message or tournament.table_message_id is None or tournament.chat_messages_since_table > 0
 
@@ -406,16 +453,32 @@ class TournamentCommands:
 
         old_msg_id = tournament.table_message_id if not force_new_message else None
         png_bytes = render_poker_table(tournament)
-        sent = await context.bot.send_photo(
-            chat_id=tournament.chat_id,
-            photo=png_bytes,
-            caption=caption,
-            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-            reply_markup=keyboard,
-            message_thread_id=tournament.thread_id,
-        )
-        tournament.table_message_id = sent.message_id
-        tournament.chat_messages_since_table = 0
+        try:
+            sent = await context.bot.send_photo(
+                chat_id=tournament.chat_id,
+                photo=png_bytes,
+                caption=caption,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                reply_markup=keyboard,
+                message_thread_id=tournament.thread_id,
+            )
+            tournament.table_message_id = sent.message_id
+            tournament.chat_messages_since_table = 0
+        except Exception as e:
+            log.warning("send_photo with Markdown_V2 failed (%s), retrying with plain caption fallback", e)
+            try:
+                plain_caption = tournament.format_table_caption()[:500]
+                sent = await context.bot.send_photo(
+                    chat_id=tournament.chat_id,
+                    photo=png_bytes,
+                    caption=plain_caption,
+                    reply_markup=keyboard,
+                    message_thread_id=tournament.thread_id,
+                )
+                tournament.table_message_id = sent.message_id
+                tournament.chat_messages_since_table = 0
+            except Exception as e2:
+                log.error("Fatal error sending poker table photo: %s", e2)
 
         if old_msg_id is not None:
             try:
@@ -438,35 +501,38 @@ class TournamentCommands:
     ) -> None:
         """Step through consecutive AI bot, AFK, or premove turns with a delay between bots."""
         safety = 0
-        while tournament.is_active and tournament.has_pending_auto_turn() and not tournament.is_all_in_runout and safety < 32:
-            safety += 1
-            uid = tournament.current_turn_user_id
-            if uid is None:
-                break
-            player = tournament.players[uid]
-            if player.is_bot or player.is_afk:
-                await asyncio.sleep(POKER_BOT_ACTION_DELAY_SECONDS)
-                if not tournament.is_active or not tournament.has_pending_auto_turn():
+        try:
+            while tournament.is_active and tournament.has_pending_auto_turn() and not tournament.is_all_in_runout and safety < 32:
+                safety += 1
+                uid = tournament.current_turn_user_id
+                if uid is None:
+                    break
+                player = tournament.players[uid]
+                if player.is_bot or player.is_afk:
+                    await asyncio.sleep(POKER_BOT_ACTION_DELAY_SECONDS)
+                    if not tournament.is_active or not tournament.has_pending_auto_turn():
+                        break
+
+                step_res = tournament.step_auto_turn()
+                if step_res is None or not step_res.valid:
                     break
 
-            step_res = tournament.step_auto_turn()
-            if step_res is None:
-                break
+                if tournament.is_all_in_runout:
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+                    await self._animate_all_in_runout(context, tournament)
+                    return
 
-            if tournament.is_all_in_runout:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-                await self._animate_all_in_runout(context, tournament)
-                return
-
-            if step_res.street_changed or (step_res.hand_ended and not step_res.won_by_fold):
-                await asyncio.sleep(POKER_STREET_REVEAL_DELAY_SECONDS)
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            elif step_res.hand_ended:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            elif tournament.has_pending_auto_turn():
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=False)
-            else:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+                if step_res.street_changed or (step_res.hand_ended and not step_res.won_by_fold):
+                    await asyncio.sleep(POKER_STREET_REVEAL_DELAY_SECONDS)
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+                elif step_res.hand_ended:
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+                elif tournament.has_pending_auto_turn():
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=False)
+                else:
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+        except Exception as e:
+            log.exception("Unexpected error in _run_poker_auto_turns: %s", e)
 
         if tournament.state == TournamentState.ROUND_RESULT:
             await self._handle_poker_hand_ended(context, tournament)

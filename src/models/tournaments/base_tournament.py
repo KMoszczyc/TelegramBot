@@ -1,3 +1,4 @@
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from math import floor
@@ -43,11 +44,18 @@ class BaseTournament(ABC):
         self.round_number = 0
         self.state = TournamentState.JOINING
         self.players: dict[int, TournamentPlayer] = {}
+        self.last_activity_time: float = time.time()
         self._add_host(host_user_id, host_username)
 
     @property
     def is_active(self) -> bool:
         return self.state != TournamentState.FINISHED
+
+    def touch_activity(self) -> None:
+        self.last_activity_time = time.time()
+
+    def is_stale(self, timeout_seconds: float = 180.0) -> bool:
+        return (time.time() - self.last_activity_time) > timeout_seconds
 
     @property
     @abstractmethod
@@ -109,14 +117,14 @@ class BaseTournament(ABC):
     def has_enough_players(self) -> bool:
         return len(self.players) >= MIN_TOURNAMENT_PLAYERS
 
-    def cancel_and_refund(self) -> str:
+    def cancel_and_refund(self, reason: str = "Not enough players joined. Tournament cancelled, buy-ins refunded.") -> str:
         for player in self.players.values():
             if player.is_bot:
                 continue
             self.credits.credits[player.user_id] += self.buy_in
             self.credits.update_credit_history(player.user_id, self.buy_in, CreditActionType.TOURNAMENT)
         self.state = TournamentState.FINISHED
-        return "Not enough players joined. Tournament cancelled, buy-ins refunded."
+        return reason
 
     def start_betting_round(self) -> str:
         self.round_number += 1

@@ -224,3 +224,36 @@ async def test_out_of_turn_premove_callback_and_auto_execution(mocker, tournamen
     update.callback_query.data = "poker:call"
     await tournament_commands.btn_poker_callback(update, context)
     assert t.street.value == "Flop"
+
+
+@pytest.mark.asyncio
+async def test_cmd_poker_cancel_refunds_and_cleans_up(mocker, tournament_commands, update, context):
+    context.args = ["100"]
+    send_mock = mocker.patch("src.commands.tournament_commands.core_utils.send_message", new_callable=AsyncMock)
+    await tournament_commands.cmd_poker(update, context)
+    assert 999 in tournament_commands.active_tournaments
+
+    # Cancel command
+    context.args = ["cancel"]
+    await tournament_commands.cmd_poker(update, context)
+    assert 999 not in tournament_commands.active_tournaments
+    send_mock.assert_called_with(update, context, mocker.ANY, mocker.ANY)
+    assert "cancelled" in send_mock.call_args[0][3].lower()
+
+
+@pytest.mark.asyncio
+async def test_stale_tournament_auto_cleaned_on_new_poker_game(mocker, tournament_commands, update, context):
+    context.args = ["100"]
+    mocker.patch("src.commands.tournament_commands.core_utils.send_message", new_callable=AsyncMock)
+    await tournament_commands.cmd_poker(update, context)
+    t = tournament_commands.active_tournaments[999]
+
+    # Artificially make tournament stale (> 180s)
+    t.last_activity_time -= 200
+    assert t.is_stale() is True
+
+    # Starting a new game cleans up the stale one
+    context.args = ["200"]
+    await tournament_commands.cmd_poker(update, context)
+    assert 999 in tournament_commands.active_tournaments
+    assert tournament_commands.active_tournaments[999].buy_in == 200

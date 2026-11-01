@@ -433,11 +433,31 @@ def test_step_auto_turn_with_auto_bot_turns_disabled(credits_mock):
     assert t.current_turn_user_id == -1
     assert t.has_pending_auto_turn() is True
 
-    # During bot turn, keyboard shows Premove buttons
+    # During bot turn, keyboard shows standard clean buttons (no special Premove buttons)
     kb = t.build_table_keyboard()
     btn_texts = [btn.text for row in kb.inline_keyboard for btn in row]
-    assert any("Premove" in txt for txt in btn_texts)
+    assert not any("Premove" in txt for txt in btn_texts)
+    assert any("Fold" in txt for txt in btn_texts)
+    assert any("Check" in txt or "Call" in txt for txt in btn_texts)
 
     res = t.step_auto_turn()
     assert res is not None
     assert res.valid is True
+
+
+def test_premove_check_does_not_go_through_if_facing_bet(poker_2p):
+    poker_2p.start_betting_round()
+    first = poker_2p.current_turn_user_id
+    second = USER_2 if first == HOST_ID else HOST_ID
+
+    ok, _ = poker_2p.set_premove(second, PokerAction.CHECK)
+    assert ok is True
+
+    # First player raises
+    poker_2p.process_action(first, PokerAction.RAISE, raise_to_amount=25)
+
+    # When it becomes second player's turn, check does not go through; player acts normally
+    assert poker_2p.current_turn_user_id == second
+    assert poker_2p.has_pending_auto_turn() is False
+    assert poker_2p.players[second].premove is None
+    assert poker_2p.state == TournamentState.BETTING
