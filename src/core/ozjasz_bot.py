@@ -12,7 +12,13 @@ from src.commands.credit_commands import CreditCommands
 from src.commands.quiz_commands import QuizCommands
 from src.commands.tournament_commands import TournamentCommands
 from src.config.assets import Assets
-from src.config.constants import QUIZ_REPLAY_CALLBACK_PREFIX, QUIZ_TIP_CALLBACK_PREFIX, TOP_COUNTRIES_TIP_CALLBACK_PREFIX
+from src.config.constants import (
+    POKER_CALLBACK_PREFIX,
+    QUIZ_REPLAY_CALLBACK_PREFIX,
+    QUIZ_TIP_CALLBACK_PREFIX,
+    TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
+    TOURNAMENT_LOBBY_CALLBACK_PREFIX,
+)
 from src.config.enums import EmojiType, MessageType
 from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
 from src.core.command_logger import CommandLogger
@@ -99,6 +105,10 @@ class OzjaszBot:
         )
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_city_super_tip_callback, pattern="^citysuprtip:"))
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_city_answer_callback, pattern="^cityanswer:"))
+        self.application.add_handler(
+            CallbackQueryHandler(self.tournament_commands.btn_tournament_lobby_callback, pattern=f"^{TOURNAMENT_LOBBY_CALLBACK_PREFIX}")
+        )
+        self.application.add_handler(CallbackQueryHandler(self.tournament_commands.btn_poker_callback, pattern=f"^{POKER_CALLBACK_PREFIX}"))
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_callback))
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_map_quiz_answer), group=1)
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_flag_quiz_answer), group=3)
@@ -155,6 +165,7 @@ class OzjaszBot:
             "guesstopcountries": self.quiz_commands.cmd_guess_top_countries,
             "guess_top_countries": self.quiz_commands.cmd_guess_top_countries,
             "tournament": self.tournament_commands.cmd_tournament,
+            "poker": self.tournament_commands.cmd_poker,
             "topmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),
             "sadmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.NEGATIVE),
             "topmemes": lambda update, context: self.chat_commands.cmd_media_by_reactions(

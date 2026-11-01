@@ -547,13 +547,38 @@ def test_cities_sample_mystery_city_with_filters(tmp_path, mock_cities_df, filte
 
 def test_cities_sample_mystery_city_general_mode_respects_regional_eligibility():
     cities = Cities(min_population=0)
-    for _ in range(30):
+    regions_seen = {"PL": 0, "EU": 0, "ROW": 0}
+    for _ in range(60):
         mystery, diff = cities.sample_mystery_city()
         assert diff in ["easy", "medium", "hard", "very_hard", "crazy"]
+        iso2 = str(mystery.get("iso2", "")).upper()
         continent = str(mystery.get("continent", "")).lower()
-        if continent not in ("europa", "europe") and mystery.get("iso2") != "PL":
-            assert mystery.get("general_eligible") is True
+
+        if iso2 == "PL":
+            regions_seen["PL"] += 1
+        elif continent in ("europa", "europe"):
+            regions_seen["EU"] += 1
+            # Foreign European cities in General Mode must be easy or medium
             assert diff in ("easy", "medium")
+        else:
+            regions_seen["ROW"] += 1
+            assert mystery.get("general_eligible") is True
+            # Rest of World in General Mode must be easy or medium
+            assert diff in ("easy", "medium")
+
+    # In 60 iterations with 33% probability each, all 3 regions should appear
+    assert regions_seen["PL"] > 0
+    assert regions_seen["EU"] > 0
+    assert regions_seen["ROW"] > 0
+
+
+def test_asian_russia_runtime_filter_keeps_only_500k():
+    cities = Cities(min_population=0)
+    ru_cities = cities.df[cities.df["iso2"] == "RU"]
+    ru_asian = ru_cities[ru_cities["lng"] > 60.0]
+    # All Asian Russian cities in runtime dataset must have pop >= 500k
+    assert not ru_asian.empty
+    assert (ru_asian["population"] >= 500_000).all()
 
 
 @pytest.mark.parametrize(

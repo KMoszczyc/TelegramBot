@@ -374,9 +374,26 @@ def _segment_hits_box(p: tuple[float, float], q: tuple[float, float], box: Box, 
 
 
 def _candidate_boxes(card: _Card, target_pin: tuple[float, float], target_out_angle: float):
-    """Yield candidate card boxes around the pin, 30-degree diagonal corner placements only."""
+    """Yield candidate card boxes around the pin: 30° diagonals first, same-side horizontal fallback."""
     px, py = card.pin
     out_angle = target_out_angle if card.is_target else math.atan2(py - target_pin[1], px - target_pin[0])
+    dx_from_target = px - target_pin[0]
+
+    all_diags = _DIRECTIONS_30
+
+    if not card.is_target:
+        if dx_from_target > 15 * _SS:
+            allowed_diags = [d for d in all_diags if d[0] > 0]
+            horizontal = [(1.0, 0.0, 0, 0)]
+        elif dx_from_target < -15 * _SS:
+            allowed_diags = [d for d in all_diags if d[0] < 0]
+            horizontal = [(-1.0, 0.0, 0, 0)]
+        else:
+            allowed_diags = all_diags
+            horizontal = [(1.0 if dx_from_target >= 0 else -1.0, 0.0, 0, 0)]
+    else:
+        allowed_diags = all_diags
+        horizontal = []
 
     def dir_score(d: tuple[float, float, int, int]) -> float:
         dx, dy, _, _ = d
@@ -384,11 +401,18 @@ def _candidate_boxes(card: _Card, target_pin: tuple[float, float], target_out_an
         return min(diff, 2 * math.pi - diff)
 
     candidates = []
-    for d in _DIRECTIONS_30:
+    for d in allowed_diags:
         ang_diff = dir_score(d)
         for gap_idx, gap in enumerate(_GAPS):
             score = ang_diff * 300.0 + gap_idx * 50.0
             candidates.append((score, d, gap))
+
+    for h_dir in horizontal:
+        ang_diff = dir_score(h_dir)
+        for gap_idx, gap in enumerate(_GAPS):
+            score = 150.0 + ang_diff * 100.0 + gap_idx * 50.0
+            candidates.append((score, h_dir, gap))
+
     candidates.sort(key=lambda x: x[0])
 
     w, h = card.w, card.h
@@ -396,12 +420,18 @@ def _candidate_boxes(card: _Card, target_pin: tuple[float, float], target_out_an
     stroke_pad = 2.0 * _SS
     for _, (dx, dy, corner_x, corner_y), gap in candidates:
         g = gap * _SS
-        center_x = px + (g + card_r) * dx
-        center_y = py + (g + card_r) * dy
-        x0 = center_x - card_r if corner_x == -1 else center_x - w + card_r
-        y0 = center_y - card_r if corner_y == -1 else center_y - h + card_r
-        box = (x0, y0, x0 + w, y0 + h)
-        anchor = (px + (g + stroke_pad) * dx, py + (g + stroke_pad) * dy)
+        if corner_x != 0:
+            center_x = px + (g + card_r) * dx
+            center_y = py + (g + card_r) * dy
+            x0 = center_x - card_r if corner_x == -1 else center_x - w + card_r
+            y0 = center_y - card_r if corner_y == -1 else center_y - h + card_r
+            box = (x0, y0, x0 + w, y0 + h)
+            anchor = (px + (g + stroke_pad) * dx, py + (g + stroke_pad) * dy)
+        else:
+            x0 = px + g if dx > 0 else px - g - w
+            y0 = py - h / 2
+            box = (x0, y0, x0 + w, y0 + h)
+            anchor = (px + (g + stroke_pad) * dx, py)
         yield (box, anchor, g)
 
 
@@ -446,8 +476,11 @@ def _place_cards(cards: list[_Card]) -> None:
                 chosen = (box, anchor)
                 break
 
+            # Heavily penalize backward crossing if fallback is evaluated
+            crosses_back = not card.is_target and (card.pin[0] - target.pin[0]) * (anchor[0] - card.pin[0]) < -15 * _SS
             score = (
-                (10000 if out_of_bounds else 0)
+                (50000 if crosses_back else 0)
+                + (10000 if out_of_bounds else 0)
                 + (5000 if covers_pin else 0)
                 + (3000 if line_crosses else 0)
                 + (2000 if line_hits_card else 0)

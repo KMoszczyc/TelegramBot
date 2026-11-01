@@ -196,6 +196,42 @@ def test_place_cards_dense_conurbation_30_deg_no_crossing(conurbation):
             assert not cmr._segments_intersect(cards[i].pin, cards[i].anchor, cards[j].pin, cards[j].anchor)
 
 
+def test_place_cards_same_side_enforcement_zwolle():
+    from PIL import Image, ImageDraw
+
+    mystery = {"city": "Zwolle", "lat": 52.5168, "lng": 6.0830, "iso2": "NL"}
+    hints = [
+        {"city": "Meppel", "lat": 52.6948, "lng": 6.1945, "iso2": "NL", "_dist_km": 21.0},
+        {"city": "Raalte", "lat": 52.3853, "lng": 6.2764, "iso2": "NL", "_dist_km": 19.0},
+        {"city": "Lelystad", "lat": 52.5185, "lng": 5.4714, "iso2": "NL", "_dist_km": 42.0},
+        {"city": "Apeldoorn", "lat": 52.2130, "lng": 5.9694, "iso2": "NL", "_dist_km": 35.0},
+        {"city": "Hardenberg", "lat": 52.5750, "lng": 6.6190, "iso2": "NL", "_dist_km": 36.0},
+    ]
+
+    rows = [mystery, *hints]
+    lons = np.array([float(r["lng"]) for r in rows])
+    lats = np.array([float(r["lat"]) for r in rows])
+    view = cmr._View(lons, lats)
+    cards = cmr._build_cards(view, mystery, hints)
+    dummy_img = Image.new("RGB", (cmr._W, cmr._H))
+    draw = ImageDraw.Draw(dummy_img)
+    for c in cards:
+        cmr._measure_card(draw, c)
+    cmr._place_cards(cards)
+
+    hardenberg = next(c for c in cards if c.name == "Hardenberg")
+    target = cards[0]
+    # Hardenberg is East of target -> must stay East
+    assert hardenberg.anchor[0] >= hardenberg.pin[0]
+    assert hardenberg.box[0] >= target.pin[0]
+
+    # No card-card overlaps and no crossing lines
+    for i in range(len(cards)):
+        for j in range(i + 1, len(cards)):
+            assert not cmr._boxes_overlap(cards[i].box, cards[j].box, 0)
+            assert not cmr._segments_intersect(cards[i].pin, cards[i].anchor, cards[j].pin, cards[j].anchor)
+
+
 def test_nearest_on_rounded_box_exact_curve_contact():
     import math
 

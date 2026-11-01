@@ -41,6 +41,10 @@ class Cities:
         df = pd.read_parquet(path)
         if min_population > 0:
             df = df[df["population"] >= min_population].reset_index(drop=True)
+        # Asian Russia (east of Urals, lng > 60°E) only retains major hubs >= 500k
+        ru_siberia_small = (df["iso2"].str.upper() == "RU") & (df["lng"] > 60.0) & (df["population"] < 500_000)
+        if ru_siberia_small.any():
+            df = df[~ru_siberia_small].reset_index(drop=True)
         self.df = df
         log.info("Cities loaded: %d rows, difficulties: %s", len(self.df), self.df["difficulty"].value_counts().to_dict())
 
@@ -161,7 +165,8 @@ class Cities:
         Returns (city_dict, chosen_difficulty).
 
         If no geographic filters are specified (General Mode), applies regional weighting:
-        50% Poland, 35% Other Europe, 15% Rest of World (restricted to general_eligible).
+        33% Poland, 33% Other Europe, 34% Rest of World (restricted to general_eligible).
+        Non-Poland cities in General Mode are restricted to easy and medium tiers.
         """
         import random
 
@@ -201,23 +206,24 @@ class Cities:
             return pick_from(pool), chosen_diff
 
         # ── General Mode (no geographic flags) ─────────────────────────────────
+        # Regional distribution: 33% Poland, 33% Other Europe, 34% Rest of World
+        regions = ["PL", "EU", "ROW"]
+        region_weights = [0.33, 0.33, 0.34]
+        chosen_region = random.choices(regions, weights=region_weights, k=1)[0]
+
         available_diffs = self.get_available_difficulties(general_eligible=True)
         if difficulty:
             chosen_diff = difficulty.lower()
+        elif chosen_region == "PL":
+            # Poland in General Mode uses the full difficulty spectrum
+            pl_diffs = self.get_available_difficulties(country_iso2="PL")
+            weights = [diff_weights.get(d, 0.1) for d in pl_diffs]
+            chosen_diff = random.choices(pl_diffs, weights=weights, k=1)[0]
         else:
-            weights = [diff_weights.get(d, 0.1) for d in available_diffs]
-            chosen_diff = random.choices(available_diffs, weights=weights, k=1)[0]
-
-        # Regional distribution: 50% PL, 35% Other Europe, 15% Rest of World
-        # Non-EU in general mode only features easy and medium tiers (curated capitals/hubs).
-        if chosen_diff in ("easy", "medium"):
-            regions = ["PL", "EU", "ROW"]
-            region_weights = [0.50, 0.35, 0.15]
-        else:
-            regions = ["PL", "EU"]
-            region_weights = [0.55, 0.45]
-
-        chosen_region = random.choices(regions, weights=region_weights, k=1)[0]
+            # Foreign cities in General Mode are strictly easy & medium (capitals / famous hubs)
+            foreign_diffs = [d for d in available_diffs if d in ("easy", "medium")]
+            weights = [diff_weights.get(d, 0.5) for d in foreign_diffs]
+            chosen_diff = random.choices(foreign_diffs, weights=weights, k=1)[0] if foreign_diffs else "easy"
 
         if chosen_region == "PL":
             pool = self.df[(self.df["iso2"].str.upper() == "PL") & (self.df["difficulty"] == chosen_diff)]

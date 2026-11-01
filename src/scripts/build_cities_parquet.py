@@ -115,13 +115,13 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
 
         # Poland: major metropolises are Easy, large hubs Medium, down to small towns
         if iso2 == "PL" or row.get("country") == "Poland":
-            if pop >= 270_000:
+            if (cap in ("primary", "admin") and pop >= 60_000) or pop >= 100_000:
                 return "easy"
-            if pop >= 70_000:
+            if pop >= 40_000:
                 return "medium"
-            if pop >= 25_000:
+            if pop >= 20_000:
                 return "hard"
-            if pop >= 12_000:
+            if pop >= 10_000:
                 return "very_hard"
             return "crazy"
 
@@ -140,11 +140,11 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
         # Rest of the World: national capitals & megacities Easy, regional hubs Medium
         if cap == "primary" or pop >= 3_000_000:
             return "easy"
-        if cap == "admin" or pop >= 1_000_000:
+        if cap == "admin" or pop >= 1_500_000:
             return "medium"
-        if pop >= 300_000:
+        if pop >= 500_000:
             return "hard"
-        if pop >= 50_000:
+        if pop >= 150_000:
             return "very_hard"
         return "crazy"
 

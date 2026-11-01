@@ -16,6 +16,7 @@ class TournamentPlayer:
     correct_bets: int = 0
     total_bets: int = 0
     bet_history: list[Any] = field(default_factory=list)
+    is_bot: bool = False
 
 
 @dataclass
@@ -74,9 +75,14 @@ class BaseTournament(ABC):
     def get_tournament_stats(self) -> str:
         ...
 
+    max_players: int | None = None
+
+    def _create_player(self, user_id: int, username: str, is_host: bool) -> TournamentPlayer:
+        return TournamentPlayer(user_id=user_id, username=username, is_host=is_host, tournament_credits=self.buy_in)
+
     def _add_host(self, user_id: int, username: str):
         self._deduct_buy_in(user_id)
-        self.players[user_id] = TournamentPlayer(user_id=user_id, username=username, is_host=True, tournament_credits=self.buy_in)
+        self.players[user_id] = self._create_player(user_id=user_id, username=username, is_host=True)
 
     def add_player(self, user_id: int, username: str) -> tuple[str, bool]:
         if self.state != TournamentState.JOINING:
@@ -85,12 +91,15 @@ class BaseTournament(ABC):
         if user_id in self.players:
             return "You already joined this tournament.", False
 
+        if self.max_players is not None and len(self.players) >= self.max_players:
+            return f"Table is full (max *{self.max_players}* players).", False
+
         if user_id not in self.credits.credits or self.credits.credits[user_id] < self.buy_in:
             current = self.credits.credits.get(user_id, 0)
             return f"Not enough credits. You have *{current}* but the buy-in is *{self.buy_in}*.", False
 
         self._deduct_buy_in(user_id)
-        self.players[user_id] = TournamentPlayer(user_id=user_id, username=username, is_host=False, tournament_credits=self.buy_in)
+        self.players[user_id] = self._create_player(user_id=user_id, username=username, is_host=False)
         return f"*{username}* joined the tournament! [{len(self.players)} players]", True
 
     def _deduct_buy_in(self, user_id: int):
@@ -102,6 +111,8 @@ class BaseTournament(ABC):
 
     def cancel_and_refund(self) -> str:
         for player in self.players.values():
+            if player.is_bot:
+                continue
             self.credits.credits[player.user_id] += self.buy_in
             self.credits.update_credit_history(player.user_id, self.buy_in, CreditActionType.TOURNAMENT)
         self.state = TournamentState.FINISHED
@@ -182,6 +193,8 @@ class BaseTournament(ABC):
 
     def distribute_payouts(self, payouts: dict[int, int]):
         for user_id, payout in payouts.items():
+            if user_id in self.players and self.players[user_id].is_bot:
+                continue
             self.credits.credits[user_id] += payout
             self.credits.update_credit_history(user_id, payout, CreditActionType.TOURNAMENT)
 

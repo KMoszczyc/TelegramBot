@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
 from src.models.events.random_event import RandomFailureEvent, RandomSuccessEvent
 
@@ -130,6 +130,7 @@ class CreditActionType(Enum):
 
 class TournamentType(Enum):
     ROULETTE = "roulette"
+    POKER = "poker"
 
 
 class TournamentState(Enum):
@@ -139,6 +140,35 @@ class TournamentState(Enum):
     SPINNING = "spinning"
     ROUND_RESULT = "round_result"
     FINISHED = "finished"
+
+
+class PokerStreet(Enum):
+    PRE_FLOP = "Pre-Flop"
+    FLOP = "Flop"
+    TURN = "Turn"
+    RIVER = "River"
+    SHOWDOWN = "Showdown"
+
+
+class PokerHandRank(IntEnum):
+    HIGH_CARD = 1
+    ONE_PAIR = 2
+    TWO_PAIR = 3
+    THREE_OF_A_KIND = 4
+    STRAIGHT = 5
+    FLUSH = 6
+    FULL_HOUSE = 7
+    FOUR_OF_A_KIND = 8
+    STRAIGHT_FLUSH = 9
+    ROYAL_FLUSH = 10
+
+
+class PokerAction(Enum):
+    FOLD = "fold"
+    CHECK = "check"
+    CALL = "call"
+    RAISE = "raise"
+    ALL_IN = "all_in"
 
 
 class Table(Enum):

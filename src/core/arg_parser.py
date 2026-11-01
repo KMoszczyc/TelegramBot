@@ -51,7 +51,11 @@ class ArgParser:
     def handle_args(users_df: pd.DataFrame, command_args_ref: CommandArgs):
         """Handle optional arguments like Period or User."""
         if len(command_args_ref.args) == 0:
-            return command_args_ref
+            command_args = copy.deepcopy(command_args_ref)
+            for i, arg_type in enumerate(command_args.expected_args):
+                if not command_args.optional[i]:
+                    command_args.errors.append(f"Missing required argument: {arg_type.value}")
+            return command_args
 
         command_args = copy.deepcopy(command_args_ref)
         successes = []
