@@ -129,3 +129,17 @@ def test_pop_random_country_filtered_does_not_use_queue(mock_countries_df):
     assert result["country_code"] in europa_codes
     # Queue must remain untouched (still empty / not consumed)
     assert len(countries._shuffle_queue) == 0
+
+
+def test_kazakhstan_classified_as_asia_in_real_dataset():
+    """Kazakhstan must be categorized under continent 'Azja' in production dataset."""
+    countries = Countries()
+    kz = countries.df[countries.df["country_code"] == "KZ"]
+    assert not kz.empty
+    assert kz.iloc[0]["continent"] == "Azja"
+    # When filtering by Europe, KZ must not be included
+    eu_countries = countries.get_countries(continent="Europa")
+    assert "KZ" not in eu_countries["country_code"].values
+    # When filtering by Asia, KZ must be included
+    asia_countries = countries.get_countries(continent="Azja")
+    assert "KZ" in asia_countries["country_code"].values

@@ -442,6 +442,11 @@ def ring_cities():
         lat_mid = 50.0 + 1.0 * np.cos(np.radians(bearing))
         lng_mid = 10.0 + 1.0 * np.sin(np.radians(bearing)) / np.cos(np.radians(50.0))
         rows.append({"id": 200 + i, "city": f"Mid{bearing}", "lat": lat_mid, "lng": lng_mid, "population": 800_000, "capital": "minor"})
+        lat_close = 50.0 + 0.5 * np.cos(np.radians(bearing))
+        lng_close = 10.0 + 0.5 * np.sin(np.radians(bearing)) / np.cos(np.radians(50.0))
+        rows.append(
+            {"id": 300 + i, "city": f"Close{bearing}", "lat": lat_close, "lng": lng_close, "population": 700_000, "capital": "minor"}
+        )
         rows.append({"id": 100 + i, "city": f"Tiny{bearing}", "lat": lat + 0.02, "lng": lng, "population": 3_000, "capital": "minor"})
     rows.append({"id": 999, "city": "Suburb", "lat": 50.05, "lng": 10.0, "population": 2_000_000, "capital": "primary"})
     return pd.DataFrame(rows)
@@ -551,6 +556,47 @@ def test_cities_sample_mystery_city_general_mode_respects_regional_eligibility()
             assert diff in ("easy", "medium")
 
 
+@pytest.mark.parametrize(
+    "exclude_count",
+    [1, 5, 8],
+)
+def test_cities_sample_mystery_city_respects_exclude_ids(exclude_count):
+    cities = Cities(min_population=0)
+    pl_cities = cities.get_cities(country_iso2="PL", difficulty="easy")
+    all_ids = set(pl_cities["id"].tolist()[:exclude_count])
+
+    for _ in range(15):
+        mystery, _ = cities.sample_mystery_city(country_iso2="PL", difficulty="easy", exclude_ids=all_ids)
+        assert mystery["id"] not in all_ids
+
+
+def test_cities_sample_mystery_city_exclude_ids_fallback_when_all_excluded():
+    cities = Cities(min_population=0)
+    pl_cities = cities.get_cities(country_iso2="PL", difficulty="easy")
+    all_ids = set(pl_cities["id"].tolist())
+
+    mystery, _ = cities.sample_mystery_city(country_iso2="PL", difficulty="easy", exclude_ids=all_ids)
+    assert isinstance(mystery, dict)
+    assert mystery["iso2"] == "PL"
+
+
+def test_bot_state_recent_mystery_city_ids_maxlen():
+    from collections import deque
+    from unittest.mock import MagicMock
+
+    from src.models.core.bot_state import BotState
+
+    bs = BotState(MagicMock(), MagicMock())
+    assert isinstance(bs.recent_mystery_city_ids, deque)
+    assert bs.recent_mystery_city_ids.maxlen == 25
+
+    for i in range(35):
+        bs.recent_mystery_city_ids.append(i)
+
+    assert len(bs.recent_mystery_city_ids) == 25
+    assert list(bs.recent_mystery_city_ids) == list(range(10, 35))
+
+
 def test_real_cities_parquet_poland_difficulty_calibration():
     cities = Cities(min_population=0)
     pl_cities = cities.get_cities(country_iso2="PL")
@@ -602,6 +648,21 @@ def test_select_hint_cities_bratislava_includes_vienna():
     assert len(hints) == 5
     hint_cities = {h["city"] for h in hints}
     assert "Vienna" in hint_cities
+
+
+def test_select_hint_cities_bytom_includes_nearby_anchor_and_avoids_distant_outliers():
+    cities = Cities(min_population=0)
+    bytom = cities.df[cities.df["city"].str.lower() == "bytom"].iloc[0].to_dict()
+    hints = select_hint_cities(bytom, cities.df, difficulty="medium")
+    assert len(hints) == 5
+    hint_names = {h["city"] for h in hints}
+    # One close anchor (e.g. Katowice, Zabrze, Gliwice, etc.) within 30 km
+    close_hints = [h for h in hints if h["_dist_km"] <= 30.0]
+    assert len(close_hints) == 1
+    # No distant outliers > 150 km (like Wałbrzych, Kalisz, Rzeszów, Łódź)
+    assert all(h["_dist_km"] <= 150.0 for h in hints)
+    assert "Wałbrzych" not in hint_names
+    assert "Rzeszów" not in hint_names
 
 
 def test_select_hint_cities_rome_uses_famous_cities():
@@ -791,3 +852,182 @@ def test_generate_diagram_corridor_labels_no_collision():
             if ox > 0 and oy > 0:
                 collisions += 1
     assert collisions == 0
+
+
+def test_kazakhstan_general_mode_eligibility():
+    """In General Mode, only Astana (capital) and Almaty (curated iconic) are eligible for Kazakhstan."""
+    cities = Cities(min_population=0)
+    kz = cities.df[cities.df["iso2"] == "KZ"]
+    assert not kz.empty
+    eligible = kz[kz["general_eligible"]]
+    assert set(eligible["city"].tolist()) == {"Astana", "Almaty"}
+
+    # Obscure 100k towns must not be eligible in General Mode
+    ineligible_names = set(kz[~kz["general_eligible"]]["city"].tolist())
+    for town in ["Rudnyy", "Zhangaözen", "Zhezqazghan", "Oral", "Aqtöbe"]:
+        assert town in ineligible_names
+
+
+def test_russia_general_mode_eligibility():
+    """Russia allows European Russia >= 100k and only major Asian/Siberian hubs >= 500k."""
+    cities = Cities(min_population=0)
+    ru = cities.df[cities.df["iso2"] == "RU"]
+    assert not ru.empty
+
+    eligible = ru[ru["general_eligible"]]
+    eligible_names = set(eligible["city"].tolist())
+    # Major hubs must be included
+    for hub in ["Moscow", "Saint Petersburg", "Kazan", "Novosibirsk", "Vladivostok"]:
+        assert hub in eligible_names
+
+    # Siberian towns with pop < 500k must be excluded from General Mode
+    ineligible = ru[~ru["general_eligible"]]
+    ineligible_names = set(ineligible["city"].tolist())
+    for town in ["Norilsk", "Nizhnevartovsk"]:
+        if town in ru["city"].values:
+            assert town in ineligible_names
+
+
+def test_turkey_general_mode_eligibility():
+    """Turkey keeps core metropolises and provincial capitals, excluding sub-districts and small towns."""
+    cities = Cities(min_population=0)
+    tr = cities.df[cities.df["iso2"] == "TR"]
+    assert not tr.empty
+
+    eligible = tr[tr["general_eligible"]]
+    eligible_names = set(eligible["city"].tolist())
+    assert "Istanbul" in eligible_names
+    assert "Ankara" in eligible_names
+    assert "Antalya" in eligible_names
+    assert "İzmir" in eligible_names
+
+    # Municipal borough duplicates in Istanbul/Ankara must be excluded
+    ineligible = tr[~tr["general_eligible"]]
+    ineligible_names = set(ineligible["city"].tolist())
+    for subdistrict in ["Esenyurt", "Çankaya", "Küçükçekmece"]:
+        if subdistrict in tr["city"].values:
+            assert subdistrict in ineligible_names
+
+
+def test_generate_diagram_horizontal_long_names_no_arrow_label_overlap():
+    """Verify that horizontal East/West hint cities with long names (like Zduńska Wola) never overlap arrow tips."""
+    import math
+
+    from PIL import Image, ImageDraw
+
+    from src.models.quizzes.city_quiz import (
+        _CANVAS_H,
+        _CANVAS_W,
+        _CIRCLE_R,
+        _FONT_BOLD,
+        _LABEL_PAD,
+        _SCALE,
+        _bearing_deg,
+        _clip_arrow_to_box,
+        _load_flag,
+    )
+
+    mystery_lon, mystery_lat = 17.81, 51.65  # Ostrów Wielkopolski area
+    hints = [
+        {"city": "Września", "iso2": "PL", "lng": 17.57, "lat": 52.33},
+        {"city": "Kalisz", "iso2": "PL", "lng": 18.08, "lat": 51.76},
+        {"city": "Zduńska Wola", "iso2": "PL", "lng": 18.93, "lat": 51.60},
+        {"city": "Oleśnica", "iso2": "PL", "lng": 17.38, "lat": 51.21},
+        {"city": "Legnica", "iso2": "PL", "lng": 16.16, "lat": 51.21},
+    ]
+
+    # Render diagram and assert it succeeds
+    buf = generate_diagram(mystery_lon, mystery_lat, hints)
+    assert buf is not None
+    assert buf.getbuffer().nbytes > 1000
+
+    # Verify geometric clearance
+    cx, cy = _CANVAS_W // 2, _CANVAS_H // 2
+    margin = 24 * _SCALE
+    gap = 18 * _SCALE
+
+    img = Image.new("RGBA", (_CANVAS_W, _CANVAS_H))
+    draw = ImageDraw.Draw(img)
+
+    hint_layouts = []
+    for h in hints:
+        hlon, hlat = float(h["lng"]), float(h["lat"])
+        b = _bearing_deg(mystery_lon, mystery_lat, hlon, hlat)
+        b_rad = math.radians(b)
+        sin_b, cos_b = math.sin(b_rad), math.cos(b_rad)
+        flag_img = _load_flag(h["iso2"])
+        fw = (flag_img.width + _LABEL_PAD) if flag_img else 0
+        fh = flag_img.height if flag_img else 0
+        name_bb = draw.textbbox((0, 0), h["city"], font=_FONT_BOLD)
+        group_w = fw + (name_bb[2] - name_bb[0])
+        group_h = max(fh, name_bb[3] - name_bb[1])
+        hint_layouts.append(
+            {
+                "city": h["city"],
+                "bearing": b,
+                "sin_b": sin_b,
+                "cos_b": cos_b,
+                "group_w": group_w,
+                "group_h": group_h,
+            }
+        )
+
+    # Dynamic uniform shaft calculation
+    limits = []
+    for item in hint_layouts:
+        sb, cb = item["sin_b"], item["cos_b"]
+        gw, gh = item["group_w"], item["group_h"]
+        if abs(sb) > 0.05:
+            avail_x = cx - margin - gw
+            if avail_x > 0:
+                limits.append(avail_x / abs(sb) - gap - _CIRCLE_R)
+        if abs(cb) > 0.05:
+            avail_y = cy - margin - gh
+            if avail_y > 0:
+                limits.append(avail_y / abs(cb) - gap - _CIRCLE_R)
+
+    arrow_len = min(180 * _SCALE, max(110 * _SCALE, min(limits))) if limits else 180 * _SCALE
+
+    for item in hint_layouts:
+        sb, cb = item["sin_b"], item["cos_b"]
+        sx = cx + sb * _CIRCLE_R
+        sy = cy - cb * _CIRCLE_R
+        tx = cx + sb * (_CIRCLE_R + arrow_len)
+        ty = cy - cb * (_CIRCLE_R + arrow_len)
+        lx = tx + sb * gap
+        ly = ty - cb * gap
+        item.update({"sx": sx, "sy": sy, "tx": tx, "ty": ty, "lx": lx, "ly": ly})
+
+    # Directional placement
+    for item in hint_layouts:
+        b = item["bearing"]
+        sb, cb = item["sin_b"], item["cos_b"]
+        lx, ly = item["lx"], item["ly"]
+        gw, gh = item["group_w"], item["group_h"]
+        if sb >= 0.15:
+            gx = lx
+        elif sb <= -0.15:
+            gx = lx - gw
+        else:
+            gx = lx - gw / 2
+        if cb >= 0.15:
+            gy = ly - gh
+        elif cb <= -0.15:
+            gy = ly
+        else:
+            gy = ly - gh / 2
+        item["gx"] = max(margin, min(_CANVAS_W - gw - margin, gx))
+        item["gy"] = max(margin, min(_CANVAS_H - gh - margin, gy))
+        clipped_tx, clipped_ty = _clip_arrow_to_box(item["sx"], item["sy"], item["tx"], item["ty"], item["gx"], item["gy"], gw, gh, gap)
+        item["tx"], item["ty"] = clipped_tx, clipped_ty
+
+    # Verify that Zduńska Wola and all hint arrows do NOT penetrate label bounding boxes
+    for item in hint_layouts:
+        gx, gy = item["gx"], item["gy"]
+        gw, gh = item["group_w"], item["group_h"]
+        tx, ty = item["tx"], item["ty"]
+        # Tip must not be inside the label bounding box
+        assert not (gx < tx < gx + gw and gy < ty < gy + gh)
+        if item["city"] == "Zduńska Wola":
+            # East-pointing arrow tip must terminate before the left edge of the label
+            assert tx <= gx

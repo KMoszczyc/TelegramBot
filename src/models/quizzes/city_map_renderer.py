@@ -22,8 +22,8 @@ _H = _OUT_H * _SS
 
 _EARTH_R_KM = 6_371.0
 _MIN_SPAN_KM = 170.0
-_FILL_X = 0.58
-_FILL_Y = 0.50
+_FILL_X = 0.52
+_FILL_Y = 0.45
 
 _OCEAN = (176, 208, 232)
 _LAND = (246, 243, 235)
@@ -46,8 +46,17 @@ _CARD_RADIUS = 14
 _FLAG_H = 36
 _CARD_MARGIN = 20
 
-_GAPS = (18, 44, 80, 130, 200, 300)
-_DIRECTIONS = [(1, 0), (-1, 0), (0, -1), (0, 1), (1, -1), (-1, -1), (1, 1), (-1, 1)]
+_COS30 = round(math.cos(math.radians(30)), 4)
+_SIN30 = round(math.sin(math.radians(30)), 4)
+
+_GAPS = (90, 140, 200, 270, 350, 440, 540)
+_DIRECTIONS_30 = [
+    (-_COS30, -_SIN30, 1, 1),  # Top-Left (-150°): connects to bottom-right corner
+    (_COS30, -_SIN30, -1, 1),  # Top-Right (-30°): connects to bottom-left corner
+    (-_COS30, _SIN30, 1, -1),  # Bottom-Left (+150°): connects to top-right corner
+    (_COS30, _SIN30, -1, -1),  # Bottom-Right (+30°): connects to top-left corner
+]
+_DIRECTIONS = _DIRECTIONS_30
 
 
 Box = tuple[float, float, float, float]
@@ -284,6 +293,77 @@ def _nearest_on_box(box: Box, p: tuple[float, float]) -> tuple[float, float]:
     return min(max(p[0], box[0]), box[2]), min(max(p[1], box[1]), box[3])
 
 
+def _nearest_on_rounded_box(box: Box, p: tuple[float, float], radius: float, pad: float = 0.0) -> tuple[float, float]:
+    """Snap point p to the nearest boundary of a rounded rectangle, following corner curves with 0 gap."""
+    x0, y0, x1, y1 = box
+    r = min(radius, (x1 - x0) / 2, (y1 - y0) / 2)
+    ix0, ix1 = x0 + r, x1 - r
+    iy0, iy1 = y0 + r, y1 - r
+    px, py = p
+
+    cx = min(max(px, ix0), ix1)
+    cy = min(max(py, iy0), iy1)
+
+    dx = px - cx
+    dy = py - cy
+    dist = math.hypot(dx, dy)
+    r_eff = max(r - pad, 0.0)
+
+    if dist == 0:
+        d_left, d_right = abs(px - x0), abs(x1 - px)
+        d_top, d_bottom = abs(py - y0), abs(y1 - py)
+        m = min(d_left, d_right, d_top, d_bottom)
+        if m == d_left:
+            return x0 + pad, py
+        if m == d_right:
+            return x1 - pad, py
+        if m == d_top:
+            return px, y0 + pad
+        return px, y1 - pad
+
+    if (cx in (ix0, ix1)) and (cy in (iy0, iy1)):
+        return cx + dx / dist * r_eff, cy + dy / dist * r_eff
+
+    if cx == ix0 and px < ix0:
+        return x0 + pad, cy
+    if cx == ix1 and px > ix1:
+        return x1 - pad, cy
+    if cy == iy0 and py < iy0:
+        return cx, y0 + pad
+    if cy == iy1 and py > iy1:
+        return cx, y1 - pad
+
+    return min(max(px, x0), x1), min(max(py, y0), y1)
+
+
+def _segments_intersect(
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    p3: tuple[float, float],
+    p4: tuple[float, float],
+) -> bool:
+    def ccw(a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> bool:
+        return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
+
+    return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (ccw(p1, p2, p3) != ccw(p1, p2, p4))
+
+
+def _dist_point_to_segment(
+    p: tuple[float, float],
+    a: tuple[float, float],
+    b: tuple[float, float],
+) -> float:
+    px, py = p
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    l2 = dx * dx + dy * dy
+    if l2 == 0:
+        return math.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / l2))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
 def _segment_hits_box(p: tuple[float, float], q: tuple[float, float], box: Box, pad: float) -> bool:
     for i in range(1, 24):
         t = i / 24
@@ -293,58 +373,99 @@ def _segment_hits_box(p: tuple[float, float], q: tuple[float, float], box: Box, 
     return False
 
 
-def _candidate_boxes(card: _Card, centroid: tuple[float, float]):
-    """Yield candidate card boxes around the pin, outward-facing placements first."""
+def _candidate_boxes(card: _Card, target_pin: tuple[float, float], target_out_angle: float):
+    """Yield candidate card boxes around the pin, 30-degree diagonal corner placements only."""
     px, py = card.pin
-    out_angle = math.atan2(py - centroid[1], px - centroid[0])
+    out_angle = target_out_angle if card.is_target else math.atan2(py - target_pin[1], px - target_pin[0])
 
-    def outwardness(d: tuple[int, int]) -> float:
-        diff = abs(math.atan2(d[1], d[0]) - out_angle) % (2 * math.pi)
+    def dir_score(d: tuple[float, float, int, int]) -> float:
+        dx, dy, _, _ = d
+        diff = abs(math.atan2(dy, dx) - out_angle) % (2 * math.pi)
         return min(diff, 2 * math.pi - diff)
 
-    ordered = sorted(_DIRECTIONS, key=outwardness)
+    candidates = []
+    for d in _DIRECTIONS_30:
+        ang_diff = dir_score(d)
+        for gap_idx, gap in enumerate(_GAPS):
+            score = ang_diff * 300.0 + gap_idx * 50.0
+            candidates.append((score, d, gap))
+    candidates.sort(key=lambda x: x[0])
+
     w, h = card.w, card.h
-    for gap in _GAPS:
+    card_r = _CARD_RADIUS * _SS
+    stroke_pad = 2.0 * _SS
+    for _, (dx, dy, corner_x, corner_y), gap in candidates:
         g = gap * _SS
-        for dx, dy in ordered:
-            x0 = px + g * 0.75 if dx > 0 else px - g * 0.75 - w if dx < 0 else px - w / 2
-            y0 = py + g * 0.75 if dy > 0 else py - g * 0.75 - h if dy < 0 else py - h / 2
-            if dx and not dy:
-                x0 = px + g if dx > 0 else px - g - w
-            if dy and not dx:
-                y0 = py + g if dy > 0 else py - g - h
-            yield (x0, y0, x0 + w, y0 + h)
+        center_x = px + (g + card_r) * dx
+        center_y = py + (g + card_r) * dy
+        x0 = center_x - card_r if corner_x == -1 else center_x - w + card_r
+        y0 = center_y - card_r if corner_y == -1 else center_y - h + card_r
+        box = (x0, y0, x0 + w, y0 + h)
+        anchor = (px + (g + stroke_pad) * dx, py + (g + stroke_pad) * dy)
+        yield (box, anchor, g)
 
 
 def _place_cards(cards: list[_Card]) -> None:
     """Assign non-overlapping boxes: no card covers a pin, another card, or another leader line."""
-    centroid = (sum(c.pin[0] for c in cards) / len(cards), sum(c.pin[1] for c in cards) / len(cards))
     margin = _CARD_MARGIN * _SS
-    pin_pad = 16 * _SS
-    gap_between = 12 * _SS
+    pin_pad = 18 * _SS
+    gap_between = 10 * _SS
+    card_r = _CARD_RADIUS * _SS
+    stroke_pad = 2.0 * _SS
     placed: list[_Card] = []
 
-    for card in cards:
-        fallback: Box | None = None
-        chosen: Box | None = None
-        for raw in _candidate_boxes(card, centroid):
-            x0 = min(max(raw[0], margin), _W - margin - card.w)
-            y0 = min(max(raw[1], margin), _H - margin - card.h)
-            box = (x0, y0, x0 + card.w, y0 + card.h)
-            if any(_boxes_overlap(box, p.box, gap_between) for p in placed):
+    target = next((c for c in cards if c.is_target), cards[0])
+    hint_cards = [c for c in cards if not c.is_target]
+    rx = sum((target.pin[0] - h.pin[0]) / max(math.hypot(target.pin[0] - h.pin[0], target.pin[1] - h.pin[1]), 1.0) ** 2 for h in hint_cards)
+    ry = sum((target.pin[1] - h.pin[1]) / max(math.hypot(target.pin[0] - h.pin[0], target.pin[1] - h.pin[1]), 1.0) ** 2 for h in hint_cards)
+    target_out_angle = math.atan2(ry, rx) if (rx != 0 or ry != 0) else 0.0
+
+    sorted_hints = sorted(hint_cards, key=lambda c: math.hypot(c.pin[0] - target.pin[0], c.pin[1] - target.pin[1]))
+    sorted_cards = [target] + sorted_hints
+
+    for card in sorted_cards:
+        chosen: tuple[Box, tuple[float, float]] | None = None
+        best_fallback: tuple[Box, tuple[float, float]] | None = None
+        best_score = float("inf")
+
+        for box, anchor, g in _candidate_boxes(card, target.pin, target_out_angle):
+            out_of_bounds = box[0] < margin or box[2] > _W - margin or box[1] < margin or box[3] > _H - margin
+            if any(p.box is not None and _boxes_overlap(box, p.box, gap_between) for p in placed):
                 continue
-            fallback = fallback or box
-            if any(box[0] - pin_pad <= c.pin[0] <= box[2] + pin_pad and box[1] - pin_pad <= c.pin[1] <= box[3] + pin_pad for c in cards):
-                continue
-            anchor = _nearest_on_box(box, card.pin)
-            if any(_segment_hits_box(card.pin, anchor, p.box, 2 * _SS) for p in placed):
-                continue
-            if any(_segment_hits_box(p.pin, p.anchor, box, 2 * _SS) for p in placed):
-                continue
-            chosen = box
-            break
-        card.box = chosen or fallback or (margin, margin, margin + card.w, margin + card.h)
-        card.anchor = _nearest_on_box(card.box, card.pin)
+
+            covers_pin = any(
+                box[0] - pin_pad <= c.pin[0] <= box[2] + pin_pad and box[1] - pin_pad <= c.pin[1] <= box[3] + pin_pad for c in cards
+            )
+            line_hits_card = any(p.box is not None and _segment_hits_box(card.pin, anchor, p.box, 2 * _SS) for p in placed) or any(
+                p.anchor is not None and _segment_hits_box(p.pin, p.anchor, box, 2 * _SS) for p in placed
+            )
+            line_crosses = any(p.anchor is not None and _segments_intersect(card.pin, anchor, p.pin, p.anchor) for p in placed)
+            line_near_pin = any(_dist_point_to_segment(c.pin, card.pin, anchor) < 14 * _SS for c in cards if c is not card)
+
+            if not out_of_bounds and not covers_pin and not line_hits_card and not line_crosses and not line_near_pin:
+                chosen = (box, anchor)
+                break
+
+            score = (
+                (10000 if out_of_bounds else 0)
+                + (5000 if covers_pin else 0)
+                + (3000 if line_crosses else 0)
+                + (2000 if line_hits_card else 0)
+                + (500 if line_near_pin else 0)
+                + g
+            )
+            if score < best_score:
+                best_score = score
+                best_fallback = (box, anchor)
+
+        if chosen:
+            card.box, card.anchor = chosen
+        elif best_fallback:
+            card.box, card.anchor = best_fallback
+        else:
+            card.box = (margin, margin, margin + card.w, margin + card.h)
+            card.anchor = _nearest_on_rounded_box(card.box, card.pin, card_r, stroke_pad)
+
         placed.append(card)
 
 

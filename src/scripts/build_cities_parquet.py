@@ -57,6 +57,7 @@ CURATED_ICONIC_CITIES: set[tuple[str, str]] = {
     ("Dubai", "United Arab Emirates"),
     ("Singapore", "Singapore"),
     ("Istanbul", "Turkey"),
+    ("Almaty", "Kazakhstan"),
     ("Cairo", "Egypt"),
     ("Johannesburg", "South Africa"),
     ("Rio de Janeiro", "Brazil"),
@@ -128,7 +129,7 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
         if continent in ("europa", "europe"):
             if (cap == "primary" and pop >= 300_000) or pop >= 1_500_000:
                 return "easy"
-            if pop >= 400_000 or (cap == "primary" and pop >= 100_000):
+            if pop >= 400_000 or (cap == "primary" and pop >= 50_000):
                 return "medium"
             if pop >= 150_000:
                 return "hard"
@@ -151,13 +152,38 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
     def check_general_eligible(row: pd.Series) -> bool:
         iso2 = str(row.get("iso2", "")).upper()
         continent = str(row.get("continent", "")).lower()
-
-        # All Poland and European cities are eligible
-        if iso2 == "PL" or continent in ("europa", "europe"):
-            return True
-
         pop = row["population"]
         cap = row.get("capital")
+        city = str(row.get("city", ""))
+
+        # All Poland cities are eligible
+        if iso2 == "PL" or row.get("country") == "Poland":
+            return True
+
+        # Russia: European Russia (west of Urals, lng <= 60°E) with pop >= 100k or major admin;
+        # Asian Russia / Siberia (lng > 60°E) only major metropolises (pop >= 500k)
+        if iso2 == "RU":
+            lng = float(row.get("lng", 0.0))
+            if lng <= 60.0:
+                return (pop >= 100_000) or (cap in ("primary", "admin") and pop >= 50_000)
+            return pop >= 500_000
+
+        # Turkey: Istanbul, Antalya, Ankara (primary capital), provincial capitals/hubs >= 50k, or cities >= 200k.
+        # Exclude Istanbul/Ankara/Izmir municipal sub-district duplicates (e.g. Esenyurt, Çankaya).
+        if iso2 == "TR":
+            admin_name = str(row.get("admin_name", ""))
+            if cap == "primary" or city in ("Istanbul", "Antalya"):
+                return True
+            if admin_name in ("İstanbul", "Ankara") and city not in ("Istanbul", "Ankara"):
+                return False
+            if cap == "admin" and pop >= 50_000:
+                return True
+            return pop >= 200_000
+
+        # Other European countries: all cities eligible
+        if continent in ("europa", "europe"):
+            return True
+
         # Rest of World: national capitals >= 100k
         if cap == "primary" and pop >= 100_000:
             return True
@@ -165,7 +191,6 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
         if iso2 in WESTERN_MAJOR_ISO2 and pop >= 1_500_000:
             return True
         # Iconic non-Western cities
-        city = str(row.get("city", ""))
         country = str(row.get("country", ""))
         return (city, country) in CURATED_ICONIC_CITIES and pop >= 500_000
 

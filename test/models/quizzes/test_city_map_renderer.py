@@ -110,3 +110,112 @@ def test_load_geometry_has_district_borders():
     assert geo is not None
     assert geo.district_borders is not None
     assert len(geo.district_borders) > 0
+
+
+def test_place_cards_outward_gaps_and_no_overlaps(mystery, hints):
+    import math
+
+    from PIL import Image, ImageDraw
+
+    rows = [mystery, *hints]
+    lons = np.array([float(r["lng"]) for r in rows])
+    lats = np.array([float(r["lat"]) for r in rows])
+    view = cmr._View(lons, lats)
+    cards = cmr._build_cards(view, mystery, hints)
+    dummy_img = Image.new("RGB", (cmr._W, cmr._H))
+    draw = ImageDraw.Draw(dummy_img)
+    for c in cards:
+        cmr._measure_card(draw, c)
+    cmr._place_cards(cards)
+
+    for c in cards:
+        assert c.box is not None
+        assert c.anchor is not None
+        ax, ay = c.anchor
+        x0, y0, x1, y1 = c.box
+        # Anchor touches or penetrates slightly into card border
+        assert x0 - 5 <= ax <= x1 + 5 and y0 - 5 <= ay <= y1 + 5
+        # Leader line must have outward clearance (>= 80 px in 1x)
+        line_len = math.hypot(ax - c.pin[0], ay - c.pin[1]) / cmr._SS
+        assert line_len >= 80.0
+        # Leader line must strictly follow 30-degree diagonal angle
+        deg = abs(math.degrees(math.atan2(ay - c.pin[1], ax - c.pin[0])))
+        diff_30 = min(abs(deg - 30.0), abs(deg - 150.0))
+        assert diff_30 < 0.5
+
+    # No card-card overlaps and no crossing lines
+    for i in range(len(cards)):
+        for j in range(i + 1, len(cards)):
+            assert not cmr._boxes_overlap(cards[i].box, cards[j].box, 0)
+            assert not cmr._segments_intersect(cards[i].pin, cards[i].anchor, cards[j].pin, cards[j].anchor)
+
+
+@pytest.mark.parametrize(
+    "conurbation",
+    [
+        (
+            {"city": "Ruda Śląska", "lat": 50.3117, "lng": 18.8514, "iso2": "PL"},
+            [
+                {"city": "Częstochowa", "lat": 50.8096, "lng": 19.1222, "iso2": "PL", "_dist_km": 59.0},
+                {"city": "Sosnowiec", "lat": 50.3000, "lng": 19.1667, "iso2": "PL", "_dist_km": 22.0},
+                {"city": "Rybnik", "lat": 50.0833, "lng": 18.5000, "iso2": "PL", "_dist_km": 36.0},
+                {"city": "Bielsko-Biała", "lat": 49.8225, "lng": 19.0444, "iso2": "PL", "_dist_km": 56.0},
+                {"city": "Tychy", "lat": 50.1236, "lng": 18.9867, "iso2": "PL", "_dist_km": 23.0},
+            ],
+        )
+    ],
+)
+def test_place_cards_dense_conurbation_30_deg_no_crossing(conurbation):
+    import math
+
+    from PIL import Image, ImageDraw
+
+    mystery, hints = conurbation
+    rows = [mystery, *hints]
+    lons = np.array([float(r["lng"]) for r in rows])
+    lats = np.array([float(r["lat"]) for r in rows])
+    view = cmr._View(lons, lats)
+    cards = cmr._build_cards(view, mystery, hints)
+    dummy_img = Image.new("RGB", (cmr._W, cmr._H))
+    draw = ImageDraw.Draw(dummy_img)
+    for c in cards:
+        cmr._measure_card(draw, c)
+    cmr._place_cards(cards)
+
+    for c in cards:
+        assert c.box is not None
+        assert c.anchor is not None
+        ax, ay = c.anchor
+        deg = abs(math.degrees(math.atan2(ay - c.pin[1], ax - c.pin[0])))
+        diff_30 = min(abs(deg - 30.0), abs(deg - 150.0))
+        assert diff_30 < 0.5, f"{c.name} line angle was not 30 deg (diff: {diff_30})"
+
+    for i in range(len(cards)):
+        for j in range(i + 1, len(cards)):
+            assert not cmr._boxes_overlap(cards[i].box, cards[j].box, 0)
+            assert not cmr._segments_intersect(cards[i].pin, cards[i].anchor, cards[j].pin, cards[j].anchor)
+
+
+def test_nearest_on_rounded_box_exact_curve_contact():
+    import math
+
+    box = (100.0, 100.0, 300.0, 200.0)
+    radius = 28.0
+    # Diagonal point facing top-left corner
+    anchor = cmr._nearest_on_rounded_box(box, (50.0, 50.0), radius, pad=0.0)
+    arc_center = (100.0 + radius, 100.0 + radius)
+    dist_from_arc = math.hypot(anchor[0] - arc_center[0], anchor[1] - arc_center[1])
+    assert abs(dist_from_arc - radius) < 1e-4
+
+    # Point directly above the card (flat horizontal edge)
+    anchor_top = cmr._nearest_on_rounded_box(box, (200.0, 50.0), radius, pad=0.0)
+    assert anchor_top == (200.0, 100.0)
+
+    # Point directly to the right of the card (flat vertical edge)
+    anchor_right = cmr._nearest_on_rounded_box(box, (350.0, 150.0), radius, pad=0.0)
+    assert anchor_right == (300.0, 150.0)
+
+
+def test_segments_intersect():
+    assert cmr._segments_intersect((0, 0), (10, 10), (0, 10), (10, 0))
+    assert not cmr._segments_intersect((0, 0), (10, 0), (0, 5), (10, 5))

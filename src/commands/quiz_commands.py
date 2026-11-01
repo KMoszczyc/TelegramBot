@@ -1003,9 +1003,17 @@ class QuizCommands:
             return
 
         # ── Sample mystery city ───────────────────────────────────────────────
+        recent_ids = getattr(self.bot_state, "recent_mystery_city_ids", None)
+        exclude_ids = set(recent_ids) if recent_ids else None
         mystery, chosen_diff = cities.sample_mystery_city(
-            difficulty=difficulty_filter, continent=continent, country_iso2=country_iso2, district=district
+            difficulty=difficulty_filter,
+            continent=continent,
+            country_iso2=country_iso2,
+            district=district,
+            exclude_ids=exclude_ids,
         )
+        if recent_ids is not None and "id" in mystery:
+            recent_ids.append(mystery["id"])
 
         # ── Select hint cities ────────────────────────────────────────────────
         hint_pool = cities.get_hint_pool(

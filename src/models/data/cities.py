@@ -154,6 +154,7 @@ class Cities:
         continent: str | None = None,
         country_iso2: str | None = None,
         district: str | None = None,
+        exclude_ids: set[int] | None = None,
     ) -> tuple[dict, str]:
         """
         Sample a mystery city and determine the chosen difficulty.
@@ -165,7 +166,14 @@ class Cities:
         import random
 
         has_geo_filter = bool(continent or country_iso2 or district)
-        diff_weights = {"easy": 0.25, "medium": 0.35, "hard": 0.25, "very_hard": 0.10, "crazy": 0.05}
+        diff_weights = {"easy": 0.10, "medium": 0.25, "hard": 0.35, "very_hard": 0.20, "crazy": 0.10}
+
+        def pick_from(candidate_pool: pd.DataFrame) -> dict:
+            if exclude_ids and "id" in candidate_pool.columns:
+                unseen = candidate_pool[~candidate_pool["id"].isin(exclude_ids)]
+                if not unseen.empty:
+                    return self.sample_city(unseen)
+            return self.sample_city(candidate_pool)
 
         if has_geo_filter:
             available_diffs = self.get_available_difficulties(
@@ -190,7 +198,7 @@ class Cities:
             )
             if pool.empty:
                 raise ValueError(f"No cities available for difficulty '{chosen_diff}'.")
-            return self.sample_city(pool), chosen_diff
+            return pick_from(pool), chosen_diff
 
         # ── General Mode (no geographic flags) ─────────────────────────────────
         available_diffs = self.get_available_difficulties(general_eligible=True)
@@ -232,4 +240,4 @@ class Cities:
             if pool.empty:
                 pool = self.get_cities(difficulty=chosen_diff)
 
-        return self.sample_city(pool), chosen_diff
+        return pick_from(pool), chosen_diff

@@ -1,7 +1,7 @@
 import datetime
 import logging
 import random
-from collections import defaultdict
+from collections import defaultdict, deque
 from zoneinfo import ZoneInfo
 
 from src.config.constants import MAX_CWEL_USAGE_DAILY, MAX_GET_CREDITS_DAILY, MAX_REMINDERS_DAILY_USAGE, MAX_STEAL_CREDITS_DAILY, TIMEZONE
@@ -25,6 +25,7 @@ class BotState:
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
         self.city_quiz_cache = {}
+        self.recent_mystery_city_ids = deque(maxlen=25)
         self.available_quiz_id_map = {}
         self.quiz_replay_cache = defaultdict(dict)
 

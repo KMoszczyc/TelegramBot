@@ -13,18 +13,18 @@ from src.core.font_utils import get_font
 from src.models.quizzes.base_guess_quiz import BaseGuessQuiz
 
 # ── Diagram style constants ────────────────────────────────────────────────────
-_OUT_W = 960
-_OUT_H = 880
+_OUT_W = 1000
+_OUT_H = 900
 _SCALE = 2
 _CANVAS_W = _OUT_W * _SCALE
 _CANVAS_H = _OUT_H * _SCALE
 
 _BG = (253, 253, 251)
-_CIRCLE_R = 90 * _SCALE
+_CIRCLE_R = 80 * _SCALE
 _CIRCLE_FILL = (255, 255, 255)
 _CIRCLE_OUTLINE = (40, 40, 40)
 _CIRCLE_W = 4 * _SCALE
-_ARROW_LEN = 210 * _SCALE
+_ARROW_LEN = 180 * _SCALE
 _ARROW_W = 4 * _SCALE
 _ARROW_COLOR = (35, 35, 35)
 _HEAD_LEN = 20 * _SCALE
@@ -51,33 +51,33 @@ _SCALE_RANGE_KM = (140.0, 650.0)  # default/legacy fallback scale
 
 DIFFICULTY_HINT_CONFIG: dict[str, dict] = {
     "easy": {
-        "scale_range_km": (70.0, 240.0),
-        "min_dist_km": 25.0,
-        "max_dist_km": 280.0,
+        "scale_range_km": (50.0, 160.0),
+        "min_dist_km": 8.0,
+        "max_dist_km": 200.0,
         "prominence_tiers": (300_000, 100_000, 40_000),
     },
     "medium": {
-        "scale_range_km": (60.0, 220.0),
-        "min_dist_km": 20.0,
-        "max_dist_km": 240.0,
+        "scale_range_km": (40.0, 120.0),
+        "min_dist_km": 8.0,
+        "max_dist_km": 150.0,
         "prominence_tiers": (200_000, 80_000, 30_000),
     },
     "hard": {
-        "scale_range_km": (35.0, 120.0),
-        "min_dist_km": 15.0,
-        "max_dist_km": 180.0,
+        "scale_range_km": (30.0, 100.0),
+        "min_dist_km": 8.0,
+        "max_dist_km": 140.0,
         "prominence_tiers": (120_000, 50_000, 20_000),
     },
     "very_hard": {
-        "scale_range_km": (25.0, 90.0),
-        "min_dist_km": 15.0,
-        "max_dist_km": 140.0,
+        "scale_range_km": (20.0, 80.0),
+        "min_dist_km": 8.0,
+        "max_dist_km": 110.0,
         "prominence_tiers": (80_000, 30_000, 15_000),
     },
     "crazy": {
         "scale_range_km": (15.0, 60.0),
-        "min_dist_km": 12.0,
-        "max_dist_km": 100.0,
+        "min_dist_km": 8.0,
+        "max_dist_km": 90.0,
         "prominence_tiers": (50_000, 20_000, 10_000),
     },
 }
@@ -180,10 +180,14 @@ def _pick_by_sectors(
     jitter: float,
     scale_km: float,
     prominence_tiers: tuple[float, ...] = _PROMINENCE_TIERS,
+    max_close_hints: int = 1,
+    close_dist_km: float = 30.0,
 ) -> list[dict]:
     """
     Fill up to *n* angular sectors from *pool*. Every sector gets its own random target distance
     (around *scale_km*) so some hints are close and others far; well-known cities are preferred.
+    Limits close anchor hints (< close_dist_km) to at most *max_close_hints* so conurbations
+    do not collapse into a micro-circle of nearby suburbs.
     """
     sector_size = 360.0 / n
     bearings = pool["_bearing"].to_numpy()
@@ -197,10 +201,15 @@ def _pick_by_sectors(
         if in_sector.empty:
             continue
         target_km = scale_km * random.uniform(*_SECTOR_DIST_FACTOR)
+        close_chosen = sum(1 for h in chosen if float(h["_dist_km"]) < close_dist_km)
         for min_prom, radius_factor in attempts:
             sub = in_sector[(in_sector["_prom"] >= min_prom) & (in_sector["_dist_km"] <= scale_km * radius_factor)]
             if sub.empty:
                 continue
+            if close_chosen >= max_close_hints:
+                sub_far = sub[sub["_dist_km"] >= close_dist_km]
+                if not sub_far.empty:
+                    sub = sub_far
             pick = _best_in_sector(sub, target_km, min_gap_deg, chosen_bearings)
             if pick is not None:
                 chosen.append(pick)
@@ -291,14 +300,14 @@ def select_hint_cities(
     is_major_hub = (pop >= 1_000_000) or (mystery.get("capital") == "primary" and pop >= 800_000)
 
     if is_major_hub:
-        scale_range = (160.0, 360.0)
-        base_min_dist = 40.0
-        max_dist = 550.0
+        scale_range = (140.0, 320.0)
+        base_min_dist = 25.0
+        max_dist = 450.0
         prominence_tiers = (400_000, 200_000, 180_000)
     else:
         scale_range = config["scale_range_km"]
         base_min_dist = config["min_dist_km"]
-        max_dist = config.get("max_dist_km", 280.0)
+        max_dist = config.get("max_dist_km", 240.0)
         prominence_tiers = config["prominence_tiers"]
 
     m_lon, m_lat = float(mystery["lng"]), float(mystery["lat"])
@@ -320,9 +329,9 @@ def select_hint_cities(
                 candidates = nearby
                 break
     else:
-        for r_limit in (max_dist, max_dist * 1.5, max_dist * 2.5, 10_000.0):
+        for r_limit in (max_dist, max_dist * 1.4, max_dist * 2.0, 10_000.0):
             nearby = candidates[candidates["_dist_km"] <= r_limit]
-            if len(nearby) >= 20:
+            if len(nearby) >= 15:
                 candidates = nearby
                 break
 
@@ -330,7 +339,7 @@ def select_hint_cities(
     jitter = random.uniform(-10.0, 10.0)
 
     best: list[dict] = []
-    for min_dist in (max(base_min_dist, 0.25 * scale_km), 0.0):
+    for min_dist in (base_min_dist, 0.0):
         pool = candidates[candidates["_dist_km"] >= min_dist]
         picked = _pick_by_sectors(pool, n, min_gap_deg, jitter, scale_km, prominence_tiers=prominence_tiers) if len(pool) else []
         if len(picked) < n and len(pool):
@@ -357,6 +366,48 @@ def _load_flag(iso2: str) -> Image.Image | None:
         return bordered
     except Exception:
         return None
+
+
+def _clip_arrow_to_box(
+    sx: float,
+    sy: float,
+    tx: float,
+    ty: float,
+    bx: float,
+    by: float,
+    bw: float,
+    bh: float,
+    gap: float,
+) -> tuple[float, float]:
+    """Ensure arrow from (sx, sy) to (tx, ty) terminates at least gap pixels before box (bx, by, bw, bh)."""
+    dx = tx - sx
+    dy = ty - sy
+    dist = math.hypot(dx, dy)
+    if dist < 1e-4:
+        return tx, ty
+    ux = dx / dist
+    uy = dy / dist
+    xmin, xmax = bx - gap, bx + bw + gap
+    ymin, ymax = by - gap, by + bh + gap
+    if xmin <= tx <= xmax and ymin <= ty <= ymax:
+        t_enter = dist
+        if abs(ux) > 1e-6:
+            for bound_x in (xmin, xmax):
+                t = (bound_x - sx) / ux
+                if 0 <= t < t_enter:
+                    y_at_t = sy + t * uy
+                    if ymin - 1e-3 <= y_at_t <= ymax + 1e-3:
+                        t_enter = t
+        if abs(uy) > 1e-6:
+            for bound_y in (ymin, ymax):
+                t = (bound_y - sy) / uy
+                if 0 <= t < t_enter:
+                    x_at_t = sx + t * ux
+                    if xmin - 1e-3 <= x_at_t <= xmax + 1e-3:
+                        t_enter = t
+        new_len = max(float(_HEAD_LEN), t_enter)
+        return sx + ux * new_len, sy + uy * new_len
+    return tx, ty
 
 
 # ── Diagram generation ─────────────────────────────────────────────────────────
@@ -397,6 +448,9 @@ def generate_diagram(
 
     # ── Collect hint geometry and text metrics ─────────────────────────────────
     hint_layouts = []
+    margin = 24 * _SCALE
+    gap = 18 * _SCALE
+
     for hint in hints:
         hlon = float(hint["lng"])
         hlat = float(hint["lat"])
@@ -411,12 +465,6 @@ def generate_diagram(
         # Compass on screen: 0° (North) is straight up (dx=0, dy=-1)
         sin_b = math.sin(b_rad)
         cos_b = math.cos(b_rad)
-
-        # Arrow shaft: 100% uniform length for every hint
-        sx = cx + sin_b * _CIRCLE_R
-        sy = cy - cos_b * _CIRCLE_R
-        tx = cx + sin_b * (_CIRCLE_R + _ARROW_LEN)
-        ty = cy - cos_b * (_CIRCLE_R + _ARROW_LEN)
 
         # Label group: flag + city name [+ distance]
         flag_img = _load_flag(iso2)
@@ -439,22 +487,11 @@ def generate_diagram(
         group_w = fw + max(name_w, dist_w)
         group_h = max(fh, name_h + gap_between_name_and_dist + dist_h)
 
-        # Anchor point just beyond the arrow tip
-        gap = 18 * _SCALE
-        lx = tx + sin_b * gap
-        ly = ty - cos_b * gap
-
         hint_layouts.append(
             {
                 "bearing": bearing,
                 "sin_b": sin_b,
                 "cos_b": cos_b,
-                "sx": sx,
-                "sy": sy,
-                "tx": tx,
-                "ty": ty,
-                "lx": lx,
-                "ly": ly,
                 "group_w": group_w,
                 "group_h": group_h,
                 "flag_img": flag_img,
@@ -466,6 +503,33 @@ def generate_diagram(
                 "gap_between": gap_between_name_and_dist,
             }
         )
+
+    # ── Compute optimal uniform arrow length for all hints ─────────────────────
+    base_arrow_len = _ARROW_LEN
+    min_arrow_len = 110 * _SCALE
+    max_shaft_limits = []
+    for item in hint_layouts:
+        sin_b, cos_b = item["sin_b"], item["cos_b"]
+        gw, gh = item["group_w"], item["group_h"]
+        if abs(sin_b) > 0.05:
+            avail_x = cx - margin - gw
+            if avail_x > 0:
+                max_shaft_limits.append(avail_x / abs(sin_b) - gap - _CIRCLE_R)
+        if abs(cos_b) > 0.05:
+            avail_y = cy - margin - gh
+            if avail_y > 0:
+                max_shaft_limits.append(avail_y / abs(cos_b) - gap - _CIRCLE_R)
+
+    arrow_len = min(base_arrow_len, max(min_arrow_len, min(max_shaft_limits))) if max_shaft_limits else base_arrow_len
+
+    for item in hint_layouts:
+        sin_b, cos_b = item["sin_b"], item["cos_b"]
+        item["sx"] = cx + sin_b * _CIRCLE_R
+        item["sy"] = cy - cos_b * _CIRCLE_R
+        item["tx"] = cx + sin_b * (_CIRCLE_R + arrow_len)
+        item["ty"] = cy - cos_b * (_CIRCLE_R + arrow_len)
+        item["lx"] = item["tx"] + sin_b * gap
+        item["ly"] = item["ty"] - cos_b * gap
 
     # ── Directional placement with signed-neighbor awareness ───────────────────
     for i, item in enumerate(hint_layouts):
@@ -547,10 +611,21 @@ def generate_diagram(
         if not collided:
             break
 
-    # ── Clamp to canvas margins ────────────────────────────────────────────────
+    # ── Clamp to canvas margins & clip arrow tips ──────────────────────────────
     for item in hint_layouts:
-        item["gx"] = max(10 * _SCALE, min(canvas_w - item["group_w"] - 10 * _SCALE, item["gx"]))
-        item["gy"] = max(10 * _SCALE, min(canvas_h - item["group_h"] - 10 * _SCALE, item["gy"]))
+        item["gx"] = max(margin, min(canvas_w - item["group_w"] - margin, item["gx"]))
+        item["gy"] = max(margin, min(canvas_h - item["group_h"] - margin, item["gy"]))
+        item["tx"], item["ty"] = _clip_arrow_to_box(
+            item["sx"],
+            item["sy"],
+            item["tx"],
+            item["ty"],
+            item["gx"],
+            item["gy"],
+            item["group_w"],
+            item["group_h"],
+            gap,
+        )
 
     # ── Render arrow shafts & heads first ──────────────────────────────────────
     for item in hint_layouts:
