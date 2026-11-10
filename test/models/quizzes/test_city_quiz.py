@@ -132,6 +132,21 @@ def mock_cities_df():
                 "continent": "Europa",
                 "difficulty": "crazy",
             },
+            {
+                "city": "Kleindorf",
+                "city_ascii": "Kleindorf",
+                "lat": 51.0000,
+                "lng": 10.0000,
+                "country": "Germany",
+                "iso2": "DE",
+                "iso3": "DEU",
+                "admin_name": "Bayern",
+                "capital": "minor",
+                "population": 5000,
+                "id": 1616000008,
+                "continent": "Europa",
+                "difficulty": "crazy",
+            },
         ]
     )
 
@@ -314,14 +329,17 @@ def test_cities_model(tmp_path, mock_cities_df):
     parquet_path = tmp_path / "test_cities.parquet"
     mock_cities_df.to_parquet(parquet_path, index=False)
 
-    # By default, min_population=30_000 filters out Mała Wieś (5,000)
+    # By default, min_population=30_000 filters out foreign small towns like Kleindorf (DE, 5,000),
+    # but preserves all Polish cities, even Mała Wieś (PL, 5,000).
     cities = Cities(parquet_path=str(parquet_path))
-    assert len(cities.df) == 5
-    assert "Mała Wieś" not in cities.df["city"].values
+    assert len(cities.df) == 6
+    assert "Kleindorf" not in cities.df["city"].values
+    assert "Mała Wieś" in cities.df["city"].values
 
-    # Without filter, all 6 cities are loaded
+    # Without filter, all 7 cities are loaded
     unfiltered = Cities(parquet_path=str(parquet_path), min_population=0)
-    assert len(unfiltered.df) == 6
+    assert len(unfiltered.df) == 7
+    assert "Kleindorf" in unfiltered.df["city"].values
     assert "Mała Wieś" in unfiltered.df["city"].values
 
     easy_cities = cities.get_cities(difficulty="easy")
@@ -329,7 +347,7 @@ def test_cities_model(tmp_path, mock_cities_df):
     assert easy_cities.iloc[0]["city"] == "Warszawa"
 
     poland_cities = cities.get_cities(country_iso2="PL")
-    assert len(poland_cities) == 5
+    assert len(poland_cities) == 6
 
     diffs = cities.get_available_difficulties()
     assert "easy" in diffs
@@ -362,9 +380,9 @@ def test_cities_hint_pool_district(tmp_path, mock_cities_df):
     mock_cities_df.to_parquet(parquet_path, index=False)
 
     cities = Cities(parquet_path=str(parquet_path))
-    # District with only 1 city (< 4) should fall back to country pool (5 cities)
+    # District with only 1 city (< 4) should fall back to country pool (6 cities)
     hint_pool = cities.get_hint_pool(mystery_iso2="PL", country_iso2="PL", district="Dolnośląskie")
-    assert len(hint_pool) == 5
+    assert len(hint_pool) == 6
 
 
 def test_arg_parser_optional_string():
@@ -623,10 +641,16 @@ def test_bot_state_recent_mystery_city_ids_maxlen():
 
 
 def test_real_cities_parquet_poland_difficulty_calibration():
+    # Both min_population=0 and default Cities() must contain all 464 Polish cities
+    cities_default = Cities()
+    assert len(cities_default.get_cities(country_iso2="PL")) == 464
+
     cities = Cities(min_population=0)
     pl_cities = cities.get_cities(country_iso2="PL")
+    assert len(pl_cities) == 464
+
     easy_pl = pl_cities[pl_cities["difficulty"] == "easy"]
-    assert len(easy_pl) >= 10
+    assert len(easy_pl) == 36
     easy_names = set(easy_pl["city"].tolist())
     for expected in [
         "Warsaw",
@@ -643,15 +667,111 @@ def test_real_cities_parquet_poland_difficulty_calibration():
         assert expected in easy_names
 
     medium_pl = pl_cities[pl_cities["difficulty"] == "medium"]
-    assert len(medium_pl) >= 20
+    assert len(medium_pl) == 73
+    hard_pl = pl_cities[pl_cities["difficulty"] == "hard"]
+    assert len(hard_pl) == 90
+    vh_pl = pl_cities[pl_cities["difficulty"] == "very_hard"]
+    assert len(vh_pl) == 143
+    crazy_pl = pl_cities[pl_cities["difficulty"] == "crazy"]
+    assert len(crazy_pl) == 122
 
 
-@pytest.mark.parametrize("city_name", ["Keratsíni", "Karaman"])
+@pytest.mark.parametrize("city_name", ["Keratsíni", "Szombathely"])
 def test_obscure_european_cities_are_very_hard(city_name):
     cities = Cities(min_population=0)
     match = cities.df[cities.df["city"] == city_name]
     assert not match.empty
     assert match.iloc[0]["difficulty"] == "very_hard"
+
+
+def test_russia_and_turkey_removed_from_europe():
+    cities = Cities(min_population=0)
+    # Check that Turkey and Russia continents are Azja, not Europa
+    tr_continents = set(cities.df[cities.df["iso2"] == "TR"]["continent"].tolist())
+    assert tr_continents == {"Azja"}
+    ru_continents = set(cities.df[cities.df["iso2"] == "RU"]["continent"].tolist())
+    assert ru_continents == {"Azja"}
+
+    # Neither Turkey nor Russia appears in Europe filter
+    eu_cities = cities.get_cities(continent="Europe")
+    eu_iso2 = set(eu_cities["iso2"].str.upper().tolist())
+    assert "TR" not in eu_iso2
+    assert "RU" not in eu_iso2
+
+    # Both remain playable via country or asia
+    asia_cities = cities.get_cities(continent="Asia")
+    asia_iso2 = set(asia_cities["iso2"].str.upper().tolist())
+    assert "TR" in asia_iso2
+    assert "RU" in asia_iso2
+
+
+@pytest.mark.parametrize(
+    ("query", "expected_iso2", "expected_name"),
+    [
+        ("pl", "PL", "Poland"),
+        ("PL", "PL", "Poland"),
+        ("pol", "PL", "Poland"),
+        ("POL", "PL", "Poland"),
+        ("poland", "PL", "Poland"),
+        ("Poland", "PL", "Poland"),
+        ("polska", "PL", "Poland"),
+        ("Polska", "PL", "Poland"),
+        ("de", "DE", "Germany"),
+        ("DEU", "DE", "Germany"),
+        ("germany", "DE", "Germany"),
+        ("niemcy", "DE", "Germany"),
+        ("niem", "DE", "Germany"),
+        ("włochy", "IT", "Italy"),
+        ("wlochy", "IT", "Italy"),
+        ("united", "US", "United States"),
+        ("cz", "CZ", "Czechia"),
+        ("czechy", "CZ", "Czechia"),
+    ],
+)
+def test_cities_resolve_country(query, expected_iso2, expected_name):
+    cities = Cities()
+    resolved = cities.resolve_country(query)
+    assert resolved is not None
+    iso2, name = resolved
+    assert iso2 == expected_iso2
+    assert name == expected_name
+
+
+def test_cities_resolve_country_unknown():
+    cities = Cities()
+    assert cities.resolve_country("completely_unknown_xyz_123") is None
+    assert cities.resolve_country("") is None
+
+
+def test_poland_district_uniform_sampling():
+    """Verify that district sampling in Poland samples across multiple difficulties uniformly."""
+    cities = Cities()
+    podkarpackie_cities = cities.get_cities(country_iso2="PL", district="Podkarpackie")
+    assert len(podkarpackie_cities) >= 15
+
+    sampled_diffs = set()
+    sampled_cities = set()
+    for _ in range(50):
+        mystery, chosen_diff = cities.sample_mystery_city(country_iso2="PL", district="Podkarpackie")
+        sampled_diffs.add(chosen_diff)
+        sampled_cities.add(mystery["city"])
+
+    # Must sample multiple different cities and multiple difficulty tiers, not just Rzeszów
+    assert len(sampled_cities) >= 5
+    assert len(sampled_diffs) >= 3
+
+
+def test_poland_country_equal_difficulty_weighting():
+    """Verify that sampling Poland without explicit difficulty draws from all 5 tiers evenly."""
+    cities = Cities()
+    tier_counts = {d: 0 for d in ["easy", "medium", "hard", "very_hard", "crazy"]}
+    for _ in range(100):
+        _, chosen_diff = cities.sample_mystery_city(country_iso2="PL")
+        tier_counts[chosen_diff] += 1
+
+    # In 100 draws with 20% weight per tier, every tier should be drawn at least 5 times
+    for diff, count in tier_counts.items():
+        assert count >= 5, f"Tier '{diff}' had only {count} draws out of 100"
 
 
 def test_select_hint_cities_katowice_local_proximity():

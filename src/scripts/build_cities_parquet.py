@@ -103,6 +103,8 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
     countries_df = pd.read_parquet(str(COUNTRIES_PATH))[["country_code", "continent"]]
     df = df.merge(countries_df, left_on="iso2", right_on="country_code", how="left")
     df.drop(columns=["country_code"], inplace=True)
+    # Reclassify Turkey to Asia for /guesscity (Russia is already Azja in countries.parquet)
+    df.loc[df["iso2"].str.upper() == "TR", "continent"] = "Azja"
 
     df["population"] = pd.to_numeric(df["population"], errors="coerce").fillna(0).astype(int)
 
@@ -119,9 +121,9 @@ def build_cities_parquet(csv_path: str | None = None) -> pd.DataFrame:
                 return "easy"
             if pop >= 40_000:
                 return "medium"
-            if pop >= 20_000:
+            if pop >= 22_000:
                 return "hard"
-            if pop >= 10_000:
+            if pop >= 13_000:
                 return "very_hard"
             return "crazy"
 

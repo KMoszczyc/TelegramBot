@@ -124,6 +124,15 @@ def assets():
             "_bearing": 18.0,
         },
     ]
+
+    def fake_resolve_country(q):
+        if str(q).lower() in ("pl", "pol", "poland", "polska"):
+            return ("PL", "Poland")
+        if str(q).lower() in ("de", "germany", "niemcy"):
+            return ("DE", "Germany")
+        return None
+
+    a.cities.resolve_country.side_effect = fake_resolve_country
     a.cities.find_country_for_district.return_value = "PL"
     a.cities.get_districts_for_country.return_value = ["Malopolskie"]
     a.cities.get_available_difficulties.return_value = ["easy", "medium"]
@@ -217,3 +226,32 @@ async def test_cmd_guess_city_no_cities_found(commands, update, context):
 
     update.message.reply_photo.assert_not_called()
     assert 111 not in commands.bot_state.city_quiz_cache
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("country_arg", ["poland", "pol", "pl"])
+async def test_cmd_guess_city_country_param_resolves_and_formats_scope(commands, update, context, country_arg):
+    sent_mock = MagicMock()
+    sent_mock.message_id = 888
+    update.message.reply_photo.return_value = sent_mock
+    context.args = ["--country", country_arg]
+
+    await commands.cmd_guess_city(update, context)
+
+    update.message.reply_photo.assert_awaited_once()
+    kwargs = update.message.reply_photo.call_args.kwargs
+    assert "Poland" in kwargs["caption"]
+    cached = commands.bot_state.city_quiz_cache[111]
+    assert "Country: Poland (PL)" in cached["base_text"]
+
+
+@pytest.mark.asyncio
+async def test_cmd_guess_city_unknown_country_shows_error(commands, update, context):
+    context.args = ["--country", "xyzunknown"]
+
+    await commands.cmd_guess_city(update, context)
+
+    update.message.reply_photo.assert_not_called()
+    assert 111 not in commands.bot_state.city_quiz_cache
+    context.bot.send_message.assert_awaited_once()
+    assert "Could not find a country matching 'xyzunknown'" in context.bot.send_message.call_args.kwargs["text"]

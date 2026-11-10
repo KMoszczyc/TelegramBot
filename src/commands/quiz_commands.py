@@ -960,7 +960,23 @@ class QuizCommands:
 
         self._set_quiz_replay_args(user_id, CityQuiz.QUIZ_TYPE, context.args)
 
-        country_iso2 = command_args.named_args.get("country", "").upper() or None
+        cities = self.assets.cities
+
+        raw_country = command_args.named_args.get("country")
+        country_iso2 = None
+        country_name = None
+        if raw_country:
+            resolved = cities.resolve_country(raw_country)
+            if not resolved:
+                await core_utils.send_message(
+                    update,
+                    context,
+                    MessageType.TEXT,
+                    f"Could not find a country matching '{raw_country}'. Try full country names (e.g. 'Poland') or ISO codes (e.g. 'PL').",
+                )
+                return
+            country_iso2, country_name = resolved
+
         continent = command_args.named_args.get("continent") or None
         difficulty_filter = command_args.named_args.get("difficulty", "").lower() or None
         district_raw = None
@@ -968,7 +984,6 @@ class QuizCommands:
             if key in command_args.named_args:
                 district_raw = command_args.named_args[key]
                 break
-        cities = self.assets.cities
 
         district = None
         if district_raw is not None:
@@ -978,9 +993,15 @@ class QuizCommands:
                     inferred_country = cities.find_country_for_district(district)
                     if inferred_country:
                         country_iso2 = inferred_country
+                        resolved_inf = cities.resolve_country(country_iso2)
+                        if resolved_inf:
+                            country_name = resolved_inf[1]
             else:
                 if not country_iso2:
                     country_iso2 = "PL"
+                    resolved_pl = cities.resolve_country("PL")
+                    if resolved_pl:
+                        country_name = resolved_pl[1]
                 available_districts = cities.get_districts_for_country(country_iso2)
                 if available_districts:
                     district = random.choice(available_districts)
@@ -1037,7 +1058,7 @@ class QuizCommands:
         elif district:
             scope_label = f"District: {district}"
         elif country_iso2:
-            scope_label = f"Country: {country_iso2}"
+            scope_label = f"Country: {country_name} ({country_iso2})" if country_name else f"Country: {country_iso2}"
         elif continent:
             scope_label = f"Continent: {continent.title()}"
         else:

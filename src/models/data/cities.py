@@ -29,6 +29,7 @@ MIN_CITY_POPULATION = 30_000
 
 def _normalize_text(text: str) -> str:
     """Strip diacritics and convert to lowercase for lenient matching."""
+    text = text.replace("ł", "l").replace("Ł", "L")
     nfkd = unicodedata.normalize("NFKD", text)
     return "".join(c for c in nfkd if not unicodedata.combining(c)).strip().lower()
 
@@ -40,13 +41,102 @@ class Cities:
         path = parquet_path or str(CITIES_PARQUET_PATH)
         df = pd.read_parquet(path)
         if min_population > 0:
-            df = df[df["population"] >= min_population].reset_index(drop=True)
+            df = df[(df["population"] >= min_population) | (df["iso2"].str.upper() == "PL")].reset_index(drop=True)
         # Asian Russia (east of Urals, lng > 60°E) only retains major hubs >= 500k
         ru_siberia_small = (df["iso2"].str.upper() == "RU") & (df["lng"] > 60.0) & (df["population"] < 500_000)
         if ru_siberia_small.any():
             df = df[~ru_siberia_small].reset_index(drop=True)
         self.df = df
+        self._init_countries_lookup()
         log.info("Cities loaded: %d rows, difficulties: %s", len(self.df), self.df["difficulty"].value_counts().to_dict())
+
+    def _init_countries_lookup(self) -> None:
+        """Precompute country lookup mappings for fast, flexible resolution."""
+        from src.config.paths import COUNTRIES_PATH
+
+        c_map: dict[str, dict] = {}
+        if COUNTRIES_PATH.exists():
+            try:
+                cdf = pd.read_parquet(COUNTRIES_PATH)
+                c_map = cdf.set_index("country_code")[["country_name", "population"]].to_dict("index")
+            except Exception as e:
+                log.warning("Could not read countries parquet for country resolution: %s", e)
+
+        countries_list: list[dict] = []
+        if "iso2" in self.df.columns:
+            has_iso3 = "iso3" in self.df.columns
+            has_country = "country" in self.df.columns
+            group_cols = ["iso2"]
+            if has_iso3:
+                group_cols.append("iso3")
+            if has_country:
+                group_cols.append("country")
+
+            for keys, sub in self.df.groupby(group_cols, observed=True):
+                if not isinstance(keys, tuple):
+                    keys = (keys,)
+                iso2_str = str(keys[0]).strip()
+                iso3_str = str(keys[1]).strip() if has_iso3 else ""
+                name_en_str = str(keys[2 if has_iso3 else 1]).strip() if has_country else iso2_str
+                c_info = c_map.get(iso2_str, {})
+                name_pl = str(c_info.get("country_name", "")).strip()
+                pop_val = int(c_info.get("population", 0))
+                if pop_val <= 0:
+                    pop_val = int(pd.to_numeric(sub.get("population", 0), errors="coerce").fillna(0).sum())
+                countries_list.append(
+                    {
+                        "iso2": iso2_str,
+                        "iso3": iso3_str,
+                        "name_en": name_en_str,
+                        "name_pl": name_pl,
+                        "norm_en": _normalize_text(name_en_str),
+                        "norm_pl": _normalize_text(name_pl),
+                        "pop": pop_val,
+                    }
+                )
+        self._countries_lookup = countries_list
+
+    def resolve_country(self, query: str) -> tuple[str, str] | None:
+        """
+        Resolve a country query (ISO2, ISO3, English or Polish full name, or prefix/substring)
+        to (iso2, english_country_name). If ambiguous, picks the country with highest population.
+        """
+        q_raw = query.strip()
+        if not q_raw:
+            return None
+        q_norm = _normalize_text(q_raw)
+        q_upper = q_raw.upper()
+
+        # 1. Exact ISO2
+        for c in self._countries_lookup:
+            if c["iso2"].upper() == q_upper:
+                return c["iso2"], c["name_en"]
+
+        # 2. Exact ISO3
+        for c in self._countries_lookup:
+            if c["iso3"].upper() == q_upper:
+                return c["iso2"], c["name_en"]
+
+        # 3. Exact full name match (English or Polish, diacritics normalized)
+        for c in self._countries_lookup:
+            if c["norm_en"] == q_norm or (c["norm_pl"] and c["norm_pl"] == q_norm):
+                return c["iso2"], c["name_en"]
+
+        # 4. Prefix match (starts with query)
+        prefix_matches = [
+            c for c in self._countries_lookup if c["norm_en"].startswith(q_norm) or (c["norm_pl"] and c["norm_pl"].startswith(q_norm))
+        ]
+        if prefix_matches:
+            prefix_matches.sort(key=lambda x: x["pop"], reverse=True)
+            return prefix_matches[0]["iso2"], prefix_matches[0]["name_en"]
+
+        # 5. Substring match (contains query)
+        substr_matches = [c for c in self._countries_lookup if q_norm in c["norm_en"] or (c["norm_pl"] and q_norm in c["norm_pl"])]
+        if substr_matches:
+            substr_matches.sort(key=lambda x: x["pop"], reverse=True)
+            return substr_matches[0]["iso2"], substr_matches[0]["name_en"]
+
+        return None
 
     # ── Filtering ──────────────────────────────────────────────────────────────
 
@@ -181,6 +271,20 @@ class Cities:
             return self.sample_city(candidate_pool)
 
         if has_geo_filter:
+            is_pl = bool((country_iso2 and country_iso2.upper() == "PL") or (district and self.find_country_for_district(district) == "PL"))
+            # When --district is used for Poland without an explicit difficulty:
+            # sample uniformly from all cities in that district so single-city tiers (like Rzeszów) don't dominate.
+            if district and is_pl and not difficulty:
+                district_pool = self.get_cities(
+                    continent=continent,
+                    country_iso2=country_iso2 or "PL",
+                    district=district,
+                )
+                if district_pool.empty:
+                    raise ValueError(f"No cities match district '{district}'.")
+                picked = pick_from(district_pool)
+                return picked, picked.get("difficulty", "medium")
+
             available_diffs = self.get_available_difficulties(
                 continent=continent,
                 country_iso2=country_iso2,
@@ -192,7 +296,8 @@ class Cities:
             if difficulty:
                 chosen_diff = difficulty.lower()
             else:
-                weights = [diff_weights.get(d, 0.1) for d in available_diffs]
+                active_weights = {d: 0.20 for d in DIFFICULTIES} if is_pl else diff_weights
+                weights = [active_weights.get(d, 0.1) for d in available_diffs]
                 chosen_diff = random.choices(available_diffs, weights=weights, k=1)[0]
 
             pool = self.get_cities(
@@ -215,9 +320,9 @@ class Cities:
         if difficulty:
             chosen_diff = difficulty.lower()
         elif chosen_region == "PL":
-            # Poland in General Mode uses the full difficulty spectrum
+            # Poland in General Mode uses equal weighting across all difficulty tiers
             pl_diffs = self.get_available_difficulties(country_iso2="PL")
-            weights = [diff_weights.get(d, 0.1) for d in pl_diffs]
+            weights = [0.20 for _ in pl_diffs]
             chosen_diff = random.choices(pl_diffs, weights=weights, k=1)[0]
         else:
             # Foreign cities in General Mode are strictly easy & medium (capitals / famous hubs)
