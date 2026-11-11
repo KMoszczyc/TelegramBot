@@ -24,6 +24,7 @@ class BotState:
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
+        self.top_cities_quiz_cache = {}
         self.city_quiz_cache = {}
         self.recent_mystery_city_ids = deque(maxlen=25)
         self.available_quiz_id_map = {}
@@ -97,6 +98,7 @@ class BotState:
         self.flag_quiz_cache = {}
         self.capital_quiz_cache = {}
         self.top_countries_quiz_cache = {}
+        self.top_cities_quiz_cache = {}
         self.city_quiz_cache = {}
         self.quiz_replay_cache = defaultdict(dict)
 
@@ -126,6 +128,7 @@ class BotState:
             or user_id in self.flag_quiz_cache
             or user_id in self.capital_quiz_cache
             or user_id in self.top_countries_quiz_cache
+            or user_id in self.top_cities_quiz_cache
             or user_id in self.city_quiz_cache
         )
 

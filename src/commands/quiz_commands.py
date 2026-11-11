@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import copy
 import logging
+from typing import Any
 
 import telegram
 from telegram import InlineKeyboardButton, Update
@@ -20,6 +21,7 @@ from src.config.constants import (
     MAP_QUIZ_TIMEOUT_SECONDS,
     MIN_QUIZ_TIME_TO_ANSWER_SECONDS,
     TELEGRAM_CAPTION_MAX_LENGTH,
+    TOP_CITIES_TIMEOUT_SECONDS,
     TOP_COUNTRIES_TIMEOUT_SECONDS,
 )
 from src.config.enums import QUIZ_EVENTS, ArgType, CreditActionType, MessageType, Table
@@ -30,7 +32,8 @@ from src.models.core.credits import Credits
 from src.models.data.command_args import CommandArgs
 from src.models.db.db import DB
 from src.models.events.event_manager import EventManager
-from src.models.quizzes import tip_message, top_countries_quiz
+from src.models.quizzes import tip_message, top_cities_quiz, top_countries_quiz
+from src.models.quizzes.base_top_list_quiz import GuessResult
 from src.models.quizzes.capital_quiz import CapitalQuiz
 from src.models.quizzes.city_map_renderer import render_post_solve_map
 from src.models.quizzes.city_quiz import CityQuiz, generate_diagram, select_hint_cities
@@ -43,6 +46,7 @@ from src.models.quizzes.quiz_replay import (
     format_replay_command_name,
     parse_replay_callback_data,
 )
+from src.models.quizzes.top_cities_quiz import TopCitiesGame
 from src.models.quizzes.top_countries_quiz import TopCountriesGame
 
 log = logging.getLogger(__name__)
@@ -104,6 +108,7 @@ class QuizCommands:
             or user_id in getattr(self.bot_state, "flag_quiz_cache", {})
             or user_id in getattr(self.bot_state, "capital_quiz_cache", {})
             or user_id in getattr(self.bot_state, "top_countries_quiz_cache", {})
+            or user_id in getattr(self.bot_state, "top_cities_quiz_cache", {})
             or user_id in getattr(self.bot_state, "city_quiz_cache", {})
         )
 
@@ -637,6 +642,8 @@ class QuizCommands:
                     await self.cmd_guess_capital(replay_update, context)
                 case "topcountries":
                     await self.cmd_guess_top_countries(replay_update, context)
+                case "topcities":
+                    await self.cmd_guess_top_cities(replay_update, context)
                 case "city":
                     await self.cmd_guess_city(replay_update, context)
                 case _:
@@ -768,36 +775,155 @@ class QuizCommands:
     async def handle_capital_quiz_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self._handle_guess_country_answer_generic(update, context, self.bot_state.capital_quiz_cache, CapitalQuiz)
 
-    def _schedule_top_countries_timeout(self, context: ContextTypes.DEFAULT_TYPE, user_id: int):
-        return context.job_queue.run_once(self.top_countries_timeout, TOP_COUNTRIES_TIMEOUT_SECONDS, data=user_id)
+    # ── Top List Quiz Generic Lifecycle Helpers ───────────────────────────────
 
-    async def _refresh_top_countries_message(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+    async def _refresh_top_quiz_message(
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        cached_quiz: dict,
+        user_id: int,
+        schedule_fn: Any,
+    ) -> None:
         job = cached_quiz.get("job")
         if job:
             try:
                 job.schedule_removal()
             except Exception as e:
-                log.debug(f"Could not remove top countries job: {e}")
-        cached_quiz["job"] = self._schedule_top_countries_timeout(context, user_id)
+                log.debug(f"Could not remove top quiz job: {e}")
+        cached_quiz["job"] = schedule_fn(context, user_id)
         game = cached_quiz["game"]
         text = stats_utils.escape_special_characters(game.render())
         await quiz_helpers.update_quiz_message(context, cached_quiz, text, game.build_keyboard(user_id))
 
-    async def _finish_top_countries(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
-        if self.bot_state.top_countries_quiz_cache.pop(user_id, None) is None:
+    async def _finish_top_quiz(
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        cache_dict: dict,
+        cached_quiz: dict,
+        user_id: int,
+        quiz_type: str,
+    ) -> None:
+        if cache_dict.pop(user_id, None) is None:
             return
         job = cached_quiz.get("job")
         if job:
             try:
                 job.schedule_removal()
             except Exception as e:
-                log.debug(f"Could not remove top countries job: {e}")
+                log.debug(f"Could not remove top quiz job: {e}")
         game = cached_quiz["game"]
         total_credits = None
         if game.reward > 0:
             total_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=game.reward, action_type=CreditActionType.QUIZ)
         text = stats_utils.escape_special_characters(game.render(game.format_result_line(total_credits)))
-        await quiz_helpers.update_quiz_message(context, cached_quiz, text, build_replay_keyboard(top_countries_quiz.QUIZ_TYPE, user_id))
+        await quiz_helpers.update_quiz_message(context, cached_quiz, text, build_replay_keyboard(quiz_type, user_id))
+
+    async def _top_quiz_timeout_generic(
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        cache_dict: dict,
+        finish_fn: Any,
+    ) -> None:
+        user_id = context.job.data
+        cached_quiz = cache_dict.get(user_id)
+        if cached_quiz is None:
+            return
+        cached_quiz["game"].timed_out = True
+        await finish_fn(context, cached_quiz, user_id)
+
+    async def _apply_top_quiz_tip_generic(
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        cached_quiz: dict,
+        user_id: int,
+        refresh_fn: Any,
+    ) -> bool:
+        if cached_quiz["game"].reveal_tip() is None:
+            return False
+        await refresh_fn(context, cached_quiz, user_id)
+        return True
+
+    async def _handle_top_quiz_answer_generic(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        cache_dict: dict,
+        refresh_fn: Any,
+        finish_fn: Any,
+        apply_tip_fn: Any,
+        log_tag: str,
+    ) -> None:
+        if not update.message or not update.message.text:
+            return
+
+        user_id = update.effective_user.id
+        cached_quiz = cache_dict.get(user_id)
+        if cached_quiz is None:
+            return
+
+        if update.effective_chat.id != cached_quiz["chat_id"]:
+            return
+
+        reply_to = getattr(update.message, "reply_to_message", None)
+        is_reply = reply_to is not None and reply_to.message_id == cached_quiz["message_id"]
+
+        cached_thread = cached_quiz.get("thread_id")
+        msg_thread = update.message.message_thread_id
+        if cached_thread != msg_thread:
+            log.info(f"{log_tag}: thread mismatch. Msg: {msg_thread}, Cache: {cached_thread}")
+            return
+
+        text = update.message.text.strip()
+        log.info(f"{log_tag}: user={user_id}, text={text!r}, is_reply={is_reply}")
+        if text.lower() == "!tip":
+            await quiz_helpers.delete_quiz_answer(update)
+            await apply_tip_fn(context, cached_quiz, user_id)
+            return
+
+        game = cached_quiz["game"]
+        results = game.submit_guesses(text)
+        log.info(f"{log_tag}: results={results}")
+        await quiz_helpers.delete_quiz_answer(update)
+        if not results or all(r == GuessResult.DUPLICATE for r in results):
+            return
+
+        if game.is_over:
+            await finish_fn(context, cached_quiz, user_id)
+        else:
+            await refresh_fn(context, cached_quiz, user_id)
+
+    async def _btn_top_quiz_tip_callback_generic(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        parse_fn: Any,
+        cache_dict: dict,
+        apply_tip_fn: Any,
+    ) -> None:
+        query = update.callback_query
+        owner_id = parse_fn(query.data)
+        if owner_id is None or query.from_user.id != owner_id:
+            await query.answer("This isn't your quiz!")
+            return
+
+        cached_quiz = cache_dict.get(owner_id)
+        if cached_quiz is None or cached_quiz.get("message_id") != query.message.message_id:
+            await query.answer("This quiz is already over.")
+            return
+
+        if not await apply_tip_fn(context, cached_quiz, owner_id):
+            await query.answer("No more tips available!")
+            return
+        await query.answer()
+
+    def _schedule_top_countries_timeout(self, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+        return context.job_queue.run_once(self.top_countries_timeout, TOP_COUNTRIES_TIMEOUT_SECONDS, data=user_id)
+
+    async def _refresh_top_countries_message(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+        await self._refresh_top_quiz_message(context, cached_quiz, user_id, self._schedule_top_countries_timeout)
+
+    async def _finish_top_countries(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+        await self._finish_top_quiz(context, self.bot_state.top_countries_quiz_cache, cached_quiz, user_id, top_countries_quiz.QUIZ_TYPE)
 
     async def cmd_guess_top_countries(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_args = CommandArgs(
@@ -854,76 +980,236 @@ class QuizCommands:
         }
 
     async def top_countries_timeout(self, context: ContextTypes.DEFAULT_TYPE):
-        user_id = context.job.data
-        cached_quiz = self.bot_state.top_countries_quiz_cache.get(user_id)
-        if cached_quiz is None:
-            return
-        cached_quiz["game"].timed_out = True
-        await self._finish_top_countries(context, cached_quiz, user_id)
+        await self._top_quiz_timeout_generic(context, self.bot_state.top_countries_quiz_cache, self._finish_top_countries)
 
     async def _apply_top_countries_tip(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int) -> bool:
-        if cached_quiz["game"].reveal_tip() is None:
-            return False
-        await self._refresh_top_countries_message(context, cached_quiz, user_id)
-        return True
+        return await self._apply_top_quiz_tip_generic(context, cached_quiz, user_id, self._refresh_top_countries_message)
 
     async def handle_top_countries_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.message or not update.message.text:
-            return
-
-        user_id = update.effective_user.id
-        cached_quiz = self.bot_state.top_countries_quiz_cache.get(user_id)
-        if cached_quiz is None:
-            return
-
-        if update.effective_chat.id != cached_quiz["chat_id"]:
-            return
-
-        reply_to = getattr(update.message, "reply_to_message", None)
-        is_reply = reply_to is not None and reply_to.message_id == cached_quiz["message_id"]
-
-        cached_thread = cached_quiz.get("thread_id")
-        msg_thread = update.message.message_thread_id
-        if cached_thread != msg_thread:
-            log.info(f"handle_top_countries_answer: thread mismatch. Msg: {msg_thread}, Cache: {cached_thread}")
-            return
-
-        text = update.message.text.strip()
-        log.info(f"handle_top_countries_answer: user={user_id}, text={text!r}, is_reply={is_reply}")
-        if text.lower() == "!tip":
-            await quiz_helpers.delete_quiz_answer(update)
-            await self._apply_top_countries_tip(context, cached_quiz, user_id)
-            return
-
-        game = cached_quiz["game"]
-        results = game.submit_guesses(text)
-        log.info(f"handle_top_countries_answer: results={results}")
-        await quiz_helpers.delete_quiz_answer(update)
-        if not results or all(r == top_countries_quiz.GuessResult.DUPLICATE for r in results):
-            return
-
-        if game.is_over:
-            await self._finish_top_countries(context, cached_quiz, user_id)
-        else:
-            await self._refresh_top_countries_message(context, cached_quiz, user_id)
+        await self._handle_top_quiz_answer_generic(
+            update,
+            context,
+            self.bot_state.top_countries_quiz_cache,
+            self._refresh_top_countries_message,
+            self._finish_top_countries,
+            self._apply_top_countries_tip,
+            "handle_top_countries_answer",
+        )
 
     async def btn_top_countries_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle a press of the tip button attached to a top countries quiz message."""
-        query = update.callback_query
-        owner_id = top_countries_quiz.parse_tip_callback_data(query.data)
-        if owner_id is None or query.from_user.id != owner_id:
-            await query.answer("This isn't your quiz!")
+        await self._btn_top_quiz_tip_callback_generic(
+            update,
+            context,
+            top_countries_quiz.parse_tip_callback_data,
+            self.bot_state.top_countries_quiz_cache,
+            self._apply_top_countries_tip,
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # /guesstopcities — top cities quiz
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _schedule_top_cities_timeout(self, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+        return context.job_queue.run_once(self.top_cities_timeout, TOP_CITIES_TIMEOUT_SECONDS, data=user_id)
+
+    async def _refresh_top_cities_message(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+        await self._refresh_top_quiz_message(context, cached_quiz, user_id, self._schedule_top_cities_timeout)
+
+    async def _finish_top_cities(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int):
+        await self._finish_top_quiz(context, self.bot_state.top_cities_quiz_cache, cached_quiz, user_id, top_cities_quiz.QUIZ_TYPE)
+
+    async def cmd_guess_top_cities(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        import random
+
+        command_args = CommandArgs(
+            args=context.args,
+            available_named_args={
+                "continent": ArgType.STRING,
+                "country": ArgType.STRING,
+                "letter": ArgType.STRING,
+                "scope": ArgType.STRING,
+            },
+        )
+        command_args = core_utils.parse_args(self.users_df, command_args)
+        if command_args.error != "":
+            await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)
             return
 
-        cached_quiz = self.bot_state.top_countries_quiz_cache.get(owner_id)
-        if cached_quiz is None or cached_quiz.get("message_id") != query.message.message_id:
-            await query.answer("This quiz is already over.")
+        user_id = update.effective_user.id
+        if self._has_active_guess_quiz(user_id):
+            message = "You already have an active quiz! Answer it first or wait for the timeout."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
             return
 
-        if not await self._apply_top_countries_tip(context, cached_quiz, owner_id):
-            await query.answer("No more tips available!")
-            return
-        await query.answer()
+        cities = self.assets.cities
+        raw_letter = command_args.named_args.get("letter")
+        clean_letter = None
+        if raw_letter:
+            clean_letter = raw_letter.strip().upper()
+            if len(clean_letter) != 1 or not clean_letter.isalpha():
+                await core_utils.send_message(update, context, MessageType.TEXT, "Invalid --letter value. Must be a single letter A-Z.")
+                return
+
+        raw_continent = command_args.named_args.get("continent")
+        resolved_continent = None
+        if raw_continent:
+            resolved_continent = cities._normalize_continent(raw_continent)
+            if not resolved_continent:
+                await core_utils.send_message(
+                    update,
+                    context,
+                    MessageType.TEXT,
+                    "Invalid --continent value. Available: Europe, Asia, Africa, North America, South America, Oceania",
+                )
+                return
+
+        raw_country = command_args.named_args.get("country")
+        resolved_country_name = None
+        if raw_country:
+            resolved = cities.resolve_country(raw_country)
+            if not resolved:
+                await core_utils.send_message(update, context, MessageType.TEXT, f"Unknown country: '{raw_country}'.")
+                return
+            _, resolved_country_name = resolved
+
+        raw_scope = command_args.named_args.get("scope")
+        if raw_scope:
+            scope_val = raw_scope.strip().lower()
+            if scope_val not in ("world", "continent", "continents", "country", "countries"):
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, "Invalid --scope value. Available: world, continent, country"
+                )
+                return
+
+        pool = None
+        if resolved_continent and clean_letter:
+            target = f"{resolved_continent} ({clean_letter})"
+            draft = top_cities_quiz.Pool(
+                top_cities_quiz.PoolKind.CUSTOM,
+                target,
+                0,
+                (("continent", resolved_continent), ("letter", clean_letter)),
+            )
+            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
+            if size is None:
+                await core_utils.send_message(
+                    update,
+                    context,
+                    MessageType.TEXT,
+                    f"Not enough qualifying cities found for {resolved_continent} starting with '{clean_letter}'.",
+                )
+                return
+            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CUSTOM, target, size, draft.extra)
+        elif resolved_country_name and clean_letter:
+            target = f"{resolved_country_name} ({clean_letter})"
+            draft = top_cities_quiz.Pool(
+                top_cities_quiz.PoolKind.CUSTOM,
+                target,
+                0,
+                (("country", resolved_country_name), ("letter", clean_letter)),
+            )
+            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
+            if size is None:
+                await core_utils.send_message(
+                    update,
+                    context,
+                    MessageType.TEXT,
+                    f"Not enough qualifying cities found for {resolved_country_name} starting with '{clean_letter}'.",
+                )
+                return
+            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CUSTOM, target, size, draft.extra)
+        elif resolved_continent:
+            draft = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CONTINENT, resolved_continent, 0)
+            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
+            if size is None:
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, f"Not enough qualifying cities found for {resolved_continent}."
+                )
+                return
+            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CONTINENT, resolved_continent, size)
+        elif resolved_country_name:
+            draft = top_cities_quiz.Pool(top_cities_quiz.PoolKind.COUNTRY, resolved_country_name, 0)
+            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
+            if size is None:
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, f"Not enough qualifying cities found for {resolved_country_name}."
+                )
+                return
+            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.COUNTRY, resolved_country_name, size)
+        elif clean_letter:
+            draft = top_cities_quiz.Pool(top_cities_quiz.PoolKind.LETTER, clean_letter, 0)
+            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
+            if size is None:
+                await core_utils.send_message(
+                    update, context, MessageType.TEXT, f"Not enough qualifying cities found starting with '{clean_letter}'."
+                )
+                return
+            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.LETTER, clean_letter, size)
+        elif raw_scope:
+            scope_val = raw_scope.strip().lower()
+            eligible = top_cities_quiz.get_eligible_pools(cities.df)
+            if scope_val == "world":
+                pool = next((p for p in eligible if p.kind == top_cities_quiz.PoolKind.WORLD), None)
+            elif scope_val in ("continent", "continents"):
+                cont_pools = [p for p in eligible if p.kind == top_cities_quiz.PoolKind.CONTINENT]
+                pool = random.choice(cont_pools) if cont_pools else None
+            elif scope_val in ("country", "countries"):
+                c_pools = [p for p in eligible if p.kind == top_cities_quiz.PoolKind.COUNTRY]
+                pool = random.choice(c_pools) if c_pools else None
+            if not pool:
+                await core_utils.send_message(update, context, MessageType.TEXT, f"No qualifying cities found for scope '{raw_scope}'.")
+                return
+        else:
+            pool = top_cities_quiz.pick_pool(cities.df)
+
+        self._set_quiz_replay_args(user_id, top_cities_quiz.QUIZ_TYPE, context.args)
+
+        game = TopCitiesGame.create(cities.df, pool=pool)
+        sent = await update.message.reply_text(
+            text=stats_utils.escape_special_characters(game.render()),
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            reply_markup=game.build_keyboard(user_id),
+            message_thread_id=update.message.message_thread_id,
+        )
+
+        sent_thread_id = getattr(sent, "message_thread_id", None)
+        effective_thread_id = sent_thread_id if isinstance(sent_thread_id, int) else update.message.message_thread_id
+        self.bot_state.top_cities_quiz_cache[user_id] = {
+            "chat_id": update.effective_chat.id,
+            "thread_id": effective_thread_id,
+            "message_id": sent.message_id,
+            "has_photo": False,
+            "game": game,
+            "job": self._schedule_top_cities_timeout(context, user_id),
+        }
+
+    async def top_cities_timeout(self, context: ContextTypes.DEFAULT_TYPE):
+        await self._top_quiz_timeout_generic(context, self.bot_state.top_cities_quiz_cache, self._finish_top_cities)
+
+    async def _apply_top_cities_tip(self, context: ContextTypes.DEFAULT_TYPE, cached_quiz: dict, user_id: int) -> bool:
+        return await self._apply_top_quiz_tip_generic(context, cached_quiz, user_id, self._refresh_top_cities_message)
+
+    async def handle_top_cities_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._handle_top_quiz_answer_generic(
+            update,
+            context,
+            self.bot_state.top_cities_quiz_cache,
+            self._refresh_top_cities_message,
+            self._finish_top_cities,
+            self._apply_top_cities_tip,
+            "handle_top_cities_answer",
+        )
+
+    async def btn_top_cities_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle a press of the tip button attached to a top cities quiz message."""
+        await self._btn_top_quiz_tip_callback_generic(
+            update,
+            context,
+            top_cities_quiz.parse_tip_callback_data,
+            self.bot_state.top_cities_quiz_cache,
+            self._apply_top_cities_tip,
+        )
 
     # ══════════════════════════════════════════════════════════════════════════
     # /guesscity — compass-rose city quiz

@@ -1,7 +1,6 @@
 import math
 import random
-import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 import pandas as pd
@@ -17,16 +16,57 @@ from src.config.constants import (
     TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
     TOP_COUNTRIES_TIP_MULTIPLIER,
 )
+from src.models.quizzes.base_top_list_quiz import (
+    EMPTY_STRIKE_ICON,
+    MAX_LAST_GUESS_LENGTH,
+    STRIKE_ICON,
+    UNKNOWN_SLOT,
+    BaseTopListGame,
+    GameStatus,
+    GuessResult,
+    Pool,
+    PoolKind,
+    parse_guesses,
+    render_strikes,
+    sanitize_guess,
+)
 from src.models.quizzes.flag_quiz import FlagQuiz
 from src.models.quizzes.quiz_matcher import find_best_top_country_match, get_known_country_names
 
 QUIZ_TYPE = "topcountries"
 LIST_SIZES = (10, 5, 3)
-UNKNOWN_SLOT = "???"
-STRIKE_ICON = "❌"
-EMPTY_STRIKE_ICON = "✖️"
-MAX_LAST_GUESS_LENGTH = 30
-_MARKDOWN_UNSAFE_CHARS = re.compile(r"[*`\\]")
+
+__all__ = [
+    "EMPTY_STRIKE_ICON",
+    "LIST_SIZES",
+    "MAX_LAST_GUESS_LENGTH",
+    "QUIZ_TYPE",
+    "STRIKE_ICON",
+    "UNKNOWN_SLOT",
+    "BaseTopListGame",
+    "Entry",
+    "GameStatus",
+    "GuessResult",
+    "Language",
+    "Metric",
+    "Pool",
+    "PoolKind",
+    "TopCountriesGame",
+    "build_tip_callback_data",
+    "build_valid_answers",
+    "calculate_reward",
+    "format_value",
+    "get_eligible_pools",
+    "get_list_size",
+    "get_pool_df",
+    "parse_guesses",
+    "parse_language",
+    "parse_metric",
+    "parse_tip_callback_data",
+    "pick_pool",
+    "render_strikes",
+    "sanitize_guess",
+]
 
 
 class Metric(Enum):
@@ -72,36 +112,6 @@ def parse_language(raw: str | None) -> Language | None:
     return LANGUAGE_ALIASES.get(str(raw).strip().lower())
 
 
-class PoolKind(Enum):
-    CONTINENT = "continent"
-    LETTER = "letter"
-
-
-class GuessResult(Enum):
-    CORRECT = "correct"
-    WRONG = "wrong"
-    DUPLICATE = "duplicate"
-
-
-class GameStatus(Enum):
-    ACTIVE = "active"
-    WON = "won"
-    LOST = "lost"
-    TIMEOUT = "timeout"
-
-
-@dataclass(frozen=True)
-class Pool:
-    kind: PoolKind
-    key: str
-    size: int
-
-    @property
-    def description(self) -> str:
-        """Return the human readable pool filter line, e.g. 'Continent: Europa'."""
-        return f"Continent: {self.key}" if self.kind == PoolKind.CONTINENT else f"Starting letter: {self.key}"
-
-
 @dataclass
 class Entry:
     name: str
@@ -122,11 +132,6 @@ def get_list_size(pool_count: int) -> int | None:
         if pool_count >= size + TOP_COUNTRIES_MIN_BUFFER:
             return size
     return None
-
-
-def parse_guesses(text: str) -> list[str]:
-    """Split comma-separated guess text into trimmed, non-empty candidate guesses."""
-    return [part.strip() for part in text.split(",") if part.strip()]
 
 
 def _first_letters(df: pd.DataFrame, language: Language = Language.EN) -> pd.Series:
@@ -199,23 +204,36 @@ def format_value(value: float, metric: Metric) -> str:
     return f"{formatted} km²" if metric == Metric.AREA else formatted
 
 
-def sanitize_guess(text: str) -> str:
-    """Strip markdown control characters from user text and truncate it so it is safe to echo."""
-    return _MARKDOWN_UNSAFE_CHARS.sub("", text).strip()[:MAX_LAST_GUESS_LENGTH]
-
-
-@dataclass
-class TopCountriesGame:
-    metric: Metric
-    pool: Pool
-    entries: list[Entry]
-    guessed: set[int] = field(default_factory=set)
-    strikes: int = 0
-    tip_letters: dict[int, int] = field(default_factory=dict)
-    tips_given: int = 0
-    last_guess: str | None = None
-    timed_out: bool = False
-    language: Language = Language.EN
+class TopCountriesGame(BaseTopListGame):
+    def __init__(
+        self,
+        metric: Metric,
+        pool: Pool,
+        entries: list[Entry],
+        guessed: set[int] | None = None,
+        strikes: int = 0,
+        tip_letters: dict[int, int] | None = None,
+        tips_given: int = 0,
+        last_guess: str | None = None,
+        timed_out: bool = False,
+        language: Language = Language.EN,
+    ):
+        super().__init__(
+            pool=pool,
+            entries=entries,
+            max_strikes=TOP_COUNTRIES_MAX_STRIKES,
+            max_tips=TOP_COUNTRIES_MAX_TIPS,
+            tip_callback_prefix=TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
+            strike_separator="",
+        )
+        self.metric = metric
+        self.language = language
+        self.guessed = guessed if guessed is not None else set()
+        self.strikes = strikes
+        self.tip_letters = tip_letters if tip_letters is not None else {}
+        self.tips_given = tips_given
+        self.last_guess = last_guess
+        self.timed_out = timed_out
 
     @classmethod
     def create(
@@ -236,37 +254,18 @@ class TopCountriesGame:
         return cls(metric=metric, pool=pool, entries=entries, language=language)
 
     @property
-    def list_size(self) -> int:
-        return len(self.entries)
-
-    @property
-    def correct_count(self) -> int:
-        return len(self.guessed)
-
-    @property
-    def min_correct(self) -> int:
-        return math.ceil(self.list_size / 2)
-
-    @property
     def status(self) -> GameStatus:
         if self.correct_count == self.list_size:
             return GameStatus.WON
-        if self.strikes >= TOP_COUNTRIES_MAX_STRIKES:
+        if self.strikes >= self.max_strikes:
             return GameStatus.LOST
         if self.timed_out:
             return GameStatus.TIMEOUT
         return GameStatus.ACTIVE
 
     @property
-    def is_over(self) -> bool:
-        return self.status != GameStatus.ACTIVE
-
-    @property
     def reward(self) -> int:
         return calculate_reward(self.list_size, self.correct_count, self.tips_given, self.strikes)
-
-    def _missing_indices(self) -> list[int]:
-        return [i for i in range(self.list_size) if i not in self.guessed]
 
     def _find_match(self, text: str, indices: list[int]) -> int | None:
         entries_valid = [e.valid_answers for e in self.entries]
@@ -293,27 +292,6 @@ class TopCountriesGame:
         clean_guess = sanitize_guess(text)
         self.last_guess = f"*{clean_guess}* {STRIKE_ICON}" if clean_guess else STRIKE_ICON
         return GuessResult.WRONG
-
-    def submit_guesses(self, text: str) -> list[GuessResult]:
-        """Apply comma-separated guesses in order until all are evaluated or the game ends."""
-        guesses = parse_guesses(text)
-        if not guesses:
-            return []
-
-        results = []
-        batch_feedback = []
-        for guess in guesses:
-            if self.is_over:
-                break
-            res = self.submit_guess(guess)
-            results.append(res)
-            if res != GuessResult.DUPLICATE and self.last_guess:
-                batch_feedback.append(self.last_guess)
-
-        if len(batch_feedback) > 1:
-            self.last_guess = ", ".join(batch_feedback)
-
-        return results
 
     def _tip_candidates(self) -> list[int]:
         missing = self._missing_indices()
@@ -368,10 +346,6 @@ class TopCountriesGame:
         if self.pool.kind == PoolKind.LETTER:
             return f'Guess Top {self.list_size} {metric_phrase} that start with letter *"{self.pool.key}"*'
         return f"Guess Top {self.list_size} {metric_phrase} in *{self.pool.key}*"
-
-    def render_strikes(self) -> str:
-        """Return the strikes row: one red cross per strike, grey crosses for the strikes left."""
-        return STRIKE_ICON * self.strikes + EMPTY_STRIKE_ICON * (TOP_COUNTRIES_MAX_STRIKES - self.strikes)
 
     def render(self, result_line: str | None = None) -> str:
         """Return the unescaped MarkdownV2-ready message text for the current game state."""
