@@ -16,14 +16,28 @@ def make_cities_df() -> pd.DataFrame:
     # 15 cities for Poland (Europe)
     for i in range(1, 16):
         pop = 2_000_000 - i * 100_000
+        district = "Małopolskie" if i <= 10 else "Śląskie"
         cities.append(
             {
                 "city": f"PolishCity{i}",
                 "city_ascii": f"PolishCity{i}",
                 "country": "Poland",
                 "iso2": "PL",
-                "admin_name": f"Voivodeship{i}",
+                "admin_name": district,
                 "population": pop,
+                "continent": "Europa",
+            }
+        )
+    # 3 cities for Poland with 'Ł'
+    for i in range(1, 4):
+        cities.append(
+            {
+                "city": f"ŁódźCity{i}",
+                "city_ascii": f"LodzCity{i}",
+                "country": "Poland",
+                "iso2": "PL",
+                "admin_name": "Łódzkie",
+                "population": 600_000 - i * 50_000,
                 "continent": "Europa",
             }
         )
@@ -113,8 +127,22 @@ def assets():
             return "Ameryka Południowa"
         return None
 
+    def mock_get_districts(iso2):
+        country_df = df[df["iso2"].str.upper() == iso2.upper()]
+        districts = country_df["admin_name"].dropna().unique().tolist()
+        return sorted([str(d) for d in districts if str(d).strip()])
+
+    def mock_find_country(district):
+        norm = district.strip().lower()
+        matches = df[df["admin_name"].str.lower() == norm]
+        if not matches.empty:
+            return str(matches.iloc[0]["iso2"]).upper()
+        return None
+
     mock_cities.resolve_country.side_effect = mock_resolve
     mock_cities._normalize_continent.side_effect = mock_norm_cont
+    mock_cities.get_districts_for_country.side_effect = mock_get_districts
+    mock_cities.find_country_for_district.side_effect = mock_find_country
     mock_assets.cities = mock_cities
     return mock_assets
 
@@ -193,6 +221,11 @@ async def test_cmd_starts_game_without_args(commands, update, context):
         (["--country", "Poland"], PoolKind.COUNTRY, "Poland"),
         (["--letter", "P"], PoolKind.LETTER, "P"),
         (["--continent", "Europe", "--letter", "P"], PoolKind.CUSTOM, "Europa (P)"),
+        (["--district", "Małopolskie"], PoolKind.DISTRICT, "Małopolskie"),
+        (["--region", "Małopolskie"], PoolKind.DISTRICT, "Małopolskie"),
+        (["--voivodeship", "Małopolskie"], PoolKind.DISTRICT, "Małopolskie"),
+        (["--country", "Poland", "--letter", "Ł"], PoolKind.CUSTOM, "Poland (Ł)"),
+        (["--district", "Małopolskie", "--letter", "P"], PoolKind.CUSTOM, "Małopolskie (P)"),
         (["--scope", "world"], PoolKind.WORLD, "World"),
     ],
 )
@@ -214,6 +247,7 @@ async def test_cmd_starts_game_with_valid_args(commands, update, context, args, 
         (["--letter", "1"], "Invalid --letter"),
         (["--continent", "Atlantis"], "Invalid --continent"),
         (["--country", "Mordor"], "Unknown country"),
+        (["--district", "Narnia"], "Unknown district"),
         (["--scope", "galaxy"], "Invalid --scope"),
     ],
 )
@@ -225,6 +259,40 @@ async def test_cmd_invalid_args_returns_error(commands, update, context, args, e
     assert context.bot.send_message.call_count == 1
     call_text = context.bot.send_message.call_args[1]["text"]
     assert error_substring in call_text
+
+
+@pytest.mark.asyncio
+async def test_cmd_bare_district_defaults_to_poland(commands, update, context):
+    context.args = ["--district"]
+    await commands.cmd_guess_top_cities(update, context)
+
+    assert 111 in commands.bot_state.top_cities_quiz_cache
+    game = commands.bot_state.top_cities_quiz_cache[111]["game"]
+    assert game.pool.kind == PoolKind.DISTRICT
+    assert game.pool.target in ("Małopolskie", "Śląskie", "Łódzkie")
+
+
+@pytest.mark.asyncio
+async def test_cmd_bare_letter_with_poland(commands, update, context):
+    context.args = ["--country", "Poland", "--letter"]
+    await commands.cmd_guess_top_cities(update, context)
+
+    assert 111 in commands.bot_state.top_cities_quiz_cache
+    game = commands.bot_state.top_cities_quiz_cache[111]["game"]
+    assert game.pool.kind == PoolKind.CUSTOM
+    # In mock data, only P (15 cities) and Ł (3 cities) have >= 3 cities in Poland
+    assert game.pool.target in ("Poland (P)", "Poland (Ł)")
+
+
+@pytest.mark.asyncio
+async def test_cmd_scope_district(commands, update, context):
+    context.args = ["--scope", "district"]
+    await commands.cmd_guess_top_cities(update, context)
+
+    assert 111 in commands.bot_state.top_cities_quiz_cache
+    game = commands.bot_state.top_cities_quiz_cache[111]["game"]
+    assert game.pool.kind == PoolKind.DISTRICT
+    assert game.pool.target in ("Małopolskie", "Śląskie", "Łódzkie")
 
 
 # ── Answering & Lifecycle Tests ───────────────────────────────────────────────

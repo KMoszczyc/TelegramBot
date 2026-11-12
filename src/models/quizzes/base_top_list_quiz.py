@@ -23,6 +23,7 @@ class PoolKind(Enum):
     WORLD = "world"
     CONTINENT = "continent"
     COUNTRY = "country"
+    DISTRICT = "district"
     LETTER = "letter"
     CUSTOM = "custom"
 
@@ -66,6 +67,8 @@ class Pool:
             return f"Starting letter: {self.target}"
         if self.kind == PoolKind.COUNTRY:
             return f"Country: {self.target}"
+        if self.kind == PoolKind.DISTRICT:
+            return f"District: {self.target}"
         return f"Scope: {self.target}"
 
 

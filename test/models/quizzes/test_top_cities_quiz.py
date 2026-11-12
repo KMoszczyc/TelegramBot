@@ -378,3 +378,373 @@ def test_render_end_reveals_missing_with_cross(pool_kind, target, guess_city, ex
     rendered = game.render(game.format_result_line())
     assert expected_guessed_line in rendered
     assert expected_missed_line in rendered
+
+
+# ── Poland & District Quiz Tests ───────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "num_cities, expected_size",
+    [
+        (12, 10),
+        (10, 10),
+        (9, 5),
+        (5, 5),
+        (4, 3),
+        (3, 3),
+        (2, None),
+        (0, None),
+    ],
+)
+def test_get_list_size_poland(num_cities, expected_size):
+    # Polish cities with small populations (e.g. 10k-20k) should waive population floors
+    rows = [
+        {
+            "city": f"Miasto{i}",
+            "city_ascii": f"Miasto{i}",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Podkarpackie",
+            "population": 10_000 + i * 1_000,
+        }
+        for i in range(num_cities)
+    ]
+    if rows:
+        df = pd.DataFrame(rows).sort_values("population", ascending=False).reset_index(drop=True)
+    else:
+        df = pd.DataFrame(columns=["population"])
+    assert tcq.get_list_size(df, is_poland=True) == expected_size
+    # For non-poland, population < 100k would return None
+    assert tcq.get_list_size(df, is_poland=False) is None
+
+
+def test_get_pool_df_district():
+    rows = [
+        {
+            "city": "Kraków",
+            "city_ascii": "Krakow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 800_000,
+        },
+        {
+            "city": "Tarnów",
+            "city_ascii": "Tarnow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 100_000,
+        },
+        {
+            "city": "Warszawa",
+            "city_ascii": "Warszawa",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Mazowieckie",
+            "population": 1_800_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+
+    pool = Pool(PoolKind.DISTRICT, "Małopolskie", 2, extra=(("country", "Poland"),))
+    filtered = tcq.get_pool_df(df, pool)
+    assert len(filtered) == 2
+    assert list(filtered["city"]) == ["Kraków", "Tarnów"]
+
+    # Test with lenient/normalized district target
+    pool_norm = Pool(PoolKind.DISTRICT, "malopolskie", 2)
+    filtered_norm = tcq.get_pool_df(df, pool_norm)
+    assert len(filtered_norm) == 2
+
+
+def test_get_pool_df_custom_district_and_letter():
+    rows = [
+        {
+            "city": "Kraków",
+            "city_ascii": "Krakow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 800_000,
+        },
+        {
+            "city": "Kęty",
+            "city_ascii": "Kety",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 18_000,
+        },
+        {
+            "city": "Tarnów",
+            "city_ascii": "Tarnow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 100_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+
+    pool = Pool(
+        PoolKind.CUSTOM,
+        "Małopolskie (K)",
+        2,
+        extra=(("district", "Małopolskie"), ("letter", "K"), ("country", "Poland")),
+    )
+    filtered = tcq.get_pool_df(df, pool)
+    assert len(filtered) == 2
+    assert list(filtered["city"]) == ["Kraków", "Kęty"]
+
+
+def test_pick_random_letter():
+    rows = [
+        {"city": "Kraków", "population": 800_000},
+        {"city": "Katowice", "population": 300_000},
+        {"city": "Kielce", "population": 200_000},
+        {"city": "Warszawa", "population": 1_800_000},
+        {"city": "Wrocław", "population": 600_000},
+        {"city": "Łódź", "population": 650_000},
+        {"city": "Łomża", "population": 60_000},
+        {"city": "Łowicz", "population": 25_000},
+        {"city": "Gdańsk", "population": 500_000},
+        {"city": "Gdynia", "population": 250_000},
+        {"city": "Gliwice", "population": 180_000},
+        {"city": "Gorzów", "population": 120_000},
+        {"city": "Gniezno", "population": 65_000},
+    ]
+    df = pd.DataFrame(rows)
+
+    # For Poland, letters with >= 3 cities are K (3), Ł (3), G (5). W has only 2 cities.
+    chosen = tcq.pick_random_letter(df, is_poland=True, rng=random.Random(42))
+    assert chosen in ("G", "K", "Ł")
+
+    # For non-poland, only G has enough population & count (5 cities >= 200k/buffer)
+    chosen_non_pl = tcq.pick_random_letter(df, is_poland=False, rng=random.Random(42))
+    assert chosen_non_pl == "G"
+
+
+def test_district_hints_in_render_slot():
+    rows = [
+        {
+            "city": "Kraków",
+            "city_ascii": "Krakow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 800_000,
+        },
+        {
+            "city": "Tarnów",
+            "city_ascii": "Tarnow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 100_000,
+        },
+        {
+            "city": "Nowy Sącz",
+            "city_ascii": "Nowy Sacz",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 80_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+
+    # 1. District quiz without letter filter -> hint shows first letter
+    district_pool = Pool(PoolKind.DISTRICT, "Małopolskie", 3, extra=(("country", "Poland"),))
+    game1 = TopCitiesGame.create(df, district_pool)
+    game1.reveal_tip(rng=random.Random(0))
+    rendered1 = game1.render()
+    assert "starts with 'K'" in rendered1 or "starts with 'T'" in rendered1 or "starts with 'N'" in rendered1
+
+    # 2. District quiz WITH letter filter -> hint shows first 2 letters
+    custom_pool = Pool(
+        PoolKind.CUSTOM,
+        "Małopolskie (K)",
+        1,
+        extra=(("district", "Małopolskie"), ("letter", "K"), ("country", "Poland")),
+    )
+    game2 = TopCitiesGame.create(df, custom_pool)
+    game2.reveal_tip(rng=random.Random(0))
+    rendered2 = game2.render()
+    assert "starts with 'Kr'" in rendered2
+
+
+def test_format_title_district():
+    rows = [
+        {
+            "city": "Kraków",
+            "city_ascii": "Krakow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 800_000,
+        },
+        {
+            "city": "Tarnów",
+            "city_ascii": "Tarnow",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 100_000,
+        },
+        {
+            "city": "Nowy Sącz",
+            "city_ascii": "Nowy Sacz",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 80_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+    pool = Pool(PoolKind.DISTRICT, "Małopolskie", 3, extra=(("country", "Poland"),))
+    game = TopCitiesGame.create(df, pool)
+    title = game.format_title()
+    assert title == "🌍 Top 3 cities in Małopolskie 🇵🇱 by population"
+
+
+@pytest.fixture()
+def mock_cities_model():
+    from unittest.mock import MagicMock
+
+    cities = MagicMock()
+    # 10 Polish cities in Małopolskie with low population (< 50k)
+    pl_rows = [
+        {
+            "city": f"Kraków{i}",
+            "city_ascii": f"Krakow{i}",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Małopolskie",
+            "population": 40_000 - i * 1_000,
+        }
+        for i in range(10)
+    ]
+    # 5 Polish cities in Podkarpackie with low population
+    pl_podk = [
+        {
+            "city": f"Rzeszów{i}",
+            "city_ascii": f"Rzeszow{i}",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Podkarpackie",
+            "population": 30_000 - i * 1_000,
+        }
+        for i in range(5)
+    ]
+    # 12 German cities in Bavaria with high population (>= 250k)
+    de_rows = [
+        {
+            "city": f"München{i}",
+            "city_ascii": f"Munchen{i}",
+            "country": "Germany",
+            "iso2": "DE",
+            "continent": "Europe",
+            "admin_name": "Bavaria",
+            "population": 1_000_000 - i * 50_000,
+        }
+        for i in range(12)
+    ]
+    df = pd.DataFrame(pl_rows + pl_podk + de_rows)
+    cities.df = df
+
+    def resolve_c(q):
+        ql = q.strip().lower()
+        if ql in ("poland", "pl"):
+            return ("PL", "Poland")
+        if ql in ("germany", "de"):
+            return ("DE", "Germany")
+        return None
+
+    def norm_cont(q):
+        ql = q.strip().lower()
+        if ql in ("europe", "europa"):
+            return "Europe"
+        return None
+
+    def get_districts(iso2):
+        sub = df[df["iso2"].str.upper() == iso2.upper()]
+        return sorted(list(sub["admin_name"].unique()))
+
+    def find_country(dist):
+        norm = dist.strip().lower()
+        matches = df[df["admin_name"].str.lower() == norm]
+        if not matches.empty:
+            return str(matches.iloc[0]["iso2"]).upper()
+        return None
+
+    cities.resolve_country.side_effect = resolve_c
+    cities._normalize_continent.side_effect = norm_cont
+    cities.get_districts_for_country.side_effect = get_districts
+    cities.find_country_for_district.side_effect = find_country
+    return cities
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_kind, allowed_targets, allowed_sizes",
+    [
+        # Poland district: 10 cities with low population (< 50k) still qualifies for Top 10!
+        ({"district_raw": "Małopolskie"}, PoolKind.DISTRICT, {"Małopolskie"}, {10}),
+        # Poland district with 5 cities qualifies for Top 5
+        ({"district_raw": "Podkarpackie"}, PoolKind.DISTRICT, {"Podkarpackie"}, {5}),
+        # Bare district defaults to random Polish district
+        ({"district_raw": ""}, PoolKind.DISTRICT, {"Małopolskie", "Podkarpackie"}, {5, 10}),
+        # Non-Poland district with 12 large cities qualifies for Top 10 under normal rules
+        ({"country_raw": "Germany", "district_raw": "Bavaria"}, PoolKind.DISTRICT, {"Bavaria"}, {10}),
+        # Bare letter in Poland selects K (10 cities) or R (5 cities)
+        ({"country_raw": "Poland", "letter_raw": ""}, PoolKind.CUSTOM, {"Poland (K)", "Poland (R)"}, {5, 10}),
+        # Scope district picks Polish district
+        ({"scope_raw": "district"}, PoolKind.DISTRICT, {"Małopolskie", "Podkarpackie"}, {5, 10}),
+    ],
+)
+def test_resolve_top_cities_pool_success(mock_cities_model, kwargs, expected_kind, allowed_targets, allowed_sizes):
+    pool, error = tcq.resolve_top_cities_pool(
+        mock_cities_model,
+        rng=random.Random(0),
+        **kwargs,
+    )
+    assert error is None
+    assert pool is not None
+    assert pool.kind == expected_kind
+    assert pool.target in allowed_targets
+    assert pool.size in allowed_sizes
+
+
+@pytest.mark.parametrize(
+    "kwargs, error_substring",
+    [
+        ({"district_raw": "UnknownDistrict"}, "Unknown district"),
+        ({"country_raw": "UnknownCountry"}, "Unknown country"),
+        ({"continent_raw": "UnknownContinent"}, "Invalid --continent"),
+        ({"letter_raw": "1"}, "Invalid --letter"),
+        ({"scope_raw": "universe"}, "Invalid --scope"),
+    ],
+)
+def test_resolve_top_cities_pool_errors(mock_cities_model, kwargs, error_substring):
+    pool, error = tcq.resolve_top_cities_pool(
+        mock_cities_model,
+        **kwargs,
+    )
+    assert pool is None
+    assert error is not None
+    assert error_substring in error

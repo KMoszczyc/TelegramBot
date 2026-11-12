@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.models.data.cities import Cities
 
 import pandas as pd
 
@@ -65,7 +69,9 @@ __all__ = [
     "parse_guesses",
     "parse_tip_callback_data",
     "pick_pool",
+    "pick_random_letter",
     "render_strikes",
+    "resolve_top_cities_pool",
     "sanitize_guess",
 ]
 
@@ -120,8 +126,19 @@ class Entry:
         return iso2_to_flag(self.iso2)
 
 
-def get_list_size(pool_df: pd.DataFrame) -> int | None:
-    """Return the largest valid top-N list size (10, 5, 3) that satisfies population floors and buffer."""
+def get_list_size(pool_df: pd.DataFrame, is_poland: bool = False) -> int | None:
+    """Return the largest valid top-N list size (10, 5, 3).
+
+    For Poland, population floors and buffer requirements are waived.
+    For other scopes, requires size + buffer and population thresholds.
+    """
+    if is_poland:
+        n = len(pool_df)
+        for size in LIST_SIZES:
+            if n >= size:
+                return size
+        return None
+
     for size in LIST_SIZES:
         if len(pool_df) >= size + TOP_CITIES_MIN_BUFFER:
             city_pop = int(pool_df.iloc[size - 1]["population"])
@@ -161,7 +178,8 @@ def get_eligible_pools(df: pd.DataFrame) -> list[Pool]:
     for country in df["country"].dropna().unique():
         country_str = str(country).strip()
         c_df = df[df["country"] == country].sort_values("population", ascending=False)
-        size = get_list_size(c_df)
+        is_pl = country_str.lower() in ("poland", "polska")
+        size = get_list_size(c_df, is_poland=is_pl)
         if size is not None:
             pools.append(Pool(PoolKind.COUNTRY, country_str, size))
 
@@ -202,6 +220,12 @@ def get_pool_df(df: pd.DataFrame, pool: Pool) -> pd.DataFrame:
             sub_df = df[df["continent"].str.lower() == pool.target.lower()]
         case PoolKind.COUNTRY:
             sub_df = df[df["country"].str.lower() == pool.target.lower()]
+        case PoolKind.DISTRICT:
+            norm_target = normalize_text(pool.target)
+            sub_df = df[df["admin_name"].fillna("").apply(lambda a: normalize_text(str(a)) == norm_target)]
+            extra = pool.extra_dict
+            if "country" in extra:
+                sub_df = sub_df[sub_df["country"].str.lower() == extra["country"].lower()]
         case PoolKind.LETTER:
             first_letters = df["city"].astype(str).str.strip().str[0].str.upper()
             sub_df = df[first_letters == pool.target.upper()]
@@ -211,11 +235,229 @@ def get_pool_df(df: pd.DataFrame, pool: Pool) -> pd.DataFrame:
                 sub_df = sub_df[sub_df["continent"].str.lower() == extra["continent"].lower()]
             if "country" in extra:
                 sub_df = sub_df[sub_df["country"].str.lower() == extra["country"].lower()]
+            if "district" in extra:
+                norm_district = normalize_text(extra["district"])
+                sub_df = sub_df[sub_df["admin_name"].fillna("").apply(lambda a: normalize_text(str(a)) == norm_district)]
             if "letter" in extra:
                 first_letters = sub_df["city"].astype(str).str.strip().str[0].str.upper()
                 sub_df = sub_df[first_letters == extra["letter"].upper()]
 
     return sub_df.sort_values("population", ascending=False).reset_index(drop=True)
+
+
+def pick_random_letter(
+    df: pd.DataFrame,
+    is_poland: bool = False,
+    rng: random.Random | None = None,
+) -> str | None:
+    """Pick a random starting letter that has at least 3 qualifying cities in `df`."""
+    r = rng or random
+    first_letters = df["city"].astype(str).str.strip().str[0]
+    unique_letters = sorted({c.upper() for c in first_letters if c and c.isalpha()})
+
+    eligible_letters: list[str] = []
+    for letter in unique_letters:
+        sub_df = df[first_letters.str.upper() == letter]
+        if is_poland:
+            if len(sub_df) >= 3:
+                eligible_letters.append(letter)
+        else:
+            if get_list_size(sub_df, is_poland=False) is not None:
+                eligible_letters.append(letter)
+
+    if not eligible_letters:
+        return None
+    return r.choice(eligible_letters)
+
+
+def resolve_top_cities_pool(
+    cities: Cities,
+    continent_raw: str | None = None,
+    country_raw: str | None = None,
+    district_raw: str | None = None,
+    letter_raw: str | None = None,
+    scope_raw: str | None = None,
+    rng: random.Random | None = None,
+) -> tuple[Pool | None, str | None]:
+    """Resolve CLI arguments into an eligible top cities Pool or an error string."""
+    r = rng or random
+
+    resolved_continent = None
+    if continent_raw:
+        resolved_continent = cities._normalize_continent(continent_raw)
+        if not resolved_continent:
+            return (
+                None,
+                "Invalid --continent value. Available: Europe, Asia, Africa, North America, South America, Oceania",
+            )
+
+    country_iso2 = None
+    resolved_country_name = None
+    if country_raw:
+        resolved = cities.resolve_country(country_raw)
+        if not resolved:
+            return None, f"Unknown country: '{country_raw}'."
+        country_iso2, resolved_country_name = resolved
+
+    resolved_district = None
+    if district_raw is not None:
+        if district_raw.strip():
+            clean_district = district_raw.strip()
+            norm_dist = normalize_text(clean_district)
+            matches = cities.df[cities.df["admin_name"].fillna("").apply(lambda a: normalize_text(str(a)) == norm_dist)]
+            if country_iso2:
+                matches = matches[matches["iso2"].str.upper() == country_iso2.upper()]
+            if matches.empty:
+                return None, f"Unknown district: '{clean_district}'."
+            resolved_district = str(matches.iloc[0]["admin_name"])
+            if not country_iso2:
+                country_iso2 = str(matches.iloc[0]["iso2"]).upper()
+                resolved_country_name = str(matches.iloc[0]["country"])
+        else:
+            # Bare --district
+            if not country_iso2:
+                country_iso2 = "PL"
+                resolved_country_name = "Poland"
+            available_districts = cities.get_districts_for_country(country_iso2)
+            if not available_districts:
+                return None, f"No districts found for country '{resolved_country_name or country_iso2}'."
+            resolved_district = r.choice(available_districts)
+
+    is_poland = bool(
+        (country_iso2 and country_iso2.upper() == "PL") or (resolved_country_name and resolved_country_name.lower() in ("poland", "polska"))
+    )
+
+    if scope_raw:
+        scope_val = scope_raw.strip().lower()
+        if scope_val not in (
+            "world",
+            "continent",
+            "continents",
+            "country",
+            "countries",
+            "district",
+            "districts",
+        ):
+            return None, "Invalid --scope value. Available: world, continent, country, district"
+
+    clean_letter = None
+    if letter_raw is not None:
+        if letter_raw.strip():
+            clean_letter = letter_raw.strip().upper()
+            if len(clean_letter) != 1 or not clean_letter.isalpha():
+                return None, "Invalid --letter value. Must be a single letter."
+        else:
+            # Bare --letter: pick a random letter from the current candidate scope
+            candidate_df = cities.df
+            if resolved_district:
+                norm_dist = normalize_text(resolved_district)
+                candidate_df = candidate_df[candidate_df["admin_name"].fillna("").apply(lambda a: normalize_text(str(a)) == norm_dist)]
+                if country_iso2:
+                    candidate_df = candidate_df[candidate_df["iso2"].str.upper() == country_iso2.upper()]
+            elif resolved_country_name:
+                candidate_df = candidate_df[candidate_df["country"].str.lower() == resolved_country_name.lower()]
+            elif resolved_continent:
+                candidate_df = candidate_df[candidate_df["continent"].str.lower() == resolved_continent.lower()]
+
+            clean_letter = pick_random_letter(candidate_df, is_poland=is_poland, rng=r)
+            if clean_letter is None:
+                scope_name = resolved_district or resolved_country_name or resolved_continent or "the World"
+                return None, f"Not enough qualifying cities found for {scope_name}."
+
+    if resolved_district and clean_letter:
+        target = f"{resolved_district} ({clean_letter})"
+        draft = Pool(
+            PoolKind.CUSTOM,
+            target,
+            0,
+            (("district", resolved_district), ("letter", clean_letter), ("country", resolved_country_name)),
+        )
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=is_poland)
+        if size is None:
+            return None, f"Not enough qualifying cities found for {resolved_district} starting with '{clean_letter}'."
+        return Pool(PoolKind.CUSTOM, target, size, draft.extra), None
+
+    if resolved_district:
+        extra_tuples = (("country", resolved_country_name),) if resolved_country_name else ()
+        draft = Pool(PoolKind.DISTRICT, resolved_district, 0, extra_tuples)
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=is_poland)
+        if size is None:
+            return None, f"Not enough qualifying cities found for {resolved_district}."
+        return Pool(PoolKind.DISTRICT, resolved_district, size, draft.extra), None
+
+    if resolved_country_name and clean_letter:
+        target = f"{resolved_country_name} ({clean_letter})"
+        draft = Pool(
+            PoolKind.CUSTOM,
+            target,
+            0,
+            (("country", resolved_country_name), ("letter", clean_letter)),
+        )
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=is_poland)
+        if size is None:
+            return None, f"Not enough qualifying cities found for {resolved_country_name} starting with '{clean_letter}'."
+        return Pool(PoolKind.CUSTOM, target, size, draft.extra), None
+
+    if resolved_continent and clean_letter:
+        target = f"{resolved_continent} ({clean_letter})"
+        draft = Pool(
+            PoolKind.CUSTOM,
+            target,
+            0,
+            (("continent", resolved_continent), ("letter", clean_letter)),
+        )
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=False)
+        if size is None:
+            return None, f"Not enough qualifying cities found for {resolved_continent} starting with '{clean_letter}'."
+        return Pool(PoolKind.CUSTOM, target, size, draft.extra), None
+
+    if resolved_continent:
+        draft = Pool(PoolKind.CONTINENT, resolved_continent, 0)
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=False)
+        if size is None:
+            return None, f"Not enough qualifying cities found for {resolved_continent}."
+        return Pool(PoolKind.CONTINENT, resolved_continent, size), None
+
+    if resolved_country_name:
+        draft = Pool(PoolKind.COUNTRY, resolved_country_name, 0)
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=is_poland)
+        if size is None:
+            return None, f"Not enough qualifying cities found for {resolved_country_name}."
+        return Pool(PoolKind.COUNTRY, resolved_country_name, size), None
+
+    if clean_letter:
+        draft = Pool(PoolKind.LETTER, clean_letter, 0)
+        size = get_list_size(get_pool_df(cities.df, draft), is_poland=False)
+        if size is None:
+            return None, f"Not enough qualifying cities found starting with '{clean_letter}'."
+        return Pool(PoolKind.LETTER, clean_letter, size), None
+
+    if scope_raw:
+        scope_val = scope_raw.strip().lower()
+        eligible = get_eligible_pools(cities.df)
+        pool = None
+        if scope_val == "world":
+            pool = next((p for p in eligible if p.kind == PoolKind.WORLD), None)
+        elif scope_val in ("continent", "continents"):
+            cont_pools = [p for p in eligible if p.kind == PoolKind.CONTINENT]
+            pool = r.choice(cont_pools) if cont_pools else None
+        elif scope_val in ("country", "countries"):
+            c_pools = [p for p in eligible if p.kind == PoolKind.COUNTRY]
+            pool = r.choice(c_pools) if c_pools else None
+        elif scope_val in ("district", "districts"):
+            available_districts = cities.get_districts_for_country("PL")
+            if available_districts:
+                picked_district = r.choice(available_districts)
+                draft = Pool(PoolKind.DISTRICT, picked_district, 0, (("country", "Poland"),))
+                size = get_list_size(get_pool_df(cities.df, draft), is_poland=True)
+                if size is not None:
+                    pool = Pool(PoolKind.DISTRICT, picked_district, size, draft.extra)
+        if not pool:
+            return None, f"No qualifying cities found for scope '{scope_raw}'."
+        return pool, None
+
+    pool = pick_pool(cities.df, rng=r)
+    return pool, None
 
 
 def calculate_reward(list_size: int, correct: int, tips_given: int, strikes: int) -> int:
@@ -349,7 +591,7 @@ class TopCitiesGame(BaseTopListGame):
 
     def _render_slot(self, index: int) -> str:
         entry = self.entries[index]
-        flag_str = f" {entry.flag}" if entry.flag and self.pool.kind != PoolKind.COUNTRY else ""
+        flag_str = f" {entry.flag}" if entry.flag and self.pool.kind not in (PoolKind.COUNTRY, PoolKind.DISTRICT) else ""
 
         if index in self.guessed:
             return f"{entry.rank}. *{entry.city}* - {entry.population:,}{flag_str}"
@@ -358,6 +600,12 @@ class TopCitiesGame(BaseTopListGame):
 
         # Unguessed slot with tip
         if index in self.tips_revealed:
+            is_district = self.pool.kind == PoolKind.DISTRICT or "district" in self.pool.extra_dict
+            if is_district:
+                if "letter" in self.pool.extra_dict:
+                    prefix = entry.city[:2]
+                    return f"{entry.rank}. {UNKNOWN_SLOT} [starts with '{prefix}']"
+                return f"{entry.rank}. {UNKNOWN_SLOT} [starts with '{entry.city[0]}']"
             if self.pool.kind == PoolKind.COUNTRY:
                 hint = entry.admin_name if entry.admin_name else f"starts with '{entry.city[0]}'"
                 return f"{entry.rank}. {UNKNOWN_SLOT} [{hint}]"
@@ -376,10 +624,16 @@ class TopCitiesGame(BaseTopListGame):
                 flag = iso2_to_flag(self.entries[0].iso2) if self.entries else ""
                 flag_suffix = f" {flag}" if flag else ""
                 return f"🌍 Top {self.list_size} cities in {self.pool.target}{flag_suffix} by population"
+            case PoolKind.DISTRICT:
+                flag = iso2_to_flag(self.entries[0].iso2) if self.entries else ""
+                flag_suffix = f" {flag}" if flag else ""
+                return f"🌍 Top {self.list_size} cities in {self.pool.target}{flag_suffix} by population"
             case PoolKind.LETTER:
                 return f"🌍 Top {self.list_size} cities starting with '{self.pool.target}' by population (World)"
             case PoolKind.CUSTOM:
-                return f"🌍 Top {self.list_size} cities in {self.pool.target} by population"
+                flag = iso2_to_flag(self.entries[0].iso2) if self.entries else ""
+                flag_suffix = f" {flag}" if flag else ""
+                return f"🌍 Top {self.list_size} cities in {self.pool.target}{flag_suffix} by population"
 
     def submit_guess(self, text: str) -> GuessResult:
         """Evaluate a single guess against unrevealed and already-revealed cities."""

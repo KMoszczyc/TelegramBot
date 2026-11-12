@@ -79,6 +79,7 @@ class DummyTopGame(BaseTopListGame):
         (PoolKind.WORLD, "World", (), "World", "Scope: World"),
         (PoolKind.CONTINENT, "Europe", (), "Europe", "Continent: Europe"),
         (PoolKind.COUNTRY, "Poland", (), "Poland", "Country: Poland"),
+        (PoolKind.DISTRICT, "Małopolskie", (), "Małopolskie", "District: Małopolskie"),
         (PoolKind.LETTER, "B", (), "B", "Starting letter: B"),
         (
             PoolKind.CUSTOM,

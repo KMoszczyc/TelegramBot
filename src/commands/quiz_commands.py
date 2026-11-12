@@ -1020,14 +1020,16 @@ class QuizCommands:
         await self._finish_top_quiz(context, self.bot_state.top_cities_quiz_cache, cached_quiz, user_id, top_cities_quiz.QUIZ_TYPE)
 
     async def cmd_guess_top_cities(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        import random
-
         command_args = CommandArgs(
             args=context.args,
             available_named_args={
                 "continent": ArgType.STRING,
                 "country": ArgType.STRING,
-                "letter": ArgType.STRING,
+                "district": ArgType.OPTIONAL_STRING,
+                "region": ArgType.OPTIONAL_STRING,
+                "province": ArgType.OPTIONAL_STRING,
+                "voivodeship": ArgType.OPTIONAL_STRING,
+                "letter": ArgType.OPTIONAL_STRING,
                 "scope": ArgType.STRING,
             },
         )
@@ -1042,130 +1044,27 @@ class QuizCommands:
             await core_utils.send_message(update, context, MessageType.TEXT, message)
             return
 
-        cities = self.assets.cities
-        raw_letter = command_args.named_args.get("letter")
-        clean_letter = None
-        if raw_letter:
-            clean_letter = raw_letter.strip().upper()
-            if len(clean_letter) != 1 or not clean_letter.isalpha():
-                await core_utils.send_message(update, context, MessageType.TEXT, "Invalid --letter value. Must be a single letter A-Z.")
-                return
+        district_raw = None
+        for key in ("district", "region", "province", "voivodeship"):
+            if key in command_args.named_args:
+                district_raw = command_args.named_args[key]
+                break
 
-        raw_continent = command_args.named_args.get("continent")
-        resolved_continent = None
-        if raw_continent:
-            resolved_continent = cities._normalize_continent(raw_continent)
-            if not resolved_continent:
-                await core_utils.send_message(
-                    update,
-                    context,
-                    MessageType.TEXT,
-                    "Invalid --continent value. Available: Europe, Asia, Africa, North America, South America, Oceania",
-                )
-                return
-
-        raw_country = command_args.named_args.get("country")
-        resolved_country_name = None
-        if raw_country:
-            resolved = cities.resolve_country(raw_country)
-            if not resolved:
-                await core_utils.send_message(update, context, MessageType.TEXT, f"Unknown country: '{raw_country}'.")
-                return
-            _, resolved_country_name = resolved
-
-        raw_scope = command_args.named_args.get("scope")
-        if raw_scope:
-            scope_val = raw_scope.strip().lower()
-            if scope_val not in ("world", "continent", "continents", "country", "countries"):
-                await core_utils.send_message(
-                    update, context, MessageType.TEXT, "Invalid --scope value. Available: world, continent, country"
-                )
-                return
-
-        pool = None
-        if resolved_continent and clean_letter:
-            target = f"{resolved_continent} ({clean_letter})"
-            draft = top_cities_quiz.Pool(
-                top_cities_quiz.PoolKind.CUSTOM,
-                target,
-                0,
-                (("continent", resolved_continent), ("letter", clean_letter)),
-            )
-            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
-            if size is None:
-                await core_utils.send_message(
-                    update,
-                    context,
-                    MessageType.TEXT,
-                    f"Not enough qualifying cities found for {resolved_continent} starting with '{clean_letter}'.",
-                )
-                return
-            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CUSTOM, target, size, draft.extra)
-        elif resolved_country_name and clean_letter:
-            target = f"{resolved_country_name} ({clean_letter})"
-            draft = top_cities_quiz.Pool(
-                top_cities_quiz.PoolKind.CUSTOM,
-                target,
-                0,
-                (("country", resolved_country_name), ("letter", clean_letter)),
-            )
-            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
-            if size is None:
-                await core_utils.send_message(
-                    update,
-                    context,
-                    MessageType.TEXT,
-                    f"Not enough qualifying cities found for {resolved_country_name} starting with '{clean_letter}'.",
-                )
-                return
-            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CUSTOM, target, size, draft.extra)
-        elif resolved_continent:
-            draft = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CONTINENT, resolved_continent, 0)
-            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
-            if size is None:
-                await core_utils.send_message(
-                    update, context, MessageType.TEXT, f"Not enough qualifying cities found for {resolved_continent}."
-                )
-                return
-            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.CONTINENT, resolved_continent, size)
-        elif resolved_country_name:
-            draft = top_cities_quiz.Pool(top_cities_quiz.PoolKind.COUNTRY, resolved_country_name, 0)
-            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
-            if size is None:
-                await core_utils.send_message(
-                    update, context, MessageType.TEXT, f"Not enough qualifying cities found for {resolved_country_name}."
-                )
-                return
-            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.COUNTRY, resolved_country_name, size)
-        elif clean_letter:
-            draft = top_cities_quiz.Pool(top_cities_quiz.PoolKind.LETTER, clean_letter, 0)
-            size = top_cities_quiz.get_list_size(top_cities_quiz.get_pool_df(cities.df, draft))
-            if size is None:
-                await core_utils.send_message(
-                    update, context, MessageType.TEXT, f"Not enough qualifying cities found starting with '{clean_letter}'."
-                )
-                return
-            pool = top_cities_quiz.Pool(top_cities_quiz.PoolKind.LETTER, clean_letter, size)
-        elif raw_scope:
-            scope_val = raw_scope.strip().lower()
-            eligible = top_cities_quiz.get_eligible_pools(cities.df)
-            if scope_val == "world":
-                pool = next((p for p in eligible if p.kind == top_cities_quiz.PoolKind.WORLD), None)
-            elif scope_val in ("continent", "continents"):
-                cont_pools = [p for p in eligible if p.kind == top_cities_quiz.PoolKind.CONTINENT]
-                pool = random.choice(cont_pools) if cont_pools else None
-            elif scope_val in ("country", "countries"):
-                c_pools = [p for p in eligible if p.kind == top_cities_quiz.PoolKind.COUNTRY]
-                pool = random.choice(c_pools) if c_pools else None
-            if not pool:
-                await core_utils.send_message(update, context, MessageType.TEXT, f"No qualifying cities found for scope '{raw_scope}'.")
-                return
-        else:
-            pool = top_cities_quiz.pick_pool(cities.df)
+        pool, error = top_cities_quiz.resolve_top_cities_pool(
+            cities=self.assets.cities,
+            continent_raw=command_args.named_args.get("continent"),
+            country_raw=command_args.named_args.get("country"),
+            district_raw=district_raw,
+            letter_raw=command_args.named_args.get("letter"),
+            scope_raw=command_args.named_args.get("scope"),
+        )
+        if error:
+            await core_utils.send_message(update, context, MessageType.TEXT, error)
+            return
 
         self._set_quiz_replay_args(user_id, top_cities_quiz.QUIZ_TYPE, context.args)
 
-        game = TopCitiesGame.create(cities.df, pool=pool)
+        game = TopCitiesGame.create(self.assets.cities.df, pool=pool)
         sent = await update.message.reply_text(
             text=stats_utils.escape_special_characters(game.render()),
             parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
