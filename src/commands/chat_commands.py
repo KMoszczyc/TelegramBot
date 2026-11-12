@@ -296,7 +296,7 @@ class ChatCommands:
         # await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2, message_thread_id=update.message.message_thread_id)
 
     async def cmd_fun(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD], optional=[True])
         command_args = core_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
@@ -318,7 +318,7 @@ class ChatCommands:
         await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_wholesome(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD], optional=[True])
         command_args = core_utils.parse_args(self.users_df, command_args)
         chat_df, reactions_df, command_args = self.preprocess_input(command_args, EmojiType.ALL)
         if command_args.error != "":
@@ -596,7 +596,7 @@ class ChatCommands:
         await core_utils.send_message(update, context, MessageType.MARKDOWN_TEXT, message)
 
     async def cmd_topcwel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD])
+        command_args = CommandArgs(args=context.args, expected_args=[ArgType.PERIOD], optional=[True])
         command_args = core_utils.parse_args(self.users_df, command_args)
         if command_args.error != "":
             await core_utils.send_message(update, context, MessageType.TEXT, command_args.error)

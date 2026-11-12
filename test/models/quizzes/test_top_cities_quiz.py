@@ -304,9 +304,9 @@ def test_game_reveal_tip_country_pool(test_game):
     assert tip_idx in test_game.tips_revealed
     assert test_game.tips_given == 1
 
-    # Render slot with tip for country pool shows admin_name
+    # Render slot with tip for country pool shows district or first letter with new label format
     rendered = test_game._render_slot(tip_idx)
-    assert "Voivodeship" in rendered or "starts with" in rendered
+    assert "district: *" in rendered or "letter: *" in rendered
 
 
 def test_game_reveal_tip_world_pool():
@@ -564,14 +564,14 @@ def test_district_hints_in_render_slot():
     ]
     df = pd.DataFrame(rows)
 
-    # 1. District quiz without letter filter -> hint shows first letter
+    # 1. District quiz without letter filter -> hint shows first letter with new label format
     district_pool = Pool(PoolKind.DISTRICT, "Małopolskie", 3, extra=(("country", "Poland"),))
     game1 = TopCitiesGame.create(df, district_pool)
     game1.reveal_tip(rng=random.Random(0))
     rendered1 = game1.render()
-    assert "starts with 'K'" in rendered1 or "starts with 'T'" in rendered1 or "starts with 'N'" in rendered1
+    assert "letter: *K*" in rendered1 or "letter: *T*" in rendered1 or "letter: *N*" in rendered1
 
-    # 2. District quiz WITH letter filter -> hint shows first 2 letters
+    # 2. District quiz WITH letter filter -> hint shows first 2 letters with new label format
     custom_pool = Pool(
         PoolKind.CUSTOM,
         "Małopolskie (K)",
@@ -581,7 +581,7 @@ def test_district_hints_in_render_slot():
     game2 = TopCitiesGame.create(df, custom_pool)
     game2.reveal_tip(rng=random.Random(0))
     rendered2 = game2.render()
-    assert "starts with 'Kr'" in rendered2
+    assert "letter: *Kr*" in rendered2
 
 
 def test_format_title_district():

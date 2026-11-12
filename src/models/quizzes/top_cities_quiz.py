@@ -180,8 +180,14 @@ def get_eligible_pools(df: pd.DataFrame) -> list[Pool]:
     for country in df["country"].dropna().unique():
         country_str = str(country).strip()
         c_df = df[df["country"] == country].sort_values("population", ascending=False)
-        is_pl = country_str.lower() in ("poland", "polska")
-        size = get_list_size(c_df, is_poland=is_pl)
+        # Determine country pool size: force top10 for most countries, but use top5 for very small ones
+        total_cities = len(c_df)
+        if total_cities >= 10:
+            size = 10
+        elif total_cities >= 5:
+            size = 5
+        else:
+            size = None
         if size is not None:
             pools.append(Pool(PoolKind.COUNTRY, country_str, size))
 
@@ -697,11 +703,16 @@ class TopCitiesGame(BaseTopListGame):
             if is_district:
                 if "letter" in self.pool.extra_dict:
                     prefix = entry.city[:2]
-                    return f"{entry.rank}. {UNKNOWN_SLOT} [starts with '{prefix}']"
-                return f"{entry.rank}. {UNKNOWN_SLOT} [starts with '{entry.city[0]}']"
+                    return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{prefix}*]"
+                return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{entry.city[0]}*]"
             if self.pool.kind == PoolKind.COUNTRY:
-                hint = entry.admin_name if entry.admin_name else f"starts with '{entry.city[0]}'"
-                return f"{entry.rank}. {UNKNOWN_SLOT} [{hint}]"
+                if entry.admin_name and entry.admin_name.lower() not in ("nan", ""):
+                    return f"{entry.rank}. {UNKNOWN_SLOT} [district: *{entry.admin_name}*]"
+                return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{entry.city[0]}*]"
+            if self.pool.kind == PoolKind.CUSTOM and "letter" in self.pool.extra_dict and "district" not in self.pool.extra_dict:
+                # Country+letter pool: first letter is known, reveal second letter
+                second = entry.city[1] if len(entry.city) > 1 else entry.city[0]
+                return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{entry.city[0]}{second}*]"
             return f"{entry.rank}. {UNKNOWN_SLOT} [{entry.flag} {entry.country}]"
 
         return f"{entry.rank}. {UNKNOWN_SLOT}"
@@ -726,6 +737,15 @@ class TopCitiesGame(BaseTopListGame):
             case PoolKind.CUSTOM:
                 flag = iso2_to_flag(self.entries[0].iso2) if self.entries else ""
                 flag_suffix = f" {flag}" if flag else ""
+                extra = self.pool.extra_dict
+                country = extra.get("country", self.pool.target)
+                if "letter" in extra and "district" not in extra:
+                    letter = extra["letter"].upper()
+                    return f"🌍 Top {self.list_size} cities in {country} (letter: *{letter}*){flag_suffix} by population"
+                if "district" in extra and "letter" in extra:
+                    district = extra["district"]
+                    letter = extra["letter"].upper()
+                    return f"🌍 Top {self.list_size} cities in {district} (letter: *{letter}*){flag_suffix} by population"
                 return f"🌍 Top {self.list_size} cities in {self.pool.target}{flag_suffix} by population"
 
     def submit_guess(self, text: str) -> GuessResult:
