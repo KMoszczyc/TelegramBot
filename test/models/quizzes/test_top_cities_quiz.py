@@ -715,6 +715,14 @@ def mock_cities_model():
         ({"country_raw": "Poland", "letter_raw": ""}, PoolKind.CUSTOM, {"Poland (K)", "Poland (R)"}, {5, 10}),
         # Scope district picks Polish district
         ({"scope_raw": "district"}, PoolKind.DISTRICT, {"Małopolskie", "Podkarpackie"}, {5, 10}),
+        # Country + scope country strictly picks Country pool
+        ({"country_raw": "Poland", "scope_raw": "country"}, PoolKind.COUNTRY, {"Poland"}, {10}),
+        # Country + scope district picks a district in that country
+        ({"country_raw": "Poland", "scope_raw": "district"}, PoolKind.DISTRICT, {"Małopolskie", "Podkarpackie"}, {5, 10}),
+        # Country + scope letter picks a qualifying letter in that country
+        ({"country_raw": "Poland", "scope_raw": "letter"}, PoolKind.CUSTOM, {"Poland (K)", "Poland (R)"}, {5, 10}),
+        # Worldwide scope letter picks qualifying letter
+        ({"scope_raw": "letter"}, PoolKind.LETTER, {"K", "M", "R"}, {5, 10}),
     ],
 )
 def test_resolve_top_cities_pool_success(mock_cities_model, kwargs, expected_kind, allowed_targets, allowed_sizes):
@@ -738,6 +746,7 @@ def test_resolve_top_cities_pool_success(mock_cities_model, kwargs, expected_kin
         ({"continent_raw": "UnknownContinent"}, "Invalid --continent"),
         ({"letter_raw": "1"}, "Invalid --letter"),
         ({"scope_raw": "universe"}, "Invalid --scope"),
+        ({"country_raw": "Poland", "scope_raw": "world"}, "No qualifying cities found for scope"),
     ],
 )
 def test_resolve_top_cities_pool_errors(mock_cities_model, kwargs, error_substring):
@@ -748,3 +757,72 @@ def test_resolve_top_cities_pool_errors(mock_cities_model, kwargs, error_substri
     assert pool is None
     assert error is not None
     assert error_substring in error
+
+
+@pytest.mark.parametrize(
+    "iso2, country_name, is_poland, expected_counts",
+    [
+        ("PL", "Poland", True, {PoolKind.COUNTRY: 1, PoolKind.DISTRICT: 2, PoolKind.CUSTOM: 2}),
+        ("DE", "Germany", False, {PoolKind.COUNTRY: 1, PoolKind.DISTRICT: 1, PoolKind.CUSTOM: 1}),
+        ("FR", "France", False, {PoolKind.COUNTRY: 0, PoolKind.DISTRICT: 0, PoolKind.CUSTOM: 0}),
+    ],
+)
+def test_get_eligible_pools_for_country(mock_cities_model, iso2, country_name, is_poland, expected_counts):
+    by_kind = tcq.get_eligible_pools_for_country(
+        mock_cities_model,
+        country_iso2=iso2,
+        country_name=country_name,
+        is_poland=is_poland,
+    )
+    for kind, expected_count in expected_counts.items():
+        assert len(by_kind[kind]) == expected_count
+
+
+@pytest.mark.parametrize(
+    "scope, expected_kind",
+    [
+        ("country", PoolKind.COUNTRY),
+        ("countries", PoolKind.COUNTRY),
+        ("district", PoolKind.DISTRICT),
+        ("districts", PoolKind.DISTRICT),
+        ("letter", PoolKind.CUSTOM),
+        ("letters", PoolKind.CUSTOM),
+    ],
+)
+def test_pick_country_pool_scoped(mock_cities_model, scope, expected_kind):
+    pool = tcq.pick_country_pool(
+        mock_cities_model,
+        country_iso2="PL",
+        country_name="Poland",
+        is_poland=True,
+        rng=random.Random(42),
+        scope=scope,
+    )
+    assert pool is not None
+    assert pool.kind == expected_kind
+
+
+def test_pick_country_pool_invalid_scope(mock_cities_model):
+    pool = tcq.pick_country_pool(
+        mock_cities_model,
+        country_iso2="PL",
+        country_name="Poland",
+        is_poland=True,
+        scope="world",
+    )
+    assert pool is None
+
+
+def test_pick_country_pool_random_variety(mock_cities_model):
+    picked_kinds = set()
+    for seed in range(50):
+        pool = tcq.pick_country_pool(
+            mock_cities_model,
+            country_iso2="PL",
+            country_name="Poland",
+            is_poland=True,
+            rng=random.Random(seed),
+        )
+        assert pool is not None
+        picked_kinds.add(pool.kind)
+    assert picked_kinds == {PoolKind.COUNTRY, PoolKind.DISTRICT, PoolKind.CUSTOM}

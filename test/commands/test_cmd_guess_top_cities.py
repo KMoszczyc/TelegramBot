@@ -218,7 +218,7 @@ async def test_cmd_starts_game_without_args(commands, update, context):
     "args,expected_kind,expected_target",
     [
         (["--continent", "Europe"], PoolKind.CONTINENT, "Europa"),
-        (["--country", "Poland"], PoolKind.COUNTRY, "Poland"),
+        (["--country", "Poland", "--scope", "country"], PoolKind.COUNTRY, "Poland"),
         (["--letter", "P"], PoolKind.LETTER, "P"),
         (["--continent", "Europe", "--letter", "P"], PoolKind.CUSTOM, "Europa (P)"),
         (["--district", "Małopolskie"], PoolKind.DISTRICT, "Małopolskie"),
@@ -282,6 +282,22 @@ async def test_cmd_bare_letter_with_poland(commands, update, context):
     assert game.pool.kind == PoolKind.CUSTOM
     # In mock data, only P (15 cities) and Ł (3 cities) have >= 3 cities in Poland
     assert game.pool.target in ("Poland (P)", "Poland (Ł)")
+
+
+@pytest.mark.asyncio
+async def test_cmd_bare_country_randomizes_across_kinds(commands, update, context):
+    context.args = ["--country", "Poland"]
+    await commands.cmd_guess_top_cities(update, context)
+
+    assert 111 in commands.bot_state.top_cities_quiz_cache
+    game = commands.bot_state.top_cities_quiz_cache[111]["game"]
+    assert game.pool.kind in (PoolKind.COUNTRY, PoolKind.DISTRICT, PoolKind.CUSTOM)
+    if game.pool.kind == PoolKind.COUNTRY:
+        assert game.pool.target == "Poland"
+    elif game.pool.kind == PoolKind.DISTRICT:
+        assert game.pool.target in ("Małopolskie", "Śląskie", "Łódzkie")
+    elif game.pool.kind == PoolKind.CUSTOM:
+        assert game.pool.target in ("Poland (P)", "Poland (Ł)")
 
 
 @pytest.mark.asyncio

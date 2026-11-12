@@ -63,11 +63,13 @@ __all__ = [
     "find_exact_city_match",
     "find_fuzzy_city_match",
     "get_eligible_pools",
+    "get_eligible_pools_for_country",
     "get_list_size",
     "get_pool_df",
     "iso2_to_flag",
     "parse_guesses",
     "parse_tip_callback_data",
+    "pick_country_pool",
     "pick_pool",
     "pick_random_letter",
     "render_strikes",
@@ -270,6 +272,84 @@ def pick_random_letter(
     return r.choice(eligible_letters)
 
 
+def get_eligible_pools_for_country(
+    cities: Cities,
+    country_iso2: str,
+    country_name: str,
+    is_poland: bool = False,
+) -> dict[PoolKind, list[Pool]]:
+    """List all eligible country, district, and letter pools for a specific country."""
+    by_kind: dict[PoolKind, list[Pool]] = {
+        PoolKind.COUNTRY: [],
+        PoolKind.DISTRICT: [],
+        PoolKind.CUSTOM: [],
+    }
+
+    # 1. Overall Country pool
+    country_draft = Pool(PoolKind.COUNTRY, country_name, 0)
+    country_size = get_list_size(get_pool_df(cities.df, country_draft), is_poland=is_poland)
+    if country_size is not None:
+        by_kind[PoolKind.COUNTRY].append(Pool(PoolKind.COUNTRY, country_name, country_size))
+
+    # 2. District pools
+    for district in cities.get_districts_for_country(country_iso2):
+        dist_draft = Pool(PoolKind.DISTRICT, district, 0, (("country", country_name),))
+        dist_size = get_list_size(get_pool_df(cities.df, dist_draft), is_poland=is_poland)
+        if dist_size is not None:
+            by_kind[PoolKind.DISTRICT].append(Pool(PoolKind.DISTRICT, district, dist_size, dist_draft.extra))
+
+    # 3. Letter pools in this country
+    country_df = cities.df[cities.df["country"].str.lower() == country_name.lower()]
+    first_letters = country_df["city"].astype(str).str.strip().str[0]
+    unique_letters = sorted({c.upper() for c in first_letters if c and c.isalpha()})
+    for letter in unique_letters:
+        target = f"{country_name} ({letter})"
+        let_draft = Pool(
+            PoolKind.CUSTOM,
+            target,
+            0,
+            (("country", country_name), ("letter", letter)),
+        )
+        let_size = get_list_size(get_pool_df(cities.df, let_draft), is_poland=is_poland)
+        if let_size is not None:
+            by_kind[PoolKind.CUSTOM].append(Pool(PoolKind.CUSTOM, target, let_size, let_draft.extra))
+
+    return by_kind
+
+
+def pick_country_pool(
+    cities: Cities,
+    country_iso2: str,
+    country_name: str,
+    is_poland: bool = False,
+    rng: random.Random | None = None,
+    scope: str | None = None,
+) -> Pool | None:
+    """Pick an eligible pool for a country, fairly balancing across Country, District, and Letter kinds."""
+    r = rng or random
+    pools_by_kind = get_eligible_pools_for_country(cities, country_iso2, country_name, is_poland=is_poland)
+
+    if scope:
+        scope_clean = scope.strip().lower()
+        if scope_clean in ("country", "countries"):
+            candidates = pools_by_kind.get(PoolKind.COUNTRY, [])
+            return r.choice(candidates) if candidates else None
+        if scope_clean in ("district", "districts"):
+            candidates = pools_by_kind.get(PoolKind.DISTRICT, [])
+            return r.choice(candidates) if candidates else None
+        if scope_clean in ("letter", "letters"):
+            candidates = pools_by_kind.get(PoolKind.CUSTOM, [])
+            return r.choice(candidates) if candidates else None
+        return None
+
+    available_kinds = [k for k, pool_list in pools_by_kind.items() if pool_list]
+    if not available_kinds:
+        return None
+
+    chosen_kind = r.choice(available_kinds)
+    return r.choice(pools_by_kind[chosen_kind])
+
+
 def resolve_top_cities_pool(
     cities: Cities,
     continent_raw: str | None = None,
@@ -337,8 +417,10 @@ def resolve_top_cities_pool(
             "countries",
             "district",
             "districts",
+            "letter",
+            "letters",
         ):
-            return None, "Invalid --scope value. Available: world, continent, country, district"
+            return None, "Invalid --scope value. Available: world, continent, country, district, letter"
 
     clean_letter = None
     if letter_raw is not None:
@@ -419,11 +501,19 @@ def resolve_top_cities_pool(
         return Pool(PoolKind.CONTINENT, resolved_continent, size), None
 
     if resolved_country_name:
-        draft = Pool(PoolKind.COUNTRY, resolved_country_name, 0)
-        size = get_list_size(get_pool_df(cities.df, draft), is_poland=is_poland)
-        if size is None:
+        pool = pick_country_pool(
+            cities=cities,
+            country_iso2=country_iso2 or "",
+            country_name=resolved_country_name,
+            is_poland=is_poland,
+            rng=r,
+            scope=scope_raw,
+        )
+        if not pool:
+            if scope_raw:
+                return None, f"No qualifying cities found for scope '{scope_raw}' in {resolved_country_name}."
             return None, f"Not enough qualifying cities found for {resolved_country_name}."
-        return Pool(PoolKind.COUNTRY, resolved_country_name, size), None
+        return pool, None
 
     if clean_letter:
         draft = Pool(PoolKind.LETTER, clean_letter, 0)
@@ -452,6 +542,9 @@ def resolve_top_cities_pool(
                 size = get_list_size(get_pool_df(cities.df, draft), is_poland=True)
                 if size is not None:
                     pool = Pool(PoolKind.DISTRICT, picked_district, size, draft.extra)
+        elif scope_val in ("letter", "letters"):
+            let_pools = [p for p in eligible if p.kind == PoolKind.LETTER]
+            pool = r.choice(let_pools) if let_pools else None
         if not pool:
             return None, f"No qualifying cities found for scope '{scope_raw}'."
         return pool, None
