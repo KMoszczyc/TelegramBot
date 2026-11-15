@@ -8,7 +8,6 @@ import pytest
 from src.config.constants import (
     TOP_CITIES_BASE_REWARDS,
     TOP_CITIES_MAX_STRIKES,
-    TOP_CITIES_MAX_TIPS,
 )
 from src.models.quizzes import top_cities_quiz as tcq
 from src.models.quizzes.top_cities_quiz import (
@@ -304,9 +303,10 @@ def test_game_reveal_tip_country_pool(test_game):
     assert tip_idx in test_game.tips_revealed
     assert test_game.tips_given == 1
 
-    # Render slot with tip for country pool shows district or first letter with new label format
+    # Render slot with tip for country pool shows first letter as inline prefix
     rendered = test_game._render_slot(tip_idx)
-    assert "district: *" in rendered or "letter: *" in rendered
+    entry = test_game.entries[tip_idx]
+    assert rendered == f"{entry.rank}. {entry.city[0]}{tcq.UNKNOWN_SLOT}"
 
 
 def test_game_reveal_tip_world_pool():
@@ -324,7 +324,8 @@ def test_game_tips_exhaust():
     df = make_city_df()
     pool = Pool(PoolKind.COUNTRY, "Poland", 10)
     game = TopCitiesGame.create(df, pool)
-    for _ in range(TOP_CITIES_MAX_TIPS):
+    assert game.max_tips == 10
+    for _ in range(game.max_tips):
         assert game.reveal_tip() is not None
     assert not game.can_give_tip
     assert game.reveal_tip() is None
@@ -564,14 +565,14 @@ def test_district_hints_in_render_slot():
     ]
     df = pd.DataFrame(rows)
 
-    # 1. District quiz without letter filter -> hint shows first letter with new label format
+    # 1. District quiz without letter filter -> hint shows first letter as inline prefix
     district_pool = Pool(PoolKind.DISTRICT, "Małopolskie", 3, extra=(("country", "Poland"),))
     game1 = TopCitiesGame.create(df, district_pool)
     game1.reveal_tip(rng=random.Random(0))
     rendered1 = game1.render()
-    assert "letter: *K*" in rendered1 or "letter: *T*" in rendered1 or "letter: *N*" in rendered1
+    assert f"K{tcq.UNKNOWN_SLOT}" in rendered1 or f"T{tcq.UNKNOWN_SLOT}" in rendered1 or f"N{tcq.UNKNOWN_SLOT}" in rendered1
 
-    # 2. District quiz WITH letter filter -> hint shows first 2 letters with new label format
+    # 2. District quiz WITH letter filter -> hint shows first 2 letters as inline prefix
     custom_pool = Pool(
         PoolKind.CUSTOM,
         "Małopolskie (K)",
@@ -581,7 +582,7 @@ def test_district_hints_in_render_slot():
     game2 = TopCitiesGame.create(df, custom_pool)
     game2.reveal_tip(rng=random.Random(0))
     rendered2 = game2.render()
-    assert "letter: *Kr*" in rendered2
+    assert f"Kr{tcq.UNKNOWN_SLOT}" in rendered2
 
 
 def test_format_title_district():
@@ -826,3 +827,210 @@ def test_pick_country_pool_random_variety(mock_cities_model):
         assert pool is not None
         picked_kinds.add(pool.kind)
     assert picked_kinds == {PoolKind.COUNTRY, PoolKind.DISTRICT, PoolKind.CUSTOM}
+
+
+def test_country_quiz_progressive_letter_tips():
+    df = make_city_df()
+    pool = Pool(PoolKind.COUNTRY, "Poland", 10)
+    game = TopCitiesGame.create(df, pool)
+
+    # Guess first 9 cities so only slot 9 remains unguessed
+    for entry in game.entries[:9]:
+        game.submit_guess(entry.name if hasattr(entry, "name") else entry.city)
+
+    # 1st tip on the remaining slot gives 1st letter
+    idx = game.reveal_tip()
+    assert idx == 9
+    assert game.tip_letters[9] == 1
+    entry = game.entries[9]
+    assert game._render_slot(9) == f"10. {entry.city[0]}{tcq.UNKNOWN_SLOT}"
+
+    # 2nd tip on the same slot gives 2nd letter
+    idx2 = game.reveal_tip()
+    assert idx2 == 9
+    assert game.tip_letters[9] == 2
+    assert game._render_slot(9) == f"10. {entry.city[:2]}{tcq.UNKNOWN_SLOT}"
+
+    # 3rd tip on the same slot gives 3rd letter
+    idx3 = game.reveal_tip()
+    assert idx3 == 9
+    assert game.tip_letters[9] == 3
+    assert game._render_slot(9) == f"10. {entry.city[:3]}{tcq.UNKNOWN_SLOT}"
+
+
+def test_letter_filter_progressive_tips():
+    rows = [
+        {
+            "city": "Warszawa",
+            "city_ascii": "Warszawa",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Mazowieckie",
+            "population": 1_793_000,
+        },
+        {
+            "city": "Wrocław",
+            "city_ascii": "Wroclaw",
+            "country": "Poland",
+            "iso2": "PL",
+            "continent": "Europe",
+            "admin_name": "Dolnośląskie",
+            "population": 640_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+    pool = Pool(
+        PoolKind.CUSTOM,
+        "Poland (W)",
+        2,
+        extra=(("country", "Poland"), ("letter", "W")),
+    )
+    game = TopCitiesGame.create(df, pool)
+    # Guess slot 1 so only slot 0 is missing
+    game.submit_guess("Wrocław")
+
+    # 1st tip starts with 2 letters because 'W' is already known from pool filter
+    idx1 = game.reveal_tip()
+    assert idx1 == 0
+    assert game.tip_letters[0] == 1
+    assert game._render_slot(0) == f"1. Wa{tcq.UNKNOWN_SLOT}"
+
+    # 2nd tip reveals 3 letters
+    idx2 = game.reveal_tip()
+    assert idx2 == 0
+    assert game.tip_letters[0] == 2
+    assert game._render_slot(0) == f"1. War{tcq.UNKNOWN_SLOT}"
+
+
+def test_world_quiz_country_first_then_progressive_letters():
+    rows = [
+        {
+            "city": "Tokyo",
+            "city_ascii": "Tokyo",
+            "country": "Japan",
+            "iso2": "JP",
+            "continent": "Asia",
+            "admin_name": "Tokyo",
+            "population": 37_000_000,
+        },
+        {
+            "city": "Paris",
+            "city_ascii": "Paris",
+            "country": "France",
+            "iso2": "FR",
+            "continent": "Europe",
+            "admin_name": "Île-de-France",
+            "population": 11_000_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+    pool = Pool(PoolKind.WORLD, "World", 2)
+    game = TopCitiesGame.create(df, pool)
+    game.max_tips = 5
+
+    # 1st tip reveals country for slot 0 (or slot 1)
+    idx1 = game.reveal_tip(rng=random.Random(0))
+    assert idx1 is not None
+    assert idx1 in game.country_revealed
+    assert game.tip_letters.get(idx1, 0) == 0
+    entry1 = game.entries[idx1]
+    assert game._render_slot(idx1) == f"{entry1.rank}. {tcq.UNKNOWN_SLOT} [{entry1.flag} {entry1.country}]"
+
+    # 2nd tip reveals country for the other slot
+    other = 1 - idx1
+    idx2 = game.reveal_tip()
+    assert idx2 == other
+    assert idx2 in game.country_revealed
+    assert game.tip_letters.get(idx2, 0) == 0
+    entry2 = game.entries[idx2]
+    assert game._render_slot(idx2) == f"{entry2.rank}. {tcq.UNKNOWN_SLOT} [{entry2.flag} {entry2.country}]"
+
+    # Both missing slots now have country revealed.
+    # 3rd tip begins Phase 2: progressive letter tips with country suffix retained!
+    idx3 = game.reveal_tip(rng=random.Random(0))
+    assert idx3 is not None
+    assert game.tip_letters[idx3] == 1
+    entry3 = game.entries[idx3]
+    assert game._render_slot(idx3) == f"{entry3.rank}. {entry3.city[0]}{tcq.UNKNOWN_SLOT} [{entry3.flag} {entry3.country}]"
+
+
+def test_tips_stop_before_full_city_name():
+    rows = [
+        {
+            "city": "Rome",
+            "city_ascii": "Rome",
+            "country": "Italy",
+            "iso2": "IT",
+            "continent": "Europe",
+            "admin_name": "Lazio",
+            "population": 2_800_000,
+        },
+    ]
+    df = pd.DataFrame(rows)
+    pool = Pool(PoolKind.COUNTRY, "Italy", 1)
+    game = TopCitiesGame.create(df, pool)
+    # Give game extra max_tips to test the length cap
+    game.max_tips = 10
+
+    # Rome has len 4. Max revealed letters is 3 ("Rom").
+    # Tip 1 -> "R" (count 1)
+    assert game.reveal_tip() == 0
+    assert game.tip_letters[0] == 1
+    assert game._render_slot(0) == f"1. R{tcq.UNKNOWN_SLOT}"
+
+    # Tip 2 -> "Ro" (count 2)
+    assert game.reveal_tip() == 0
+    assert game.tip_letters[0] == 2
+    assert game._render_slot(0) == f"1. Ro{tcq.UNKNOWN_SLOT}"
+
+    # Tip 3 -> "Rom" (count 3)
+    assert game.reveal_tip() == 0
+    assert game.tip_letters[0] == 3
+    assert game._render_slot(0) == f"1. Rom{tcq.UNKNOWN_SLOT}"
+
+    # Tip 4 -> cannot reveal 4th letter because length - 1 = 3 is reached
+    assert not game.can_give_tip
+    assert game.reveal_tip() is None
+
+
+@pytest.mark.parametrize(
+    ("tip_letters_count", "country_revealed", "is_letter_filter", "is_multinational", "expected"),
+    [
+        (0, False, False, False, f"1. {tcq.UNKNOWN_SLOT}"),
+        (1, False, False, False, f"1. W{tcq.UNKNOWN_SLOT}"),
+        (2, False, False, False, f"1. Wa{tcq.UNKNOWN_SLOT}"),
+        (1, False, True, False, f"1. Wa{tcq.UNKNOWN_SLOT}"),
+        (2, False, True, False, f"1. War{tcq.UNKNOWN_SLOT}"),
+        (0, True, False, True, f"1. {tcq.UNKNOWN_SLOT} [🇵🇱 Poland]"),
+        (1, True, False, True, f"1. W{tcq.UNKNOWN_SLOT} [🇵🇱 Poland]"),
+        (2, True, False, True, f"1. Wa{tcq.UNKNOWN_SLOT} [🇵🇱 Poland]"),
+    ],
+)
+def test_render_slot_formatting_combinations(tip_letters_count, country_revealed, is_letter_filter, is_multinational, expected):
+    entry = tcq.Entry(
+        rank=1,
+        city="Warsaw",
+        city_ascii="Warsaw",
+        country="Poland",
+        iso2="PL",
+        admin_name="Mazowieckie",
+        population=1_700_000,
+        valid_answers={"warsaw"},
+    )
+    pool = (
+        Pool(PoolKind.WORLD, "World", 1)
+        if is_multinational
+        else (
+            Pool(PoolKind.CUSTOM, "Poland (W)", 1, extra=(("country", "Poland"), ("letter", "W")))
+            if is_letter_filter
+            else Pool(PoolKind.COUNTRY, "Poland", 1)
+        )
+    )
+    game = TopCitiesGame(pool, [entry])
+    if tip_letters_count > 0:
+        game.tip_letters[0] = tip_letters_count
+    if country_revealed:
+        game.country_revealed.add(0)
+
+    assert game._render_slot(0) == expected

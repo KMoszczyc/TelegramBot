@@ -10,7 +10,6 @@ from src.config.constants import (
     TOP_COUNTRIES_BASE_REWARDS,
     TOP_COUNTRIES_COMPLETION_EXPONENT,
     TOP_COUNTRIES_MAX_STRIKES,
-    TOP_COUNTRIES_MAX_TIPS,
     TOP_COUNTRIES_MIN_BUFFER,
     TOP_COUNTRIES_STRIKE_MULTIPLIER,
     TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
@@ -222,7 +221,7 @@ class TopCountriesGame(BaseTopListGame):
             pool=pool,
             entries=entries,
             max_strikes=TOP_COUNTRIES_MAX_STRIKES,
-            max_tips=TOP_COUNTRIES_MAX_TIPS,
+            max_tips=len(entries),
             tip_callback_prefix=TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
             strike_separator="",
         )
@@ -311,7 +310,7 @@ class TopCountriesGame(BaseTopListGame):
         return [i for i in eligible if self.tip_letters.get(i, 0) == min_count]
 
     def can_give_tip(self) -> bool:
-        return not self.is_over and self.tips_given < TOP_COUNTRIES_MAX_TIPS and bool(self._tip_candidates())
+        return not self.is_over and self.tips_given < self.max_tips and bool(self._tip_candidates())
 
     def reveal_tip(self, rng: random.Random | None = None) -> int | None:
         """Reveal one letter of a missing country; return its index or None when no tip is possible."""
@@ -356,7 +355,7 @@ class TopCountriesGame(BaseTopListGame):
             *(self._render_slot(i) for i in range(self.list_size)),
             "",
             f"Strikes: {self.render_strikes()}",
-            f"Tips: {self.tips_given}/{TOP_COUNTRIES_MAX_TIPS}",
+            f"Tips: {self.tips_given}/{self.max_tips}",
             f"Reward: {self.reward} credits",
         ]
         if self.last_guess:
@@ -387,7 +386,7 @@ class TopCountriesGame(BaseTopListGame):
         if not self.can_give_tip():
             return None
         next_reward = calculate_reward(self.list_size, self.correct_count, self.tips_given + 1, self.strikes)
-        return f"💡 Tip {self.tips_given + 1}/{TOP_COUNTRIES_MAX_TIPS} (reward → {next_reward})"
+        return f"💡 Tip {self.tips_given + 1}/{self.max_tips} (reward → {next_reward})"
 
     def build_keyboard(self, user_id: int) -> InlineKeyboardMarkup:
         """Build the tip button keyboard, empty (which removes the button) when no tip is available."""

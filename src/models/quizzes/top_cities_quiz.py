@@ -15,7 +15,6 @@ from src.config.constants import (
     TOP_CITIES_BASE_REWARDS,
     TOP_CITIES_COMPLETION_EXPONENT,
     TOP_CITIES_MAX_STRIKES,
-    TOP_CITIES_MAX_TIPS,
     TOP_CITIES_MIN_BUFFER,
     TOP_CITIES_STRIKE_MULTIPLIER,
     TOP_CITIES_TIP_CALLBACK_PREFIX,
@@ -631,11 +630,36 @@ class TopCitiesGame(BaseTopListGame):
             pool=pool,
             entries=entries,
             max_strikes=TOP_CITIES_MAX_STRIKES,
-            max_tips=TOP_CITIES_MAX_TIPS,
+            max_tips=len(entries),
             tip_callback_prefix=TOP_CITIES_TIP_CALLBACK_PREFIX,
             strike_separator=" ",
         )
-        self.tips_revealed: set[int] = set()
+        self.tip_letters: dict[int, int] = {}
+        self.country_revealed: set[int] = set()
+
+    @property
+    def tips_revealed(self) -> set[int]:
+        """Set of slot indices that have received any tip (for backward compatibility)."""
+        return set(self.tip_letters.keys()) | self.country_revealed
+
+    @property
+    def _is_multinational(self) -> bool:
+        """Whether cities in this pool come from multiple countries (World or Continent scopes)."""
+        if self.pool.kind in (PoolKind.COUNTRY, PoolKind.DISTRICT):
+            return False
+        extra = self.pool.extra_dict
+        return not ("country" in extra or "district" in extra)
+
+    @property
+    def _has_letter_filter(self) -> bool:
+        """Whether the pool restricts cities by a starting letter."""
+        return self.pool.kind == PoolKind.LETTER or "letter" in self.pool.extra_dict
+
+    def _can_reveal_more_letters(self, index: int) -> bool:
+        """Check if an additional letter can be revealed without exposing the entire city name."""
+        current_count = self.tip_letters.get(index, 0)
+        next_len = (2 + current_count) if self._has_letter_filter else (1 + current_count)
+        return next_len < len(self.entries[index].city)
 
     @classmethod
     def create(
@@ -671,20 +695,43 @@ class TopCitiesGame(BaseTopListGame):
         return calculate_reward(self.list_size, self.correct_count, self.tips_given, self.strikes)
 
     def _tip_candidates(self) -> list[int]:
-        """Slots that are unguessed and have not received a tip yet."""
-        return [i for i in self._missing_indices() if i not in self.tips_revealed]
+        """Slots that can receive a tip (country reveal first for multinational, then progressive letters)."""
+        missing = self._missing_indices()
+        if not missing:
+            return []
+
+        if self._is_multinational:
+            unrevealed_country = [i for i in missing if i not in self.country_revealed]
+            if unrevealed_country:
+                return unrevealed_country
+
+        eligible = [i for i in missing if self._can_reveal_more_letters(i)]
+        if not eligible:
+            return []
+
+        zero_tips = [i for i in eligible if self.tip_letters.get(i, 0) == 0]
+        if zero_tips:
+            return zero_tips
+
+        min_count = min(self.tip_letters.get(i, 0) for i in eligible)
+        return [i for i in eligible if self.tip_letters.get(i, 0) == min_count]
 
     @property
     def can_give_tip(self) -> bool:
         return not self.is_over and self.tips_given < self.max_tips and len(self._tip_candidates()) > 0
 
     def reveal_tip(self, rng: random.Random | None = None) -> int | None:
-        """Reveal a contextual tip for one unguessed slot."""
+        """Reveal one tip (country or progressive letter) for an unguessed slot."""
+        if not self.can_give_tip:
+            return None
         candidates = self._tip_candidates()
-        if not candidates or self.tips_given >= self.max_tips:
+        if not candidates:
             return None
         chosen = (rng or random).choice(candidates)
-        self.tips_revealed.add(chosen)
+        if self._is_multinational and chosen not in self.country_revealed:
+            self.country_revealed.add(chosen)
+        else:
+            self.tip_letters[chosen] = self.tip_letters.get(chosen, 0) + 1
         self.tips_given += 1
         return chosen
 
@@ -698,22 +745,18 @@ class TopCitiesGame(BaseTopListGame):
             return f"{entry.rank}. {STRIKE_ICON} *{entry.city}* - {entry.population:,}{flag_str}"
 
         # Unguessed slot with tip
-        if index in self.tips_revealed:
-            is_district = self.pool.kind == PoolKind.DISTRICT or "district" in self.pool.extra_dict
-            if is_district:
-                if "letter" in self.pool.extra_dict:
-                    prefix = entry.city[:2]
-                    return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{prefix}*]"
-                return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{entry.city[0]}*]"
-            if self.pool.kind == PoolKind.COUNTRY:
-                if entry.admin_name and entry.admin_name.lower() not in ("nan", ""):
-                    return f"{entry.rank}. {UNKNOWN_SLOT} [district: *{entry.admin_name}*]"
-                return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{entry.city[0]}*]"
-            if self.pool.kind == PoolKind.CUSTOM and "letter" in self.pool.extra_dict and "district" not in self.pool.extra_dict:
-                # Country+letter pool: first letter is known, reveal second letter
-                second = entry.city[1] if len(entry.city) > 1 else entry.city[0]
-                return f"{entry.rank}. {UNKNOWN_SLOT} [letter: *{entry.city[0]}{second}*]"
-            return f"{entry.rank}. {UNKNOWN_SLOT} [{entry.flag} {entry.country}]"
+        has_letter_tip = index in self.tip_letters and self.tip_letters[index] > 0
+        has_country_tip = index in self.country_revealed
+        suffix = f" [{entry.flag} {entry.country}]" if has_country_tip else ""
+
+        if has_letter_tip:
+            count = self.tip_letters[index]
+            prefix_len = (1 + count) if self._has_letter_filter else count
+            letters = entry.city[:prefix_len]
+            return f"{entry.rank}. {letters}{UNKNOWN_SLOT}{suffix}"
+
+        if has_country_tip:
+            return f"{entry.rank}. {UNKNOWN_SLOT}{suffix}"
 
         return f"{entry.rank}. {UNKNOWN_SLOT}"
 

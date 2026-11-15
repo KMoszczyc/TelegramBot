@@ -211,9 +211,9 @@ def test_wrong_guess_last_guess_is_sanitized(game):
 
 
 def test_reveal_tip_continent_reveals_first_letter_once_per_country(game):
-    revealed = [game.reveal_tip(random.Random(i)) for i in range(5)]
-    assert len(set(revealed)) == 5
-    assert game.tips_given == 5
+    revealed = [game.reveal_tip(random.Random(i)) for i in range(game.max_tips)]
+    assert len(set(revealed)) == game.max_tips
+    assert game.tips_given == game.max_tips
     assert game.reveal_tip() is None
     for index in revealed:
         assert game.tip_letters[index] == 1
@@ -229,6 +229,7 @@ def test_reveal_tip_letter_pool_reveals_second_letter(letter_df):
 
 def test_reveal_tip_all_countries_got_tip_reveals_next_letter():
     small = TopCountriesGame.create(make_df(5), Metric.POPULATION, Pool(PoolKind.CONTINENT, "Europa", 3))
+    small.max_tips = 5
     # 3 countries, first 3 tips give 1st letter to each
     indices = [small.reveal_tip() for _ in range(3)]
     assert len(set(indices)) == 3
@@ -251,6 +252,7 @@ def test_reveal_tip_all_countries_got_tip_reveals_next_letter():
 def test_reveal_tip_letter_pool_gives_next_letter():
     df = make_df(5, prefix_letter=True)
     small = TopCountriesGame.create(df, Metric.POPULATION, Pool(PoolKind.LETTER, "A", 3))
+    small.max_tips = 5
     for _ in range(3):
         small.reveal_tip()
     assert all(small.tip_letters[i] == 1 for i in range(3))
@@ -287,7 +289,7 @@ def test_render_initial_state(game):
     assert "1. ???" in text
     assert "10. ???" in text
     assert "Strikes: ✖️✖️✖️" in text
-    assert "Tips: 0/5" in text
+    assert f"Tips: 0/{game.max_tips}" in text
     assert "Reward: 0 credits" in text
     assert "At least 5 correct" in text
     assert "Last guess" not in text
@@ -335,13 +337,13 @@ def test_format_result_line(game, guessed, strikes, timed_out, total, expected_p
 def test_tip_label_shows_reward_after_next_tip(game):
     for entry in game.entries[:5]:
         game.submit_guess(entry.name)
-    assert game.build_tip_label() == f"💡 Tip 1/5 (reward → {tcq.calculate_reward(10, 5, 1, 0)})"
+    assert game.build_tip_label() == f"💡 Tip 1/{game.max_tips} (reward → {tcq.calculate_reward(10, 5, 1, 0)})"
 
 
 def test_keyboard_has_tip_button_until_tips_run_out(game):
     keyboard = game.build_keyboard(111)
     assert keyboard.inline_keyboard[0][0].callback_data == "toptip:111"
-    for _ in range(5):
+    for _ in range(game.max_tips):
         game.reveal_tip()
     assert game.build_keyboard(111).inline_keyboard == ()
 
