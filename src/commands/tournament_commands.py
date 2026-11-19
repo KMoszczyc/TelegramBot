@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import telegram
-from telegram import InputMediaPhoto, Update
+from telegram import InputFile, InputMediaPhoto, Update
 from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
@@ -450,7 +450,7 @@ class TournamentCommands:
                         chat_id=tournament.chat_id,
                         message_id=tournament.table_message_id,
                         media=InputMediaPhoto(
-                            media=png_bytes,
+                            media=InputFile(png_bytes, filename="table.png"),
                             caption=caption,
                             parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                         ),
@@ -581,10 +581,6 @@ class TournamentCommands:
             log.exception("Unexpected error in _run_poker_auto_turns: %s", e)
 
         if tournament.is_active and tournament.state == TournamentState.BETTING:
-            try:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            except Exception as e:
-                log.exception("Error refreshing table after auto turns: %s", e)
             self._schedule_poker_turn_timer(context, tournament)
         elif tournament.is_active and tournament.state == TournamentState.ROUND_RESULT:
             await self._handle_poker_hand_ended(context, tournament)
@@ -598,10 +594,7 @@ class TournamentCommands:
         self._cancel_jobs(context, f"poker_turn_{tournament.chat_id}")
 
         if tournament.is_all_in_runout:
-            try:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            except Exception as e:
-                log.exception("Error updating table before runout: %s", e)
+            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
             await self._animate_all_in_runout(context, tournament)
             return
 
@@ -609,26 +602,16 @@ class TournamentCommands:
             await asyncio.sleep(POKER_STREET_REVEAL_DELAY_SECONDS)
 
         if res.hand_ended:
-            try:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            except Exception as e:
-                log.exception("Error updating table on hand end: %s", e)
+            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
             await self._handle_poker_hand_ended(context, tournament)
             return
 
-        try:
-            if tournament.has_pending_auto_turn():
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=res.street_changed)
-                await self._run_poker_auto_turns(context, tournament)
-            else:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-        except Exception as e:
-            log.exception("Error during poker action progression: %s", e)
-        finally:
-            if tournament.is_active and tournament.state == TournamentState.BETTING:
-                self._schedule_poker_turn_timer(context, tournament)
-            elif tournament.is_active and tournament.state == TournamentState.ROUND_RESULT:
-                await self._handle_poker_hand_ended(context, tournament)
+        if tournament.has_pending_auto_turn():
+            await self._update_or_repost_poker_table(context, tournament, re_render_image=res.street_changed)
+            await self._run_poker_auto_turns(context, tournament)
+        else:
+            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+            self._schedule_poker_turn_timer(context, tournament)
 
     async def _handle_poker_hand_ended(self, context: ContextTypes.DEFAULT_TYPE, tournament: PokerTournament) -> None:
         self._cancel_jobs(context, f"poker_turn_{tournament.chat_id}")
