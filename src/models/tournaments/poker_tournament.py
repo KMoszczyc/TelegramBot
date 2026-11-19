@@ -7,11 +7,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from src.config.constants import (
     MAX_POKER_PLAYERS,
     POKER_ACTION_LOG_DISPLAY_COUNT,
-    POKER_BLIND_ESCALATION_FACTOR,
-    POKER_BLIND_ESCALATION_INTERVAL,
     POKER_BOT_NAMES,
     POKER_CALLBACK_PREFIX,
-    POKER_INITIAL_ANTE_RATIO,
     POKER_INITIAL_BB_RATIO,
     POKER_INITIAL_SB_RATIO,
     POKER_MAX_CONSECUTIVE_TIMEOUTS,
@@ -117,7 +114,8 @@ class PokerTournament(BaseTournament):
         bot_id = min(existing_bot_ids, default=0) - 1
         existing_names = {p.username for p in self.players.values()}
         available_names = [name for name in POKER_BOT_NAMES if name not in existing_names]
-        bot_name = available_names[0] if available_names else f"🤖 Bot {abs(bot_id)}"
+        choice_fn = self._rng.choice if self._rng is not None else random.choice
+        bot_name = choice_fn(available_names) if available_names else f"🤖 Bot {abs(bot_id)}"
 
         self.players[bot_id] = PokerPlayer(
             user_id=bot_id,
@@ -143,18 +141,13 @@ class PokerTournament(BaseTournament):
         return f"🃏 *Texas Hold'em Poker*{round_info}"
 
     def get_blinds_and_ante(self, round_num: int | None = None) -> tuple[int, int, int]:
-        """Return (small_blind, big_blind, ante) for the specified round number."""
-        r = max(1, round_num if round_num is not None else self.round_number)
-        level = (r - 1) // POKER_BLIND_ESCALATION_INTERVAL
-        scale = POKER_BLIND_ESCALATION_FACTOR**level
+        """Return (small_blind, big_blind, ante) for the tournament.
 
-        base_sb = max(1, round(self.buy_in * POKER_INITIAL_SB_RATIO))
-        base_bb = max(2, round(self.buy_in * POKER_INITIAL_BB_RATIO))
-        base_ante = round(self.buy_in * POKER_INITIAL_ANTE_RATIO)
-
-        sb = max(1, round(base_sb * scale))
-        bb = max(sb * 2, round(base_bb * scale))
-        ante = round(base_ante * scale)
+        Blinds remain flat across all rounds, and ante is disabled (0).
+        """
+        sb = max(1, round(self.buy_in * POKER_INITIAL_SB_RATIO))
+        bb = max(sb * 2, round(self.buy_in * POKER_INITIAL_BB_RATIO))
+        ante = 0
         return sb, bb, ante
 
     def _ensure_seat_order(self) -> None:
@@ -798,9 +791,19 @@ class PokerTournament(BaseTournament):
         winner.hands_won += 1
         winner.correct_bets += 1
         winner.biggest_pot_won = max(winner.biggest_pot_won, self.pot)
-        winner.last_action_label = f"Won +{self.pot}"
 
-        self.last_hand_summary = f"🏆 *{winner.username}* wins the pot of *{self.pot}* credits (all other players folded)!"
+        net_winner = self.pot - winner.total_hand_bet
+        winner.last_action_label = f"Won +{net_winner}"
+
+        summary_lines = [f"🏆 *{winner.username}* wins pot of *{self.pot}* (*+{net_winner}* net chips) — all others folded!"]
+        for p in self.players.values():
+            if p.in_current_hand and p.user_id != winner_uid:
+                loss = p.total_hand_bet
+                p.last_action_label = f"Fold (-{loss})" if loss > 0 else "Fold"
+                if loss > 0:
+                    summary_lines.append(f"• {p.username} (-{loss} chips)")
+
+        self.last_hand_summary = "\n".join(summary_lines)
 
     def _resolve_showdown(self) -> None:
         self.state = TournamentState.ROUND_RESULT
@@ -835,16 +838,24 @@ class PokerTournament(BaseTournament):
             p = self.players[uid]
             cards_str = " ".join(c.emoji_str for c in p.hole_cards)
             won = winnings_by_uid[uid]
+            net = won - p.total_hand_bet
             if won > 0:
                 p.tournament_credits += won
                 p.hands_won += 1
                 p.correct_bets += 1
                 p.biggest_pot_won = max(p.biggest_pot_won, won)
-                p.last_action_label = f"Won +{won}"
-                summary_lines.append(f"🏆 *{p.username}* ({cards_str}) — *{p.best_hand_desc}* → *+{won}* credits!")
+                p.last_action_label = f"Won +{net}" if net >= 0 else f"Won {won} ({net})"
+                summary_lines.append(
+                    f"🏆 *{p.username}* ({cards_str}) — *{p.best_hand_desc}* → won *{won}* pot (*{'+' if net >= 0 else ''}{net}* net chips)"
+                )
             else:
-                p.last_action_label = p.best_hand_desc
-                summary_lines.append(f"• {p.username} ({cards_str}) — {p.best_hand_desc}")
+                loss = p.total_hand_bet
+                p.last_action_label = f"{p.best_hand_desc} (-{loss})" if loss > 0 else p.best_hand_desc
+                summary_lines.append(f"• {p.username} ({cards_str}) — {p.best_hand_desc} (-{loss} chips)")
+
+        folded_losers = [p for p in self.players.values() if p.in_current_hand and p.folded and p.total_hand_bet > 0]
+        for p in folded_losers:
+            summary_lines.append(f"• {p.username} (Folded, -{p.total_hand_bet} chips)")
 
         self.last_hand_summary = "\n".join(summary_lines)
 
@@ -895,7 +906,6 @@ class PokerTournament(BaseTournament):
             f"🂠 Board: {board_str}",
         ]
 
-        # Use recent moves
         if self.street_action_log:
             recent_count = POKER_ACTION_LOG_DISPLAY_COUNT
             recent_actions = self.street_action_log[-recent_count:]
@@ -909,11 +919,11 @@ class PokerTournament(BaseTournament):
             call_info = f"*{to_call}* to call" if to_call > 0 else "Check or Bet"
             if turn_player.is_bot:
                 lines.append(
-                    f"\n🤖 *BOT TURN:* *{turn_player.username}* is thinking... ({call_info} | Stack: *{turn_player.tournament_credits}*)"
+                    f"\n🤖 *BOT TURN:* *{turn_player.username}* is thinking... ({call_info} | Chips: *{turn_player.tournament_credits}*)"
                 )
             else:
                 lines.append(
-                    f"\n🎯 *YOUR TURN:* *{turn_player.username}* ({call_info} | Stack: *{turn_player.tournament_credits}*)\n"
+                    f"\n🎯 *YOUR TURN:* *{turn_player.username}* ({call_info} | Chips: *{turn_player.tournament_credits}*)\n"
                     f"⏱ {POKER_TURN_TIMEOUT_SECONDS}s timer — use buttons below or type a custom raise amount"
                 )
         elif self.state == TournamentState.ROUND_RESULT:
@@ -923,7 +933,6 @@ class PokerTournament(BaseTournament):
                 lines.append(f"\n⏳ Next hand starting in {POKER_NEXT_HAND_DELAY_SECONDS}s... (tap Next Hand to skip)")
 
         full_text = "\n".join(lines)
-        # Caption budget safeguard: ensure caption fits comfortably within Telegram's 1024 char limit
         if len(full_text) > 850 and self.street_action_log:
             short_actions = self.street_action_log[-3:]
             lines[3] = "\n📜 *Recent Moves:*\n" + "\n".join(short_actions)
@@ -1064,4 +1073,13 @@ class PokerTournament(BaseTournament):
         if biggest_pot_player and biggest_pot_player.biggest_pot_won > 0:
             lines.append(f"• Biggest pot won: *{biggest_pot_player.username}* (*{biggest_pot_player.biggest_pot_won}* credits)")
         lines.append(f"• Total hands played: *{self.round_number}*")
+        return "\n".join(lines)
+
+    def get_standings(self) -> str:
+        """Format the chip stack rankings for the poker table."""
+        sorted_players = sorted(self.players.values(), key=lambda p: p.tournament_credits, reverse=True)
+        lines = ["*Standings:*"]
+        for i, p in enumerate(sorted_players, 1):
+            status = "" if p.tournament_credits > 0 else " 💀"
+            lines.append(f"{i}. {p.username}: *{p.tournament_credits}* chips{status}")
         return "\n".join(lines)

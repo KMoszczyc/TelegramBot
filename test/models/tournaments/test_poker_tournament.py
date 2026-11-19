@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.config.constants import MAX_POKER_PLAYERS
+from src.config.constants import MAX_POKER_PLAYERS, POKER_BOT_NAMES
 from src.config.enums import PokerAction, PokerStreet, TournamentState, TournamentType
 from src.models.games.poker_hand import Card
 from src.models.tournaments.poker_tournament import PokerTournament
@@ -69,11 +69,11 @@ def test_poker_tournament_type_and_max_players(credits_mock):
 @pytest.mark.parametrize(
     "round_num,expected_sb,expected_bb,expected_ante",
     [
-        (1, 5, 10, 2),
-        (2, 5, 10, 2),
-        (3, 8, 16, 3),
-        (4, 8, 16, 3),
-        (5, 11, 22, 4),
+        (1, 2, 5, 0),
+        (2, 2, 5, 0),
+        (3, 2, 5, 0),
+        (4, 2, 5, 0),
+        (5, 2, 5, 0),
     ],
 )
 def test_blinds_and_ante_escalation(poker_2p, round_num, expected_sb, expected_bb, expected_ante):
@@ -89,7 +89,7 @@ def test_heads_up_blind_posting_and_turn_order(poker_2p):
     assert poker_2p.sb_user_id == HOST_ID
     assert poker_2p.bb_user_id == USER_2
     assert poker_2p.current_turn_user_id == HOST_ID
-    assert poker_2p.pot == 2 + 2 + 5 + 10
+    assert poker_2p.pot == 2 + 5
     assert len(poker_2p.players[HOST_ID].hole_cards) == 2
     assert len(poker_2p.players[USER_2].hole_cards) == 2
 
@@ -110,7 +110,7 @@ def test_fold_win_and_flex_reveal(poker_2p):
     assert res.won_by_fold is True
     assert poker_2p.state == TournamentState.ROUND_RESULT
     assert poker_2p.won_by_fold_user_id == USER_2
-    assert poker_2p.players[USER_2].tournament_credits == BUY_IN + 7
+    assert poker_2p.players[USER_2].tournament_credits == BUY_IN + 2
 
     wrong_msg, ok = poker_2p.reveal_winner_cards(HOST_ID)
     assert ok is False
@@ -206,8 +206,8 @@ def test_side_pots_short_stack_all_in(poker_3p):
 
     assert res.hand_ended is True
     assert poker_3p.players[HOST_ID].tournament_credits == 90
-    assert poker_3p.players[USER_2].tournament_credits == 122
-    assert poker_3p.players[USER_3].tournament_credits == 18
+    assert poker_3p.players[USER_2].tournament_credits == 120
+    assert poker_3p.players[USER_3].tournament_credits == 20
 
 
 def test_turn_timeout_and_afk_mode(poker_2p):
@@ -281,7 +281,7 @@ def test_solo_vs_bot_gameplay_and_payouts(credits_mock):
     t = PokerTournament(1, 10, HOST_ID, "Alice", credits_mock, BUY_IN, 5, rng=random.Random(77))
     msg, ok = t.add_bot_player()
     assert ok is True
-    assert "🤖 Ozjasz" in msg
+    assert any(name in msg for name in POKER_BOT_NAMES)
     assert -1 in t.players
     assert t.players[-1].is_bot is True
     assert t.get_human_player_count() == 1
@@ -461,3 +461,44 @@ def test_premove_check_does_not_go_through_if_facing_bet(poker_2p):
     assert poker_2p.has_pending_auto_turn() is False
     assert poker_2p.players[second].premove is None
     assert poker_2p.state == TournamentState.BETTING
+
+
+def test_fold_win_net_chips_summary(poker_2p):
+    poker_2p.start_betting_round()
+    res = poker_2p.process_action(HOST_ID, PokerAction.FOLD)
+    assert res.valid is True
+    assert "wins pot of *7* (*+2* net chips)" in poker_2p.last_hand_summary
+    assert "• Alice (-2 chips)" in poker_2p.last_hand_summary
+    assert poker_2p.players[USER_2].last_action_label == "Won +2"
+    assert poker_2p.players[HOST_ID].last_action_label == "Fold (-2)"
+
+
+@pytest.mark.parametrize(
+    "host_bet,user2_bet,expected_net",
+    [
+        (10, 10, 5),
+        (20, 20, 15),
+    ],
+)
+def test_showdown_net_chips_summary(poker_2p, host_bet, user2_bet, expected_net):
+    poker_2p.start_betting_round()
+    poker_2p.community_cards = [Card(2, "♠"), Card(3, "♥"), Card(4, "♦"), Card(8, "♣"), Card(9, "♠")]
+    poker_2p.players[HOST_ID].hole_cards = [Card(14, "♠"), Card(14, "♥")]
+    poker_2p.players[USER_2].hole_cards = [Card(7, "♠"), Card(2, "♣")]
+
+    poker_2p.process_action(HOST_ID, PokerAction.RAISE, raise_to_amount=host_bet)
+    poker_2p.process_action(USER_2, PokerAction.CALL)
+
+    poker_2p.street = PokerStreet.RIVER
+    poker_2p._resolve_showdown()
+
+    summary = poker_2p.last_hand_summary
+    assert "net chips" in summary
+    assert "Alice" in summary
+    assert f"-{user2_bet} chips" in summary
+
+
+def test_poker_standings_chips_terminology(poker_2p):
+    standings = poker_2p.get_standings()
+    assert "chips" in standings
+    assert "credits" not in standings

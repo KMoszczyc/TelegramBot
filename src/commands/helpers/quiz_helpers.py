@@ -34,15 +34,22 @@ async def update_quiz_message(
         else:
             await context.bot.edit_message_text(text=text, **edit_kwargs)
     except telegram.error.BadRequest as e:
-        log.warning(f"Could not edit quiz message with MarkdownV2: {e}. Retrying without markdown.")
-        edit_kwargs["parse_mode"] = None
-        try:
-            if cached_quiz.get("has_photo"):
-                await context.bot.edit_message_caption(caption=text, **edit_kwargs)
-            else:
-                await context.bot.edit_message_text(text=text, **edit_kwargs)
-        except telegram.error.TelegramError as e2:
-            log.warning(f"Could not edit quiz message even without markdown: {e2}")
+        err = str(e).lower()
+        if "message is not modified" in err:
+            log.debug(f"Quiz message not modified (no change): {e}")
+            return
+        if "can't parse" in err:
+            log.warning(f"Could not edit quiz message with MarkdownV2: {e}. Retrying without markdown.")
+            edit_kwargs["parse_mode"] = None
+            try:
+                if cached_quiz.get("has_photo"):
+                    await context.bot.edit_message_caption(caption=text, **edit_kwargs)
+                else:
+                    await context.bot.edit_message_text(text=text, **edit_kwargs)
+            except telegram.error.TelegramError as e2:
+                log.warning(f"Could not edit quiz message even without markdown: {e2}")
+        else:
+            log.warning(f"Could not edit quiz message (BadRequest): {e}")
     except telegram.error.TelegramError as e:
         log.warning(f"Could not edit quiz message: {e}")
 

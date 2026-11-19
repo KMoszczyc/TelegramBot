@@ -56,6 +56,13 @@ class TournamentCommands:
         self.users_df = self.db.load_table(Table.USERS)
         self.users_map = stats_utils.get_users_map(self.users_df)
         self.active_tournaments: dict[int, BaseTournament] = {}
+        self._poker_locks: dict[int, asyncio.Lock] = {}
+
+    def _get_poker_lock(self, chat_id: int) -> asyncio.Lock:
+        """Return or create a concurrency lock for the specified tournament chat."""
+        if chat_id not in self._poker_locks:
+            self._poker_locks[chat_id] = asyncio.Lock()
+        return self._poker_locks[chat_id]
 
     async def _cancel_active_tournament_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Cancel an active or stuck tournament in the current chat and refund all buy-ins."""
@@ -72,6 +79,7 @@ class TournamentCommands:
 
         refund_msg = tournament.cancel_and_refund("Tournament was cancelled. Buy-ins have been refunded.")
         del self.active_tournaments[chat_id]
+        self._poker_locks.pop(chat_id, None)
         await core_utils.send_message(update, context, MessageType.TEXT, refund_msg)
 
     async def cmd_poker(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -342,16 +350,21 @@ class TournamentCommands:
         if isinstance(tournament, PokerTournament):
             self._cancel_jobs(context, f"poker_turn_{chat_id}")
             self._cancel_jobs(context, f"poker_next_{chat_id}")
-            tournament.start_betting_round()
-            await self._update_or_repost_poker_table(context, tournament, re_render_image=True, force_new_message=True)
-            if tournament.is_all_in_runout:
-                await self._animate_all_in_runout(context, tournament)
-            elif tournament.state == TournamentState.ROUND_RESULT:
-                await self._handle_poker_hand_ended(context, tournament)
-            elif tournament.has_pending_auto_turn():
-                await self._run_poker_auto_turns(context, tournament)
-            else:
-                self._schedule_poker_turn_timer(context, tournament)
+            try:
+                tournament.start_betting_round()
+                await self._update_or_repost_poker_table(context, tournament, re_render_image=True, force_new_message=True)
+                if tournament.is_all_in_runout:
+                    await self._animate_all_in_runout(context, tournament)
+                elif tournament.state == TournamentState.ROUND_RESULT:
+                    await self._handle_poker_hand_ended(context, tournament)
+                elif tournament.has_pending_auto_turn():
+                    await self._run_poker_auto_turns(context, tournament)
+                else:
+                    self._schedule_poker_turn_timer(context, tournament)
+            except Exception as e:
+                log.exception("Error in poker _start_betting_round: %s", e)
+                if tournament.is_active and tournament.state == TournamentState.BETTING:
+                    self._schedule_poker_turn_timer(context, tournament)
             return
 
         round_msg = tournament.start_betting_round()
@@ -384,31 +397,35 @@ class TournamentCommands:
     async def _on_poker_turn_timeout(self, context: ContextTypes.DEFAULT_TYPE):
         data = context.job.data
         chat_id = data["chat_id"]
-        tournament = self.active_tournaments.get(chat_id)
-        if not isinstance(tournament, PokerTournament) or not tournament.is_active:
-            return
+        async with self._get_poker_lock(chat_id):
+            tournament = self.active_tournaments.get(chat_id)
+            if not isinstance(tournament, PokerTournament) or not tournament.is_active:
+                return
 
-        res = tournament.handle_turn_timeout()
-        if res.valid:
-            await self._after_poker_action(context, tournament, res)
+            res = tournament.handle_turn_timeout()
+            if res.valid:
+                await self._after_poker_action(context, tournament, res)
+            elif tournament.is_active and tournament.state == TournamentState.BETTING:
+                self._schedule_poker_turn_timer(context, tournament)
 
     async def _on_poker_next_hand_timeout(self, context: ContextTypes.DEFAULT_TYPE):
         data = context.job.data
         chat_id, thread_id = data["chat_id"], data["thread_id"]
-        tournament = self.active_tournaments.get(chat_id)
-        if not isinstance(tournament, PokerTournament) or not tournament.is_active:
-            return
-        if tournament.state != TournamentState.ROUND_RESULT:
-            return
+        async with self._get_poker_lock(chat_id):
+            tournament = self.active_tournaments.get(chat_id)
+            if not isinstance(tournament, PokerTournament) or not tournament.is_active:
+                return
+            if tournament.state != TournamentState.ROUND_RESULT:
+                return
 
-        try:
-            if tournament.is_last_round():
+            try:
+                if tournament.is_last_round():
+                    await self._finish_tournament(context, chat_id, thread_id)
+                else:
+                    await self._start_betting_round(context, chat_id, thread_id)
+            except Exception as e:
+                log.exception("Error advancing to next poker hand: %s", e)
                 await self._finish_tournament(context, chat_id, thread_id)
-            else:
-                await self._start_betting_round(context, chat_id, thread_id)
-        except Exception as e:
-            log.exception("Error advancing to next poker hand: %s", e)
-            await self._finish_tournament(context, chat_id, thread_id)
 
     async def _update_or_repost_poker_table(
         self,
@@ -452,47 +469,76 @@ class TournamentCommands:
                 log.debug("Fallback to reposting poker table after edit error: %s", e)
 
         old_msg_id = tournament.table_message_id if not force_new_message else None
-        png_bytes = render_poker_table(tournament)
         try:
-            sent = await context.bot.send_photo(
-                chat_id=tournament.chat_id,
-                photo=png_bytes,
-                caption=caption,
-                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                reply_markup=keyboard,
-                message_thread_id=tournament.thread_id,
-            )
-            tournament.table_message_id = sent.message_id
-            tournament.chat_messages_since_table = 0
-        except Exception as e:
-            log.warning("send_photo with Markdown_V2 failed (%s), retrying with plain caption fallback", e)
+            png_bytes = render_poker_table(tournament)
+        except Exception as render_err:
+            log.exception("Error rendering poker table image: %s", render_err)
+            png_bytes = None
+
+        new_msg_id = None
+        if png_bytes is not None:
             try:
-                plain_caption = tournament.format_table_caption()[:500]
                 sent = await context.bot.send_photo(
                     chat_id=tournament.chat_id,
                     photo=png_bytes,
-                    caption=plain_caption,
+                    caption=caption,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                     reply_markup=keyboard,
                     message_thread_id=tournament.thread_id,
                 )
-                tournament.table_message_id = sent.message_id
+                new_msg_id = sent.message_id
+                tournament.table_message_id = new_msg_id
                 tournament.chat_messages_since_table = 0
-            except Exception as e2:
-                log.error("Fatal error sending poker table photo: %s", e2)
+            except Exception as e:
+                log.warning("send_photo with Markdown_V2 failed (%s), retrying with plain caption fallback", e)
+                try:
+                    plain_caption = tournament.format_table_caption()[:500]
+                    sent = await context.bot.send_photo(
+                        chat_id=tournament.chat_id,
+                        photo=png_bytes,
+                        caption=plain_caption,
+                        reply_markup=keyboard,
+                        message_thread_id=tournament.thread_id,
+                    )
+                    new_msg_id = sent.message_id
+                    tournament.table_message_id = new_msg_id
+                    tournament.chat_messages_since_table = 0
+                except Exception as e2:
+                    log.error("Fatal error sending poker table photo: %s", e2)
 
-        if old_msg_id is not None:
+        if new_msg_id is None:
+            try:
+                plain_caption = tournament.format_table_caption()[:500]
+                sent = await context.bot.send_message(
+                    chat_id=tournament.chat_id,
+                    text=plain_caption,
+                    reply_markup=keyboard,
+                    message_thread_id=tournament.thread_id,
+                )
+                new_msg_id = sent.message_id
+                tournament.table_message_id = new_msg_id
+                tournament.chat_messages_since_table = 0
+            except Exception as e3:
+                log.error("Fatal error sending fallback poker text message: %s", e3)
+
+        if old_msg_id is not None and new_msg_id is not None:
             try:
                 await context.bot.delete_message(chat_id=tournament.chat_id, message_id=old_msg_id)
             except Exception as e:
                 log.debug("Could not delete old mid-hand poker table message %s: %s", old_msg_id, e)
 
     async def _animate_all_in_runout(self, context: ContextTypes.DEFAULT_TYPE, tournament: PokerTournament) -> None:
-        while tournament.is_all_in_runout and tournament.is_active:
-            await asyncio.sleep(POKER_ALL_IN_RUNOUT_DELAY_SECONDS)
-            tournament.step_all_in_runout()
-            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-        if tournament.state == TournamentState.ROUND_RESULT:
-            await self._handle_poker_hand_ended(context, tournament)
+        try:
+            while tournament.is_all_in_runout and tournament.is_active:
+                await asyncio.sleep(POKER_ALL_IN_RUNOUT_DELAY_SECONDS)
+                tournament.step_all_in_runout()
+                try:
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+                except Exception as e:
+                    log.exception("Error rendering all-in runout step: %s", e)
+        finally:
+            if tournament.is_active and tournament.state == TournamentState.ROUND_RESULT:
+                await self._handle_poker_hand_ended(context, tournament)
 
     async def _run_poker_auto_turns(
         self,
@@ -534,10 +580,14 @@ class TournamentCommands:
         except Exception as e:
             log.exception("Unexpected error in _run_poker_auto_turns: %s", e)
 
-        if tournament.state == TournamentState.ROUND_RESULT:
-            await self._handle_poker_hand_ended(context, tournament)
-        elif tournament.state == TournamentState.BETTING:
+        if tournament.is_active and tournament.state == TournamentState.BETTING:
+            try:
+                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+            except Exception as e:
+                log.exception("Error refreshing table after auto turns: %s", e)
             self._schedule_poker_turn_timer(context, tournament)
+        elif tournament.is_active and tournament.state == TournamentState.ROUND_RESULT:
+            await self._handle_poker_hand_ended(context, tournament)
 
     async def _after_poker_action(
         self,
@@ -548,7 +598,10 @@ class TournamentCommands:
         self._cancel_jobs(context, f"poker_turn_{tournament.chat_id}")
 
         if tournament.is_all_in_runout:
-            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+            try:
+                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+            except Exception as e:
+                log.exception("Error updating table before runout: %s", e)
             await self._animate_all_in_runout(context, tournament)
             return
 
@@ -556,16 +609,26 @@ class TournamentCommands:
             await asyncio.sleep(POKER_STREET_REVEAL_DELAY_SECONDS)
 
         if res.hand_ended:
-            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+            try:
+                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+            except Exception as e:
+                log.exception("Error updating table on hand end: %s", e)
             await self._handle_poker_hand_ended(context, tournament)
             return
 
-        if tournament.has_pending_auto_turn():
-            await self._update_or_repost_poker_table(context, tournament, re_render_image=res.street_changed)
-            await self._run_poker_auto_turns(context, tournament)
-        else:
-            await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            self._schedule_poker_turn_timer(context, tournament)
+        try:
+            if tournament.has_pending_auto_turn():
+                await self._update_or_repost_poker_table(context, tournament, re_render_image=res.street_changed)
+                await self._run_poker_auto_turns(context, tournament)
+            else:
+                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+        except Exception as e:
+            log.exception("Error during poker action progression: %s", e)
+        finally:
+            if tournament.is_active and tournament.state == TournamentState.BETTING:
+                self._schedule_poker_turn_timer(context, tournament)
+            elif tournament.is_active and tournament.state == TournamentState.ROUND_RESULT:
+                await self._handle_poker_hand_ended(context, tournament)
 
     async def _handle_poker_hand_ended(self, context: ContextTypes.DEFAULT_TYPE, tournament: PokerTournament) -> None:
         self._cancel_jobs(context, f"poker_turn_{tournament.chat_id}")
@@ -590,75 +653,76 @@ class TournamentCommands:
             return
 
         chat_id = update.effective_chat.id
-        tournament = self.active_tournaments.get(chat_id)
-        if not isinstance(tournament, PokerTournament) or not tournament.is_active:
-            await query.answer("This poker game is no longer active.", show_alert=True)
-            return
-
-        user_id = update.effective_user.id
-        payload = query.data.removeprefix(POKER_CALLBACK_PREFIX)
-
-        if payload == "cards":
-            alert_text = tournament.get_player_cards_alert(user_id)
-            await query.answer(alert_text, show_alert=True)
-            return
-
-        if payload == "sit_in":
-            msg, ok = tournament.sit_back_in(user_id)
-            await query.answer(msg, show_alert=not ok)
-            if ok:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=False)
-            return
-
-        if payload == "flex":
-            msg, ok = tournament.reveal_winner_cards(user_id)
-            await query.answer(msg, show_alert=not ok)
-            if ok:
-                await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
-            return
-
-        if payload == "next_hand":
-            if user_id not in tournament.players:
-                await query.answer("Only seated players can advance the hand.", show_alert=True)
+        async with self._get_poker_lock(chat_id):
+            tournament = self.active_tournaments.get(chat_id)
+            if not isinstance(tournament, PokerTournament) or not tournament.is_active:
+                await query.answer("This poker game is no longer active.", show_alert=True)
                 return
-            if tournament.state != TournamentState.ROUND_RESULT:
-                await query.answer("Hand is still in progress.", show_alert=True)
+
+            user_id = update.effective_user.id
+            payload = query.data.removeprefix(POKER_CALLBACK_PREFIX)
+
+            if payload == "cards":
+                alert_text = tournament.get_player_cards_alert(user_id)
+                await query.answer(alert_text, show_alert=True)
                 return
-            await query.answer("Dealing next hand!")
-            self._cancel_jobs(context, f"poker_next_{chat_id}")
-            if tournament.is_last_round():
-                await self._finish_tournament(context, chat_id, tournament.thread_id)
+
+            if payload == "sit_in":
+                msg, ok = tournament.sit_back_in(user_id)
+                await query.answer(msg, show_alert=not ok)
+                if ok:
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=False)
+                return
+
+            if payload == "flex":
+                msg, ok = tournament.reveal_winner_cards(user_id)
+                await query.answer(msg, show_alert=not ok)
+                if ok:
+                    await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
+                return
+
+            if payload == "next_hand":
+                if user_id not in tournament.players:
+                    await query.answer("Only seated players can advance the hand.", show_alert=True)
+                    return
+                if tournament.state != TournamentState.ROUND_RESULT:
+                    await query.answer("Hand is still in progress.", show_alert=True)
+                    return
+                await query.answer("Dealing next hand!")
+                self._cancel_jobs(context, f"poker_next_{chat_id}")
+                if tournament.is_last_round():
+                    await self._finish_tournament(context, chat_id, tournament.thread_id)
+                else:
+                    await self._start_betting_round(context, chat_id, tournament.thread_id)
+                return
+
+            action_map = {
+                "fold": (PokerAction.FOLD, None),
+                "check": (PokerAction.CHECK, None),
+                "call": (PokerAction.CALL, None),
+                "all_in": (PokerAction.ALL_IN, None),
+            }
+            if payload in action_map:
+                action, amount = action_map[payload]
+            elif payload.startswith("raise:"):
+                action = PokerAction.RAISE
+                amount = int(payload.split(":", 1)[1])
             else:
-                await self._start_betting_round(context, chat_id, tournament.thread_id)
-            return
+                await query.answer("Unknown action.", show_alert=True)
+                return
 
-        action_map = {
-            "fold": (PokerAction.FOLD, None),
-            "check": (PokerAction.CHECK, None),
-            "call": (PokerAction.CALL, None),
-            "all_in": (PokerAction.ALL_IN, None),
-        }
-        if payload in action_map:
-            action, amount = action_map[payload]
-        elif payload.startswith("raise:"):
-            action = PokerAction.RAISE
-            amount = int(payload.split(":", 1)[1])
-        else:
-            await query.answer("Unknown action.", show_alert=True)
-            return
+            if user_id != tournament.current_turn_user_id and action in (PokerAction.FOLD, PokerAction.CHECK, PokerAction.CALL):
+                _, premove_msg = tournament.set_premove(user_id, action)
+                await query.answer(premove_msg, show_alert=True)
+                return
 
-        if user_id != tournament.current_turn_user_id and action in (PokerAction.FOLD, PokerAction.CHECK, PokerAction.CALL):
-            _, premove_msg = tournament.set_premove(user_id, action)
-            await query.answer(premove_msg, show_alert=True)
-            return
+            res = tournament.process_action(user_id, action, raise_to_amount=amount)
+            if not res.valid:
+                await query.answer(res.message.replace("*", ""), show_alert=True)
+                return
 
-        res = tournament.process_action(user_id, action, raise_to_amount=amount)
-        if not res.valid:
-            await query.answer(res.message.replace("*", ""), show_alert=True)
-            return
-
-        await query.answer()
-        await self._after_poker_action(context, tournament, res)
+            await query.answer()
+            await self._after_poker_action(context, tournament, res)
 
     async def _on_bet_timeout(self, context: ContextTypes.DEFAULT_TYPE):
         data = context.job.data
@@ -716,6 +780,7 @@ class TournamentCommands:
         final_msg = tournament.get_final_results()
 
         del self.active_tournaments[chat_id]
+        self._poker_locks.pop(chat_id, None)
 
         if extra_msg:
             final_msg = f"{extra_msg}\n\n{final_msg}"
@@ -780,17 +845,19 @@ class TournamentCommands:
         if isinstance(tournament, PokerTournament):
             tournament.chat_messages_since_table += 1
             if tournament.state == TournamentState.BETTING and user_id == tournament.current_turn_user_id and raw_text.isdigit():
-                res = tournament.process_action(user_id, PokerAction.RAISE, raise_to_amount=int(raw_text))
-                if res.valid:
-                    await self._after_poker_action(context, tournament, res)
-                else:
-                    err_msg = stats_utils.escape_special_characters(res.message)
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=err_msg,
-                        parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                        message_thread_id=update.message.message_thread_id,
-                    )
+                async with self._get_poker_lock(chat_id):
+                    if tournament.state == TournamentState.BETTING and user_id == tournament.current_turn_user_id:
+                        res = tournament.process_action(user_id, PokerAction.RAISE, raise_to_amount=int(raw_text))
+                        if res.valid:
+                            await self._after_poker_action(context, tournament, res)
+                        else:
+                            err_msg = stats_utils.escape_special_characters(res.message)
+                            await context.bot.send_message(
+                                chat_id=chat_id,
+                                text=err_msg,
+                                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                                message_thread_id=update.message.message_thread_id,
+                            )
             return
 
         response = tournament.handle_game_message(user_id, raw_text)

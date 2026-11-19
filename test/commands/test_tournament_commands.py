@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
@@ -257,3 +258,24 @@ async def test_stale_tournament_auto_cleaned_on_new_poker_game(mocker, tournamen
     await tournament_commands.cmd_poker(update, context)
     assert 999 in tournament_commands.active_tournaments
     assert tournament_commands.active_tournaments[999].buy_in == 200
+
+
+@pytest.mark.parametrize("chat_id", [111, 222, 999])
+def test_get_poker_lock_returns_singleton_per_chat(tournament_commands, chat_id):
+    lock1 = tournament_commands._get_poker_lock(chat_id)
+    lock2 = tournament_commands._get_poker_lock(chat_id)
+    assert lock1 is lock2
+    assert isinstance(lock1, asyncio.Lock)
+
+
+@pytest.mark.asyncio
+async def test_poker_lock_cleanup_on_cancel(mocker, tournament_commands, update, context):
+    context.args = ["100"]
+    mocker.patch("src.commands.tournament_commands.core_utils.send_message", new_callable=AsyncMock)
+    await tournament_commands.cmd_poker(update, context)
+    _ = tournament_commands._get_poker_lock(999)
+    assert 999 in tournament_commands._poker_locks
+
+    context.args = ["cancel"]
+    await tournament_commands.cmd_poker(update, context)
+    assert 999 not in tournament_commands._poker_locks
