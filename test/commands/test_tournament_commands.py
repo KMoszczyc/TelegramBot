@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from src.commands.tournament_commands import TournamentCommands
+from src.config.constants import POKER_CHAT_MESSAGES_BEFORE_REPOST
 from src.config.enums import TournamentState, TournamentType
 from src.models.tournaments.poker_tournament import PokerTournament
 
@@ -124,6 +125,7 @@ async def test_poker_callbacks_and_smart_edit_vs_repost(mocker, tournament_comma
     context.bot.edit_message_media.assert_called_once()
     context.bot.send_photo.assert_not_called()
 
+    # 1 chat message: below threshold -> should STILL edit media, NOT repost
     update.message.text = "hello chat"
     await tournament_commands.handle_tournament_message(update, context)
     assert t.chat_messages_since_table == 1
@@ -133,10 +135,80 @@ async def test_poker_callbacks_and_smart_edit_vs_repost(mocker, tournament_comma
     update.callback_query.data = "poker:check"
     await tournament_commands.btn_poker_callback(update, context)
 
+    assert context.bot.edit_message_media.call_count == 2
+    context.bot.send_photo.assert_not_called()
+    assert t.chat_messages_since_table == 1
+
+    # Reach threshold -> repost and delete old message
+    t.chat_messages_since_table = POKER_CHAT_MESSAGES_BEFORE_REPOST
+    update.callback_query.data = "poker:check"
+    await tournament_commands.btn_poker_callback(update, context)
+
     sleep_mock.assert_called()
     context.bot.send_photo.assert_called_once()
     context.bot.delete_message.assert_called_once_with(chat_id=999, message_id=555)
     assert t.chat_messages_since_table == 0
+
+
+@pytest.mark.parametrize(
+    ("chat_messages", "should_repost"),
+    [
+        (0, False),
+        (1, False),
+        (POKER_CHAT_MESSAGES_BEFORE_REPOST - 1, False),
+        (POKER_CHAT_MESSAGES_BEFORE_REPOST, True),
+        (POKER_CHAT_MESSAGES_BEFORE_REPOST + 3, True),
+    ],
+)
+@pytest.mark.asyncio
+async def test_poker_table_repost_threshold_parameterized(mocker, tournament_commands, update, context, chat_messages, should_repost):
+    context.args = ["100"]
+    mocker.patch("src.commands.tournament_commands.core_utils.send_message", new_callable=AsyncMock)
+    mocker.patch("src.commands.tournament_commands.asyncio.sleep", new_callable=AsyncMock)
+    await tournament_commands.cmd_poker(update, context)
+    t = tournament_commands.active_tournaments[999]
+    t.add_player(222, "Bob")
+    await tournament_commands._start_betting_round(context, 999, 42)
+    context.bot.send_photo.reset_mock()
+    context.bot.edit_message_media.reset_mock()
+
+    t.chat_messages_since_table = chat_messages
+    turn_uid = t.current_turn_user_id
+    update.effective_user.id = turn_uid
+    update.callback_query.data = "poker:call"
+    await tournament_commands.btn_poker_callback(update, context)
+
+    if should_repost:
+        context.bot.send_photo.assert_called_once()
+        context.bot.delete_message.assert_called_once_with(chat_id=999, message_id=555)
+        assert t.chat_messages_since_table == 0
+    else:
+        context.bot.send_photo.assert_not_called()
+        context.bot.edit_message_media.assert_called_once()
+        assert t.chat_messages_since_table == chat_messages
+
+
+@pytest.mark.asyncio
+async def test_poker_chat_raise_does_not_increment_counter(mocker, tournament_commands, update, context):
+    context.args = ["100"]
+    mocker.patch("src.commands.tournament_commands.core_utils.send_message", new_callable=AsyncMock)
+    mocker.patch("src.commands.tournament_commands.asyncio.sleep", new_callable=AsyncMock)
+    await tournament_commands.cmd_poker(update, context)
+    t = tournament_commands.active_tournaments[999]
+    t.add_player(222, "Bob")
+    await tournament_commands._start_betting_round(context, 999, 42)
+    assert t.chat_messages_since_table == 0
+
+    turn_uid = t.current_turn_user_id
+    update.effective_user.id = turn_uid
+    update.message.text = "20"
+    await tournament_commands.handle_tournament_message(update, context)
+
+    assert t.chat_messages_since_table == 0
+
+    update.message.text = "hello other players"
+    await tournament_commands.handle_tournament_message(update, context)
+    assert t.chat_messages_since_table == 1
 
 
 @pytest.mark.asyncio

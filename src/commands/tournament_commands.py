@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import telegram
-from telegram import InputFile, InputMediaPhoto, Update
+from telegram import InputMediaPhoto, Update
 from telegram.ext import ContextTypes
 
 import src.core.utils as core_utils
@@ -12,6 +12,7 @@ from src.config.constants import (
     POKER_ALL_IN_RUNOUT_DELAY_SECONDS,
     POKER_BOT_ACTION_DELAY_SECONDS,
     POKER_CALLBACK_PREFIX,
+    POKER_CHAT_MESSAGES_BEFORE_REPOST,
     POKER_NEXT_HAND_DELAY_SECONDS,
     POKER_STREET_REVEAL_DELAY_SECONDS,
     POKER_TURN_TIMEOUT_SECONDS,
@@ -440,7 +441,11 @@ class TournamentCommands:
         if len(caption) > 1000:
             caption = caption[:996] + "\\.\\.\\."
         keyboard = tournament.build_table_keyboard()
-        need_repost = force_new_message or tournament.table_message_id is None or tournament.chat_messages_since_table > 0
+        need_repost = (
+            force_new_message
+            or tournament.table_message_id is None
+            or tournament.chat_messages_since_table >= POKER_CHAT_MESSAGES_BEFORE_REPOST
+        )
 
         if not need_repost and tournament.table_message_id is not None:
             try:
@@ -450,7 +455,8 @@ class TournamentCommands:
                         chat_id=tournament.chat_id,
                         message_id=tournament.table_message_id,
                         media=InputMediaPhoto(
-                            media=InputFile(png_bytes, filename="table.png"),
+                            media=png_bytes,
+                            filename="table.png",
                             caption=caption,
                             parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                         ),
@@ -466,7 +472,7 @@ class TournamentCommands:
                     )
                 return
             except Exception as e:
-                log.debug("Fallback to reposting poker table after edit error: %s", e)
+                log.warning("Fallback to reposting poker table after edit error: %s", e, exc_info=True)
 
         old_msg_id = tournament.table_message_id if not force_new_message else None
         try:
@@ -574,8 +580,11 @@ class TournamentCommands:
                 elif step_res.hand_ended:
                     await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
                 elif tournament.has_pending_auto_turn():
+                    # More bot turns queued: caption-only shows last action + "next bot thinking".
+                    # PNG re-render deferred until a human's turn arrives (avoids stale banner churn).
                     await self._update_or_repost_poker_table(context, tournament, re_render_image=False)
                 else:
+                    # Human's turn is next: re-render PNG so the correct "▶ YOUR TURN ◀" seat is highlighted.
                     await self._update_or_repost_poker_table(context, tournament, re_render_image=True)
         except Exception as e:
             log.exception("Unexpected error in _run_poker_auto_turns: %s", e)
@@ -607,6 +616,9 @@ class TournamentCommands:
             return
 
         if tournament.has_pending_auto_turn():
+            # Caption-only handoff: show "🤖 BOT TURN: thinking..." immediately before the bot delay fires.
+            # Image is re-rendered only when it's a human's turn again (inside _run_poker_auto_turns).
+            # Exception: street just changed → re-render now so community cards are visible during bot chain.
             await self._update_or_repost_poker_table(context, tournament, re_render_image=res.street_changed)
             await self._run_poker_auto_turns(context, tournament)
         else:
@@ -826,21 +838,23 @@ class TournamentCommands:
             return
 
         if isinstance(tournament, PokerTournament):
-            tournament.chat_messages_since_table += 1
             if tournament.state == TournamentState.BETTING and user_id == tournament.current_turn_user_id and raw_text.isdigit():
                 async with self._get_poker_lock(chat_id):
                     if tournament.state == TournamentState.BETTING and user_id == tournament.current_turn_user_id:
                         res = tournament.process_action(user_id, PokerAction.RAISE, raise_to_amount=int(raw_text))
                         if res.valid:
                             await self._after_poker_action(context, tournament, res)
-                        else:
-                            err_msg = stats_utils.escape_special_characters(res.message)
-                            await context.bot.send_message(
-                                chat_id=chat_id,
-                                text=err_msg,
-                                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
-                                message_thread_id=update.message.message_thread_id,
-                            )
+                            return
+                        err_msg = stats_utils.escape_special_characters(res.message)
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=err_msg,
+                            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                            message_thread_id=update.message.message_thread_id,
+                        )
+                        tournament.chat_messages_since_table += 1
+                        return
+            tournament.chat_messages_since_table += 1
             return
 
         response = tournament.handle_game_message(user_id, raw_text)
