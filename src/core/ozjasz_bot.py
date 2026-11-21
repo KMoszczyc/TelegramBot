@@ -19,6 +19,7 @@ from src.config.constants import (
     TOP_CITIES_TIP_CALLBACK_PREFIX,
     TOP_COUNTRIES_TIP_CALLBACK_PREFIX,
     TOURNAMENT_LOBBY_CALLBACK_PREFIX,
+    WORDLE_SURRENDER_CALLBACK_PREFIX,
 )
 from src.config.enums import EmojiType, MessageType
 from src.config.settings import CHAT_ID, TEST_CHAT_ID, TEST_TOKEN, TOKEN
@@ -113,6 +114,9 @@ class OzjaszBot:
             CallbackQueryHandler(self.tournament_commands.btn_tournament_lobby_callback, pattern=f"^{TOURNAMENT_LOBBY_CALLBACK_PREFIX}")
         )
         self.application.add_handler(CallbackQueryHandler(self.tournament_commands.btn_poker_callback, pattern=f"^{POKER_CALLBACK_PREFIX}"))
+        self.application.add_handler(
+            CallbackQueryHandler(self.quiz_commands.btn_wordle_surrender_callback, pattern=f"^{WORDLE_SURRENDER_CALLBACK_PREFIX}")
+        )
         self.application.add_handler(CallbackQueryHandler(self.quiz_commands.btn_quiz_callback))
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_map_quiz_answer), group=1)
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_flag_quiz_answer), group=3)
@@ -129,6 +133,7 @@ class OzjaszBot:
         self.application.add_handler(
             MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_top_cities_answer), group=7
         )
+        self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.quiz_commands.handle_wordle_answer), group=8)
 
     def get_commands_map(self):
         return {
@@ -174,6 +179,7 @@ class OzjaszBot:
             "guesstopcities": self.quiz_commands.cmd_guess_top_cities,
             "guess_top_cities": self.quiz_commands.cmd_guess_top_cities,
             "topcities": self.quiz_commands.cmd_guess_top_cities,
+            "wordle": self.quiz_commands.cmd_wordle,
             "tournament": self.tournament_commands.cmd_tournament,
             "poker": self.tournament_commands.cmd_poker,
             "topmessages": lambda update, context: self.chat_commands.cmd_messages_by_reactions(update, context, EmojiType.ALL),

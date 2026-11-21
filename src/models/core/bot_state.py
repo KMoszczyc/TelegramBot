@@ -26,6 +26,7 @@ class BotState:
         self.top_countries_quiz_cache = {}
         self.top_cities_quiz_cache = {}
         self.city_quiz_cache = {}
+        self.wordle_cache = {}
         self.recent_mystery_city_ids = deque(maxlen=25)
         self.available_quiz_id_map = {}
         self.quiz_replay_cache = defaultdict(dict)
@@ -100,6 +101,7 @@ class BotState:
         self.top_countries_quiz_cache = {}
         self.top_cities_quiz_cache = {}
         self.city_quiz_cache = {}
+        self.wordle_cache = {}
         self.quiz_replay_cache = defaultdict(dict)
 
         log.info("Remindme, cwel, get_credits and steal_credits usage limits have been reset.")
@@ -130,6 +132,7 @@ class BotState:
             or user_id in self.top_countries_quiz_cache
             or user_id in self.top_cities_quiz_cache
             or user_id in self.city_quiz_cache
+            or user_id in self.wordle_cache
         )
 
     def find_active_guess_quiz(self, user_id: int) -> tuple[dict, type] | None:

@@ -58,4 +58,5 @@ tvp_latest - text_filter or [regex] - latest TVP headlines
 tusk - text_filter or [regex] - epic TVP Tusk reference
 walesa - text_filter or [regex] - epic gifts by Lech Wałęsa for Jasna Góra church
 wholesome - (period[?]) summary metric for all users
+wordle - (dataset[bible|quran|ozjasz|bartosiak|europejskafirma], --length[<4, 8>], default 5) - play Wordle guessing words from famous datasets
 wordstats - (username[?], period[?], --ngram[<1, 5>], --text[string], --exact_match[for --text param], --user[groupby], --diacritical, --adjusted[‰]) ngram counts for all users and periods.

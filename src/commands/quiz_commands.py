@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import copy
 import logging
+import re
 from typing import Any
 
 import telegram
@@ -23,6 +24,8 @@ from src.config.constants import (
     TELEGRAM_CAPTION_MAX_LENGTH,
     TOP_CITIES_TIMEOUT_SECONDS,
     TOP_COUNTRIES_TIMEOUT_SECONDS,
+    WORDLE_SURRENDER_CALLBACK_PREFIX,
+    WORDLE_TIMEOUT_SECONDS,
 )
 from src.config.enums import QUIZ_EVENTS, ArgType, CreditActionType, MessageType, Table
 from src.core.command_logger import CommandLogger
@@ -48,6 +51,8 @@ from src.models.quizzes.quiz_replay import (
 )
 from src.models.quizzes.top_cities_quiz import TopCitiesGame
 from src.models.quizzes.top_countries_quiz import TopCountriesGame
+from src.models.quizzes.wordle_game import DATASET_NAMES, WordleDatasetLoader, WordleGame
+from src.models.quizzes.wordle_renderer import render_wordle_board
 
 log = logging.getLogger(__name__)
 
@@ -110,6 +115,7 @@ class QuizCommands:
             or user_id in getattr(self.bot_state, "top_countries_quiz_cache", {})
             or user_id in getattr(self.bot_state, "top_cities_quiz_cache", {})
             or user_id in getattr(self.bot_state, "city_quiz_cache", {})
+            or user_id in getattr(self.bot_state, "wordle_cache", {})
         )
 
     def _find_active_guess_quiz(self, user_id: int):
@@ -132,7 +138,7 @@ class QuizCommands:
         if callable(set_method) and not hasattr(set_method, "assert_called"):
             set_method(user_id, quiz_type, args)
             return
-        self.bot_state.quiz_replay_cache[user_id][quiz_type] = list(args) if args else []
+        self.bot_state.quiz_replay_cache.setdefault(user_id, {})[quiz_type] = list(args) if args else []
 
     def _get_quiz_replay_args(self, user_id: int, quiz_type: str) -> list[str]:
         get_method = getattr(self.bot_state, "get_quiz_replay_args", None)
@@ -646,6 +652,8 @@ class QuizCommands:
                     await self.cmd_guess_top_cities(replay_update, context)
                 case "city":
                     await self.cmd_guess_city(replay_update, context)
+                case "wordle":
+                    await self.cmd_wordle(replay_update, context)
                 case _:
                     log.error(f"Unknown quiz_type for replay: {quiz_type}")
         except (telegram.error.TimedOut, telegram.error.NetworkError) as e:
@@ -1610,3 +1618,294 @@ class QuizCommands:
                 message_thread_id=cached_quiz["thread_id"],
                 reply_markup=build_replay_keyboard(CityQuiz.QUIZ_TYPE, owner_id),
             )
+
+    @staticmethod
+    def _build_wordle_surrender_keyboard(user_id: int) -> telegram.InlineKeyboardMarkup:
+        return telegram.InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🏳️ Surrender", callback_data=f"{WORDLE_SURRENDER_CALLBACK_PREFIX}{user_id}")]]
+        )
+
+    def _build_quote_block(self, game: WordleGame) -> str:
+        """Return a pre-escaped MarkdownV2 blockquote block, or empty string if no quote.
+
+        Escapes the raw quote text first, then applies *bold* to the target word match,
+        then wraps everything in blockquote prefix lines. Returns ready-to-append
+        MarkdownV2 text that must NOT be passed through escape_special_characters again.
+        """
+        if not game.source_quote:
+            return ""
+        escaped_quote = stats_utils.escape_special_characters(game.source_quote)
+        escaped_name = stats_utils.escape_special_characters(game.dataset_display_name)
+        escaped_word = re.escape(stats_utils.escape_special_characters(game.target_word))
+        bolded = re.sub(
+            rf"\b({escaped_word})\b",
+            lambda m: f"*{m.group(1)}*",
+            escaped_quote,
+            flags=re.IGNORECASE,
+        )
+        return f"\n> From *{escaped_name}*:\n> _{bolded}_"
+
+    async def cmd_wordle(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Starts a Wordle game guessing a word from existing project datasets."""
+        user_id = update.effective_user.id
+        if self._has_active_guess_quiz(user_id):
+            message = "You already have an active quiz session! Finish it before starting another."
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        available_named_args = {
+            "length": ArgType.POSITIVE_INT,
+            "len": ArgType.POSITIVE_INT,
+            "letters": ArgType.POSITIVE_INT,
+            "name": ArgType.POSITIVE_INT,
+            "dataset": ArgType.STRING,
+        }
+        available_named_args_aliases = {
+            "l": "length",
+            "d": "dataset",
+        }
+        command_args = CommandArgs(
+            args=context.args,
+            available_named_args=available_named_args,
+            available_named_args_aliases=available_named_args_aliases,
+        )
+        command_args = core_utils.parse_args(self.users_df, command_args)
+
+        target_length = (
+            command_args.named_args.get("length")
+            or command_args.named_args.get("len")
+            or command_args.named_args.get("letters")
+            or command_args.named_args.get("name")
+        )
+        target_dataset = command_args.named_args.get("dataset")
+
+        for arg in command_args.args:
+            arg_clean = arg.strip().lower()
+            if arg_clean.isdigit():
+                val = int(arg_clean)
+                if 4 <= val <= 8 and target_length is None:
+                    target_length = val
+            else:
+                for ds_k, ds_name in DATASET_NAMES.items():
+                    if (arg_clean in (ds_k, ds_name.lower()) or ds_k.startswith(arg_clean)) and target_dataset is None:
+                        target_dataset = ds_k
+                        break
+
+        # Default word length is 5
+        if target_length is None:
+            target_length = 5
+        elif target_length < 4 or target_length > 8:
+            message = "Word length must be between 4 and 8 letters!"
+            await core_utils.send_message(update, context, MessageType.TEXT, message)
+            return
+
+        self._set_quiz_replay_args(user_id, "wordle", context.args)
+        target_word, source_quote, dataset_key = WordleDatasetLoader.get_random_word(
+            dataset=target_dataset,
+            length=target_length,
+            assets=self.assets,
+        )
+        game = WordleGame(target_word=target_word, dataset_key=dataset_key, source_quote=source_quote)
+        buf = render_wordle_board(game)
+
+        caption = f"🟩 *WORDLE* — {game.dataset_display_name} 🟨\n\nType your guess in chat!"
+        reply_markup = self._build_wordle_surrender_keyboard(user_id)
+        escaped_caption = stats_utils.escape_special_characters(caption)
+
+        reply = await update.message.reply_photo(
+            photo=buf,
+            caption=escaped_caption,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+            reply_markup=reply_markup,
+            message_thread_id=update.message.message_thread_id,
+        )
+
+        job = None
+        if context.job_queue:
+            job = context.job_queue.run_once(
+                self.wordle_timeout,
+                when=WORDLE_TIMEOUT_SECONDS,
+                data={"user_id": user_id, "chat_id": update.effective_chat.id, "message_id": reply.message_id},
+                name=f"wordle_timeout_{user_id}",
+            )
+
+        self.bot_state.wordle_cache[user_id] = {
+            "game": game,
+            "chat_id": update.effective_chat.id,
+            "message_id": reply.message_id,
+            "thread_id": update.message.message_thread_id,
+            "job": job,
+        }
+
+    async def handle_wordle_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Processes player guess submissions for an active Wordle game."""
+        if not update.message or not update.message.text:
+            return
+
+        user_id = update.effective_user.id
+        if user_id not in self.bot_state.wordle_cache:
+            return
+
+        cached_quiz = self.bot_state.wordle_cache[user_id]
+        if update.effective_chat.id != cached_quiz["chat_id"]:
+            return
+
+        cached_thread = cached_quiz.get("thread_id")
+        msg_thread = update.message.message_thread_id
+        if cached_thread != msg_thread:
+            return
+
+        text = update.message.text.strip()
+        game: WordleGame = cached_quiz["game"]
+
+        if len(text) != game.word_length:
+            return
+
+        await quiz_helpers.delete_quiz_answer(update)
+
+        success, _ = game.submit_guess(text)
+        if not success:
+            return
+
+        job = cached_quiz.get("job")
+        if job:
+            with contextlib.suppress(Exception):
+                job.schedule_removal()
+
+        buf = render_wordle_board(game)
+
+        if game.is_won:
+            self.bot_state.wordle_cache.pop(user_id, None)
+            reward = game.calculate_reward()
+            user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
+            base_caption = (
+                f"🎉 *CONGRATULATIONS! You guessed the word:* *{game.target_word.upper()}*!\n\n"
+                f"🎯 Guesses used: *{len(game.guesses)}/{game.max_tries}*\n"
+                f"💰 Reward: *+{reward}* credits (Total: *{user_credits}*)"
+            )
+            reply_markup = build_replay_keyboard("wordle", user_id)
+        elif game.is_over:
+            self.bot_state.wordle_cache.pop(user_id, None)
+            base_caption = (
+                f"💀 *GAME OVER! You ran out of tries.*\n\n"
+                f"🔑 The word was: *{game.target_word.upper()}*\n"
+                f"🎯 Guesses used: *{len(game.guesses)}/{game.max_tries}*"
+            )
+            reply_markup = build_replay_keyboard("wordle", user_id)
+        else:
+            if context.job_queue:
+                cached_quiz["job"] = context.job_queue.run_once(
+                    self.wordle_timeout,
+                    when=WORDLE_TIMEOUT_SECONDS,
+                    data={"user_id": user_id, "chat_id": cached_quiz["chat_id"], "message_id": cached_quiz["message_id"]},
+                    name=f"wordle_timeout_{user_id}",
+                )
+            base_caption = f"🟩 *WORDLE* — {game.dataset_display_name} 🟨\n\nType your next guess!"
+            reply_markup = self._build_wordle_surrender_keyboard(user_id)
+
+        quote_block = self._build_quote_block(game) if game.is_over else ""
+        escaped_caption = stats_utils.escape_special_characters(base_caption) + quote_block
+        media = telegram.InputMediaPhoto(
+            media=buf,
+            caption=escaped_caption,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+        )
+        try:
+            await context.bot.edit_message_media(
+                chat_id=cached_quiz["chat_id"],
+                message_id=cached_quiz["message_id"],
+                media=media,
+                reply_markup=reply_markup,
+            )
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not update wordle message media: {e}")
+
+    async def btn_wordle_surrender_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handles a player clicking the Surrender button during Wordle."""
+        query = update.callback_query
+        if not query or not query.data:
+            return
+
+        data = query.data
+        if not data.startswith(WORDLE_SURRENDER_CALLBACK_PREFIX):
+            return
+
+        user_id_str = data[len(WORDLE_SURRENDER_CALLBACK_PREFIX) :]
+        try:
+            owner_id = int(user_id_str)
+        except ValueError:
+            return
+
+        caller_id = query.from_user.id if query.from_user else None
+        if caller_id != owner_id:
+            await query.answer("This is not your game!", show_alert=True)
+            return
+
+        await query.answer()
+
+        cached_quiz = self.bot_state.wordle_cache.pop(owner_id, None)
+        if not cached_quiz:
+            with contextlib.suppress(telegram.error.TelegramError):
+                await query.edit_message_reply_markup(reply_markup=None)
+            return
+
+        job = cached_quiz.get("job")
+        if job:
+            with contextlib.suppress(Exception):
+                job.schedule_removal()
+
+        game: WordleGame = cached_quiz["game"]
+        game.surrender()
+
+        buf = render_wordle_board(game)
+        base_caption = (
+            f"🏳️ *YOU SURRENDERED!*\n\n🔑 The word was: *{game.target_word.upper()}*\n🎯 Guesses: *{len(game.guesses)}/{game.max_tries}*"
+        )
+        escaped_caption = stats_utils.escape_special_characters(base_caption) + self._build_quote_block(game)
+        media = telegram.InputMediaPhoto(
+            media=buf,
+            caption=escaped_caption,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+        )
+        try:
+            await query.edit_message_media(
+                media=media,
+                reply_markup=build_replay_keyboard("wordle", owner_id),
+            )
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not edit wordle surrender message: {e}")
+
+    async def wordle_timeout(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handles game timeout after 3 minutes of inactivity."""
+        job = context.job
+        if not job or not job.data:
+            return
+
+        user_id = job.data.get("user_id")
+        chat_id = job.data.get("chat_id")
+        message_id = job.data.get("message_id")
+
+        cached_quiz = self.bot_state.wordle_cache.pop(user_id, None)
+        if not cached_quiz:
+            return
+
+        game: WordleGame = cached_quiz["game"]
+        game.surrender()
+
+        buf = render_wordle_board(game)
+        base_caption = f"⏰ *TIME'S UP!*\n\n🔑 The word was: *{game.target_word.upper()}*"
+        escaped_caption = stats_utils.escape_special_characters(base_caption) + self._build_quote_block(game)
+        media = telegram.InputMediaPhoto(
+            media=buf,
+            caption=escaped_caption,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+        )
+        try:
+            await context.bot.edit_message_media(
+                chat_id=chat_id,
+                message_id=message_id,
+                media=media,
+                reply_markup=build_replay_keyboard("wordle", user_id),
+            )
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not send wordle timeout message: {e}")

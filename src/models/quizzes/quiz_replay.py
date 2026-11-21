@@ -11,6 +11,7 @@ COMMAND_NAME_BY_QUIZ_TYPE: dict[str, str] = {
     "capital": "guesscapital",
     "topcountries": "guesstopcountries",
     "topcities": "guesstopcities",
+    "wordle": "wordle",
 }
 
 
