@@ -193,10 +193,10 @@ def test_dataset_loader_with_mock_assets():
     for ds in SUPPORTED_DATASETS:
         assert ds in DATASET_NAMES
 
-    # Check stopwords are filtered and each entry is a (word, source_line) pair
+    # Check stopwords are filtered and each entry is a (word, source_line, attribution) triplet
     for ds in pools:
-        for _length, pairs in pools[ds].items():
-            words = [w for w, _line in pairs]
+        for _length, triplets in pools[ds].items():
+            words = [triplet[0] for triplet in triplets]
             assert "i" not in words
             assert "w" not in words
             assert "nie" not in words
@@ -234,14 +234,158 @@ def test_get_random_word():
 
     WordleDatasetLoader._cached_pools = None
 
-    word, quote, ds = WordleDatasetLoader.get_random_word(dataset="bartosiak", length=7, assets=mock_assets)
+    word, quote, ds, attr = WordleDatasetLoader.get_random_word(dataset="bartosiak", length=7, assets=mock_assets)
     assert ds == "bartosiak"
     assert len(word) == 7
     assert word == "drabina"
     assert "drabina" in quote
+    assert attr == "Bartosiak"
 
     # Default length is 5
-    word2, quote2, ds2 = WordleDatasetLoader.get_random_word(assets=mock_assets)
+    word2, quote2, ds2, attr2 = WordleDatasetLoader.get_random_word(assets=mock_assets)
     assert len(word2) == 5
     assert ds2 in SUPPORTED_DATASETS
     assert quote2  # source quote must be non-empty
+    assert attr2
+
+
+@pytest.mark.parametrize(
+    ("row", "expected"),
+    [
+        ({"abbreviation": "Mt", "chapter": 5, "verse": "3"}, "Biblia (Mt 5, 3)"),
+        ({"abbreviation": "Rdz", "chapter": 1, "verse": "1"}, "Biblia (Rdz 1, 1)"),
+        ({"invalid": "data"}, "Biblia"),
+        (None, "Biblia"),
+    ],
+)
+def test_format_bible_attribution(row, expected: str):
+    from src.models.quizzes.wordle_game import _format_bible_attribution
+
+    assert _format_bible_attribution(row) == expected
+
+
+@pytest.mark.parametrize(
+    ("row", "expected"),
+    [
+        ({"chapter_nr": 1, "verse": "2"}, "Koran (1:2)"),
+        ({"chapter_nr": 114, "verse": "6"}, "Koran (114:6)"),
+        ({"invalid": "data"}, "Koran"),
+        (None, "Koran"),
+    ],
+)
+def test_format_quran_attribution(row, expected: str):
+    from src.models.quizzes.wordle_game import _format_quran_attribution
+
+    assert _format_quran_attribution(row) == expected
+
+
+@pytest.mark.parametrize(
+    ("quote", "word", "tier", "expected_pattern"),
+    [
+        (
+            "Gotuję ryby zbieram szumowinę dorzucam pokrojone buraki marchewkę pietruszkę",
+            "buraki",
+            1,
+            "... dorzucam pokrojone [_____] marchewkę pietruszkę",
+        ),
+        (
+            "Na początku Bóg stworzył niebo i ziemię.",
+            "początku",
+            1,
+            "Na [_____] Bóg stworzył ...",
+        ),
+        (
+            "Idę kupić świeże buraki.",
+            "buraki",
+            1,
+            "... kupić świeże [_____].",
+        ),
+        (
+            "Gdybym miał buraki, to bym zjadł.",
+            "buraki",
+            1,
+            "Gdybym miał [_____], to bym ...",
+        ),
+        (
+            "Na początku Bóg stworzył niebo i ziemię.",
+            "początku",
+            2,
+            "Na [_____] Bóg stworzył niebo i ziemię.",
+        ),
+        ("", "słowo", 1, ""),
+        ("Krótka sentencja.", "", 1, ""),
+    ],
+)
+def test_generate_tip(quote: str, word: str, tier: int, expected_pattern: str):
+    from src.models.quizzes.wordle_game import generate_tip
+
+    result = generate_tip(quote, word, tier)
+    assert result == expected_pattern
+
+
+@pytest.mark.parametrize(
+    ("word_len", "expected_max_tries", "tier1_unlock_guess", "tier2_unlock_guess"),
+    [
+        (4, 5, 2, 4),  # midpoint 5 // 2 = 2 guesses made; 1 try remaining at 4 guesses made
+        (5, 6, 3, 5),  # midpoint 6 // 2 = 3 guesses made; 1 try remaining at 5 guesses made
+        (6, 7, 3, 6),  # midpoint 7 // 2 = 3 guesses made; 1 try remaining at 6 guesses made
+        (7, 8, 4, 7),  # midpoint 8 // 2 = 4 guesses made; 1 try remaining at 7 guesses made
+    ],
+)
+def test_dynamic_tip_unlock_thresholds(word_len: int, expected_max_tries: int, tier1_unlock_guess: int, tier2_unlock_guess: int):
+    target = "a" * word_len
+    dummy_guess = "b" * word_len
+    game = WordleGame(target_word=target, dataset_key="bible", source_quote="test quote here")
+    assert game.max_tries == expected_max_tries
+    assert game.available_tip_tier == 0
+    assert not game.can_reveal_tip
+
+    # Submit guesses up to tier 1 unlock
+    for _ in range(tier1_unlock_guess - 1):
+        game.submit_guess(dummy_guess)
+        assert game.available_tip_tier == 0
+
+    game.submit_guess(dummy_guess)
+    assert game.available_tip_tier == 1
+    assert game.can_reveal_tip
+
+    # Reveal tier 1
+    tip = game.reveal_tip()
+    assert tip is not None
+    assert game.revealed_tip_tier == 1
+    assert not game.can_reveal_tip  # already revealed tier 1
+
+    # Submit guesses until final guess (tier 2 unlock)
+    while len(game.guesses) < tier2_unlock_guess:
+        game.submit_guess(dummy_guess)
+
+    assert game.available_tip_tier == 2
+    assert game.can_reveal_tip
+
+    # Reveal tier 2
+    final_tip = game.reveal_tip()
+    assert final_tip is not None
+    assert game.revealed_tip_tier == 2
+    assert not game.can_reveal_tip
+
+
+@pytest.mark.parametrize(
+    ("revealed_tier", "expected_multiplier"),
+    [
+        (0, 1.0),
+        (1, 0.75),
+        (2, 0.50),
+    ],
+)
+def test_tip_reward_penalty(revealed_tier: int, expected_multiplier: float):
+    game = WordleGame(target_word="robot", dataset_key="bible")
+    game.submit_guess("robot")  # win on first try
+    assert game.is_won
+
+    # Calculate unpenalized reward
+    game.revealed_tip_tier = 0
+    base_reward = game.calculate_reward()
+
+    game.revealed_tip_tier = revealed_tier
+    reward = game.calculate_reward()
+    assert reward == int(base_reward * expected_multiplier)

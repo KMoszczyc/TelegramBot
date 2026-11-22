@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import copy
 import logging
-import re
 from typing import Any
 
 import telegram
@@ -26,6 +25,7 @@ from src.config.constants import (
     TOP_COUNTRIES_TIMEOUT_SECONDS,
     WORDLE_SURRENDER_CALLBACK_PREFIX,
     WORDLE_TIMEOUT_SECONDS,
+    WORDLE_TIP_CALLBACK_PREFIX,
 )
 from src.config.enums import QUIZ_EVENTS, ArgType, CreditActionType, MessageType, Table
 from src.core.command_logger import CommandLogger
@@ -52,6 +52,7 @@ from src.models.quizzes.quiz_replay import (
 from src.models.quizzes.top_cities_quiz import TopCitiesGame
 from src.models.quizzes.top_countries_quiz import TopCountriesGame
 from src.models.quizzes.wordle_game import DATASET_NAMES, WordleDatasetLoader, WordleGame
+from src.models.quizzes.wordle_presenter import WordlePresenter
 from src.models.quizzes.wordle_renderer import render_wordle_board
 
 log = logging.getLogger(__name__)
@@ -1621,29 +1622,19 @@ class QuizCommands:
 
     @staticmethod
     def _build_wordle_surrender_keyboard(user_id: int) -> telegram.InlineKeyboardMarkup:
-        return telegram.InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🏳️ Surrender", callback_data=f"{WORDLE_SURRENDER_CALLBACK_PREFIX}{user_id}")]]
-        )
+        return WordlePresenter.build_surrender_keyboard(user_id)
 
-    def _build_quote_block(self, game: WordleGame) -> str:
-        """Return a pre-escaped MarkdownV2 blockquote block, or empty string if no quote.
+    @staticmethod
+    def _build_wordle_keyboard(user_id: int, game: WordleGame) -> telegram.InlineKeyboardMarkup:
+        return WordlePresenter.build_keyboard(user_id, game)
 
-        Escapes the raw quote text first, then applies *bold* to the target word match,
-        then wraps everything in blockquote prefix lines. Returns ready-to-append
-        MarkdownV2 text that must NOT be passed through escape_special_characters again.
-        """
-        if not game.source_quote:
-            return ""
-        escaped_quote = stats_utils.escape_special_characters(game.source_quote)
-        escaped_name = stats_utils.escape_special_characters(game.dataset_display_name)
-        escaped_word = re.escape(stats_utils.escape_special_characters(game.target_word))
-        bolded = re.sub(
-            rf"\b({escaped_word})\b",
-            lambda m: f"*{m.group(1)}*",
-            escaped_quote,
-            flags=re.IGNORECASE,
-        )
-        return f"\n> From *{escaped_name}*:\n> _{bolded}_"
+    @staticmethod
+    def _build_tip_block(game: WordleGame) -> str:
+        return WordlePresenter.build_tip_block(game)
+
+    @staticmethod
+    def _build_quote_block(game: WordleGame) -> str:
+        return WordlePresenter.build_quote_block(game)
 
     async def cmd_wordle(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Starts a Wordle game guessing a word from existing project datasets."""
@@ -1700,17 +1691,21 @@ class QuizCommands:
             return
 
         self._set_quiz_replay_args(user_id, "wordle", context.args)
-        target_word, source_quote, dataset_key = WordleDatasetLoader.get_random_word(
+        target_word, source_quote, dataset_key, source_attribution = WordleDatasetLoader.get_random_word(
             dataset=target_dataset,
             length=target_length,
             assets=self.assets,
         )
-        game = WordleGame(target_word=target_word, dataset_key=dataset_key, source_quote=source_quote)
+        game = WordleGame(
+            target_word=target_word,
+            dataset_key=dataset_key,
+            source_quote=source_quote,
+            source_attribution=source_attribution,
+        )
         buf = render_wordle_board(game)
 
-        caption = f"🟩 *WORDLE* — {game.dataset_display_name} 🟨\n\nType your guess in chat!"
-        reply_markup = self._build_wordle_surrender_keyboard(user_id)
-        escaped_caption = stats_utils.escape_special_characters(caption)
+        escaped_caption = WordlePresenter.build_initial_caption(game)
+        reply_markup = WordlePresenter.build_keyboard(user_id, game)
 
         reply = await update.message.reply_photo(
             photo=buf,
@@ -1778,19 +1773,11 @@ class QuizCommands:
             self.bot_state.wordle_cache.pop(user_id, None)
             reward = game.calculate_reward()
             user_credits, _ = self.credits.update_credits(user_id=user_id, credit_change=reward, action_type=CreditActionType.QUIZ)
-            base_caption = (
-                f"🎉 *CONGRATULATIONS! You guessed the word:* *{game.target_word.upper()}*!\n\n"
-                f"🎯 Guesses used: *{len(game.guesses)}/{game.max_tries}*\n"
-                f"💰 Reward: *+{reward}* credits (Total: *{user_credits}*)"
-            )
+            escaped_caption = WordlePresenter.build_win_caption(game, reward, user_credits)
             reply_markup = build_replay_keyboard("wordle", user_id)
         elif game.is_over:
             self.bot_state.wordle_cache.pop(user_id, None)
-            base_caption = (
-                f"💀 *GAME OVER! You ran out of tries.*\n\n"
-                f"🔑 The word was: *{game.target_word.upper()}*\n"
-                f"🎯 Guesses used: *{len(game.guesses)}/{game.max_tries}*"
-            )
+            escaped_caption = WordlePresenter.build_game_over_caption(game)
             reply_markup = build_replay_keyboard("wordle", user_id)
         else:
             if context.job_queue:
@@ -1800,11 +1787,9 @@ class QuizCommands:
                     data={"user_id": user_id, "chat_id": cached_quiz["chat_id"], "message_id": cached_quiz["message_id"]},
                     name=f"wordle_timeout_{user_id}",
                 )
-            base_caption = f"🟩 *WORDLE* — {game.dataset_display_name} 🟨\n\nType your next guess!"
-            reply_markup = self._build_wordle_surrender_keyboard(user_id)
+            escaped_caption = WordlePresenter.build_in_progress_caption(game)
+            reply_markup = WordlePresenter.build_keyboard(user_id, game)
 
-        quote_block = self._build_quote_block(game) if game.is_over else ""
-        escaped_caption = stats_utils.escape_special_characters(base_caption) + quote_block
         media = telegram.InputMediaPhoto(
             media=buf,
             caption=escaped_caption,
@@ -1819,6 +1804,62 @@ class QuizCommands:
             )
         except telegram.error.TelegramError as e:
             log.warning(f"Could not update wordle message media: {e}")
+
+    async def btn_wordle_tip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handles a player clicking the Tip button during Wordle."""
+        query = update.callback_query
+        if not query or not query.data:
+            return
+
+        data = query.data
+        if not data.startswith(WORDLE_TIP_CALLBACK_PREFIX):
+            return
+
+        user_id_str = data[len(WORDLE_TIP_CALLBACK_PREFIX) :]
+        try:
+            owner_id = int(user_id_str)
+        except ValueError:
+            return
+
+        caller_id = query.from_user.id if query.from_user else None
+        if caller_id != owner_id:
+            await query.answer("This is not your Wordle game!", show_alert=True)
+            return
+
+        if owner_id not in self.bot_state.wordle_cache:
+            await query.answer("This Wordle game has expired.", show_alert=True)
+            return
+
+        cached_quiz = self.bot_state.wordle_cache[owner_id]
+        game: WordleGame = cached_quiz["game"]
+        if game.is_over:
+            await query.answer("Game is already over.", show_alert=True)
+            return
+
+        if not game.can_reveal_tip:
+            if game.revealed_tip_tier == 0:
+                unlock_guess = (game.max_tries // 2) + 1
+                await query.answer(f"🔒 Tip unlocks after guess {unlock_guess - 1}!", show_alert=False)
+            elif game.revealed_tip_tier == 1:
+                await query.answer("🔒 Final tip unlocks on your last guess!", show_alert=False)
+            else:
+                await query.answer("All tips have already been revealed!", show_alert=False)
+            return
+
+        game.reveal_tip()
+        await query.answer("💡 Tip revealed!", show_alert=False)
+
+        escaped_caption = WordlePresenter.build_in_progress_caption(game)
+        reply_markup = WordlePresenter.build_keyboard(owner_id, game)
+
+        try:
+            await query.edit_message_caption(
+                caption=escaped_caption,
+                parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
+                reply_markup=reply_markup,
+            )
+        except telegram.error.TelegramError as e:
+            log.warning(f"Could not edit wordle tip caption: {e}")
 
     async def btn_wordle_surrender_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles a player clicking the Surrender button during Wordle."""
@@ -1858,10 +1899,7 @@ class QuizCommands:
         game.surrender()
 
         buf = render_wordle_board(game)
-        base_caption = (
-            f"🏳️ *YOU SURRENDERED!*\n\n🔑 The word was: *{game.target_word.upper()}*\n🎯 Guesses: *{len(game.guesses)}/{game.max_tries}*"
-        )
-        escaped_caption = stats_utils.escape_special_characters(base_caption) + self._build_quote_block(game)
+        escaped_caption = WordlePresenter.build_surrender_caption(game)
         media = telegram.InputMediaPhoto(
             media=buf,
             caption=escaped_caption,
@@ -1893,8 +1931,7 @@ class QuizCommands:
         game.surrender()
 
         buf = render_wordle_board(game)
-        base_caption = f"⏰ *TIME'S UP!*\n\n🔑 The word was: *{game.target_word.upper()}*"
-        escaped_caption = stats_utils.escape_special_characters(base_caption) + self._build_quote_block(game)
+        escaped_caption = WordlePresenter.build_timeout_caption(game)
         media = telegram.InputMediaPhoto(
             media=buf,
             caption=escaped_caption,

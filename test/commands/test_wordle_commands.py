@@ -273,27 +273,153 @@ async def test_wordle_timeout(commands, context, bot_state):
 
 
 @pytest.mark.parametrize(
-    ("quote", "word", "expected_contains"),
+    ("quote", "word", "attr", "expected_contains", "expected_header"),
     [
         (
             "Na początku było słowo i słowo było u Boga.",
             "słowo",
+            "Biblia (J 1, 1)",
             ["*słowo*", "Na początku było"],
+            "\n> From *Biblia \\(J 1, 1\\)*:\n> _",
         ),
         (
             "Drabina eskalacji jest straszna.",
             "drabina",
+            "Bartosiak",
             ["*Drabina*", "eskalacji"],
+            "\n> From *Bartosiak*:\n> _",
         ),
-        ("", "pies", []),
+        (
+            "Przedsiębiorca zarabia kapitał.",
+            "kapitał",
+            "Jerzy Krajewski",
+            ["*kapitał*"],
+            "\n> From *Jerzy Krajewski*:\n> _",
+        ),
+        ("", "pies", "Biblia", [], ""),
     ],
 )
-def test_build_quote_block(commands, quote: str, word: str, expected_contains: list[str]):
-    game = WordleGame(target_word=word, dataset_key="bible", source_quote=quote)
+def test_build_quote_block(commands, quote: str, word: str, attr: str, expected_contains: list[str], expected_header: str):
+    game = WordleGame(target_word=word, dataset_key="bible", source_quote=quote, source_attribution=attr)
     result = commands._build_quote_block(game)
     if not quote:
         assert result == ""
     else:
         for fragment in expected_contains:
             assert fragment in result
-        assert result.startswith("\nFrom *Bible*:\n_")
+        assert result.startswith(expected_header)
+
+
+def test_build_wordle_keyboard_states(commands):
+    user_id = 12345
+    game = WordleGame(target_word="robot", dataset_key="bible", source_quote="sample quote with robot in it")
+    # Initial state (guesses = 0, max_tries = 6) -> midpoint is 3, unlock at guess 4
+    kb0 = commands._build_wordle_keyboard(user_id, game)
+    assert len(kb0.inline_keyboard) == 1
+    assert len(kb0.inline_keyboard[0]) == 2
+    assert "🔒 Tip (guess 4)" in kb0.inline_keyboard[0][0].text
+    assert "🏳️ Surrender" in kb0.inline_keyboard[0][1].text
+
+    # After 3 guesses -> Tier 1 unlocked
+    for _ in range(3):
+        game.submit_guess("tests")
+    kb1 = commands._build_wordle_keyboard(user_id, game)
+    assert kb1.inline_keyboard[0][0].text == "💡 Tip"
+
+    # Reveal tier 1 -> Tier 2 is locked until last guess
+    game.reveal_tip()
+    kb2 = commands._build_wordle_keyboard(user_id, game)
+    assert "🔒 Final Tip (last guess)" in kb2.inline_keyboard[0][0].text
+
+    # 4th guess (guesses = 4, remaining_tries = 2) -> still locked
+    game.submit_guess("tests")
+    kb3 = commands._build_wordle_keyboard(user_id, game)
+    assert "🔒 Final Tip (last guess)" in kb3.inline_keyboard[0][0].text
+
+    # 5th guess (guesses = 5, remaining_tries = 1) -> Final Tip unlocked!
+    game.submit_guess("tests")
+    kb4 = commands._build_wordle_keyboard(user_id, game)
+    assert kb4.inline_keyboard[0][0].text == "💡 Final Tip"
+
+    # Reveal final tip -> tip button disappears
+    game.reveal_tip()
+    kb5 = commands._build_wordle_keyboard(user_id, game)
+    assert len(kb5.inline_keyboard[0]) == 1
+    assert "🏳️ Surrender" in kb5.inline_keyboard[0][0].text
+
+
+def test_build_tip_block(commands):
+    game = WordleGame(target_word="robot", dataset_key="bible", source_quote="sample quote with robot in it")
+    assert commands._build_tip_block(game) == ""
+
+    game.revealed_tip_tier = 1
+    block1 = commands._build_tip_block(game)
+    assert "💡 *Tip:*" in block1
+    assert "\\[\\_\\_\\_\\_\\_\\]" in block1
+
+    game.revealed_tip_tier = 2
+    block2 = commands._build_tip_block(game)
+    assert "💡 *Final Tip:*" in block2
+    assert "\\[\\_\\_\\_\\_\\_\\]" in block2
+
+
+@pytest.mark.asyncio
+async def test_btn_wordle_tip_callback_unauthorized(commands):
+    update = AsyncMock()
+    context = AsyncMock()
+    query = AsyncMock()
+    query.data = "wordletip:12345"
+    query.from_user.id = 99999  # unauthorized user
+    update.callback_query = query
+
+    await commands.btn_wordle_tip_callback(update, context)
+    query.answer.assert_called_once_with("This is not your Wordle game!", show_alert=True)
+
+
+@pytest.mark.asyncio
+async def test_btn_wordle_tip_callback_locked_toast(commands):
+    user_id = 12345
+    game = WordleGame(target_word="robot", dataset_key="bible", source_quote="sample quote with robot in it")
+    commands.bot_state.wordle_cache[user_id] = {
+        "game": game,
+        "chat_id": 100,
+        "message_id": 200,
+    }
+
+    update = AsyncMock()
+    context = AsyncMock()
+    query = AsyncMock()
+    query.data = f"wordletip:{user_id}"
+    query.from_user.id = user_id
+    update.callback_query = query
+
+    # Game has 0 guesses -> locked
+    await commands.btn_wordle_tip_callback(update, context)
+    query.answer.assert_called_once_with("🔒 Tip unlocks after guess 3!", show_alert=False)
+    query.edit_message_caption.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_btn_wordle_tip_callback_unlock_and_reveal(commands):
+    user_id = 12345
+    game = WordleGame(target_word="robot", dataset_key="bible", source_quote="sample quote with robot in it")
+    for _ in range(3):
+        game.submit_guess("tests")
+
+    commands.bot_state.wordle_cache[user_id] = {
+        "game": game,
+        "chat_id": 100,
+        "message_id": 200,
+    }
+
+    update = AsyncMock()
+    context = AsyncMock()
+    query = AsyncMock()
+    query.data = f"wordletip:{user_id}"
+    query.from_user.id = user_id
+    update.callback_query = query
+
+    await commands.btn_wordle_tip_callback(update, context)
+    assert game.revealed_tip_tier == 1
+    query.answer.assert_called_once_with("💡 Tip revealed!", show_alert=False)
+    query.edit_message_caption.assert_called_once()
